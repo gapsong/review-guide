@@ -7,8 +7,24 @@ Owner: The reviewer.
 
 A VS Code extension, "Review Guide", that pre-sorts a GitHub pull request with Claude, so the reviewer reviews the critical changes first and knows what to check at each one.
 
+The main purpose is ownership: The reviewer wants to understand what his code does again, even when an agent wrote it.
+The extension takes the routine work off him, so his own attention goes to the few places where a human must look.
+
 The extension does not review for you.
-It pre-sorts the work and writes questions, so your attention goes to the changes that matter.
+It pre-sorts the work, explains the code in plain words and writes questions, so your attention goes to the changes that matter.
+
+### Principles
+
+From Addy Osmani, "Getting the most out of Opus 5.5" (https://claude.dev/blog/getting-the-most-out-of-opus-5-5/):
+- Let the model do a first review pass, but ask only for problems you would block the merge for, each with file and line, why it is wrong, and how to show that it fails.
+- Ask the model to mark anything it could not confirm, and to say where it looked.
+- Read what the run needs from you first.
+- Keep your own check before anything risky or hard to undo.
+
+What this means here:
+- Claude sorts and explains; the human reads the critical places.
+- Every claim from Claude carries its evidence (where it looked) or is marked unconfirmed.
+- The first thing the panel shows is what needs the human.
 
 ### Done when
 
@@ -26,6 +42,8 @@ Function (automated tests):
 - F8: With more than 25 critical units, pass 2 does not start before the user agrees.
 - F9: One command (`npm run package`) builds a `.vsix` file that installs in VS Code.
 - F10: Lint, type check and all tests pass in one command (`npm test`).
+- F11: For a critical unit, the reviewer can type an explanation in his own words; Claude compares it with the code and answers "understood", "almost" (with what is missing) or "not yet" (with what is wrong). Only "understood" marks the unit as understood.
+- F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 
 Safety (automated test):
 - S1: In a run, Claude cannot change a file, start a shell or reach the web; the test tries each and checks that the worktree is unchanged.
@@ -90,6 +108,7 @@ Review Guide only adds the sorting and the guide; it can be used next to the off
    With more than 25 critical units, the extension shows the number and asks before it starts pass 2.
 6. You click a unit: the diff (base vs head) opens at that place, and the guide panel next to the diff shows the tier, the reason and the questions.
 7. You mark the unit as read.
+8. For a critical unit you explain it in your own words; when Claude confirms it, the unit is "understood" (see "Ownership check").
 
 ### Review unit
 
@@ -152,10 +171,28 @@ Claude may read the whole repo (read-only).
 For each critical unit it looks at: the full function before and after, its callers and callees, the tests that cover it, and the reference it must match (named in the repo profile).
 
 Output (structured JSON) per unit:
+- What the code does, in plain words (2-3 sentences), so the reader understands it before judging it.
+- Blocking problems only: file and line, why it is wrong, and how to show that it fails (an input, a test).
 - Questions for you ("Check: ..."), each tied to a line range.
-- What Claude checked itself, and how (e.g. "read test_packing.py: 3-bit case covered").
+- What Claude checked itself, and where it looked (e.g. "read test_packing.py: 3-bit case covered").
 - What only you can check.
 - Anything Claude could not confirm is marked as unconfirmed.
+
+### Ownership check
+
+Reading a unit does not prove that you understand it.
+So every critical unit has three states: unread, read, understood.
+
+- You write 1-2 sentences: what this code does and why it is correct.
+- Claude (same read-only CLI call) compares your words with the code and answers:
+  - understood: your explanation is right and covers what matters;
+  - almost: right, but misses something (Claude names it, e.g. "what happens at a 3-bit word boundary");
+  - not yet: something is wrong (Claude names it and points to the line).
+- Claude does not give you the answer before you try; its own plain-words summary is folded until you have written yours.
+- Your explanations are stored locally, next to the read marks, and are never sent anywhere except to your local Claude.
+- When the code of an understood unit changes in a new push, it goes back to "read".
+
+The ownership overview (per repo) sums this up per file, so you see which parts of the repo you do not own yet.
 
 ### Repo profile: `.review-guide.md`
 
@@ -188,7 +225,7 @@ The extension shows the draft; the reviewer edits it and saves it into the repo 
 
 - Cache key: (repo, PR number, head commit SHA, unit hash).
   A new push re-runs only units whose hash changed.
-- After a new push, units that did not change stay marked as read; changed units become unread and are flagged "changed since your review".
+- After a new push, units that did not change keep their state; changed units become unread (or "read" if they were understood) and are flagged "changed since your review".
 - "Read" marks, cache and results are stored locally in the extension's storage.
   Nothing is written into your repos except the worktree folder managed by the extension.
 - Per run the extension shows the time and the token use that the CLI reports.
@@ -209,6 +246,7 @@ The extension shows the draft; the reviewer edits it and saves it into the repo 
   2. Open a PR: worktree, review units, diff on click, guide panel.
   3. Pass 1 with Claude, cache.
   4. Pass 2, read marks, limit of 25.
+  5. Ownership check and ownership overview.
 - Installed locally from the `.vsix`; the Marketplace only after going public.
 
 ## Code style
@@ -234,4 +272,3 @@ It will be made public later, so every file must make sense to a stranger.
 
 - Post your own review comments to GitHub (button, never automatic).
 - Split a large branch into small stacked PRs.
-- Ownership check: you write 3 sentences per file in your own words, the tool shows what is still missing.
