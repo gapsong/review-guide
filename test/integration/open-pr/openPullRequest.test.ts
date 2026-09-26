@@ -105,6 +105,11 @@ describe("opening a PR in VS Code", () => {
     await vscode.commands.executeCommand(click.command, ...click.arguments!);
     assert.ok(!api.guideView.html!.includes("Fake plain words"), "Claude's summary stays hidden before the reviewer has written his");
 
+    await api.guideView.receive({ type: "draft", text: "It masks the low" });
+    const review = api.reviewGuide.reviewOf(pullRequest)!;
+    api.reviewGuide.setReadState(review, review.units.find((unit) => unit.symbolPath === "unpackCodes")!.id, "read");
+    assert.ok(api.guideView.html!.includes("It masks the low</textarea>"), "a redraw keeps what the reviewer has typed");
+
     await api.guideView.receive({ type: "explain", text: "It masks the low bits, partly." });
     assert.strictEqual(api.guideView.model!.lastCheck!.verdict, "almost");
     assert.ok(api.guideView.html!.includes("What happens at a 3-bit word boundary?"));

@@ -19,6 +19,8 @@ export interface GuideModel {
   deepCheck: DeepCheck | undefined;
   // the reviewer's own explanation and Claude's verdict on it (critical units).
   explanation: string | undefined;
+  // What the reviewer has typed but not sent yet; it must survive the panel being redrawn.
+  draft: string | undefined;
   lastCheck: OwnershipCheckResult | undefined;
   checkingExplanation: boolean;
 }
@@ -28,7 +30,8 @@ export type GuideMessage =
   | { type: "markRead" }
   | { type: "markUnread" }
   | { type: "reveal"; start: number; end: number }
-  | { type: "explain"; text: string };
+  | { type: "explain"; text: string }
+  | { type: "draft"; text: string };
 
 export function renderGuide(model: GuideModel | undefined, nonce: string, cspSource: string): string {
   const body = model ? unitSections(model) : `<p class="muted">Click a change in the side bar to see what to check.</p>`;
@@ -116,7 +119,7 @@ function ownershipSection(model: GuideModel): string {
   const checking = model.checkingExplanation ? `<p class="muted">Claude is checking your explanation...</p>` : "";
   return `<h3>Do you own it?</h3>
 <p class="muted">In 1-2 sentences: what does this code do, and why is it correct? Only "understood" marks the unit as understood.</p>
-<textarea id="explanation" rows="4">${escapeHtml(model.explanation ?? "")}</textarea>
+<textarea id="explanation" rows="4">${escapeHtml(model.draft ?? model.explanation ?? "")}</textarea>
 <p><button id="explain"${model.checkingExplanation ? " disabled" : ""}>Check my explanation</button></p>
 ${checking}${verdict}`;
 }
@@ -181,6 +184,11 @@ button { background: var(--vscode-button-background); color: var(--vscode-button
 
 const script = `
 const vscode = acquireVsCodeApi();
+document.addEventListener("input", (event) => {
+  if (event.target.id === "explanation") {
+    vscode.postMessage({ type: "draft", text: event.target.value });
+  }
+});
 document.addEventListener("click", (event) => {
   if (event.target.id === "explain") {
     vscode.postMessage({ type: "explain", text: document.getElementById("explanation").value });

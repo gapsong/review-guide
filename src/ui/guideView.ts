@@ -13,6 +13,7 @@ export class GuideView implements vscode.WebviewViewProvider {
   private view: vscode.WebviewView | undefined;
   private shown: { review: PullRequestReview; unit: ReviewUnit } | undefined;
   private checkingExplanation = false;
+  private readonly drafts = new Map<string, string>();
   model: GuideModel | undefined;
 
   constructor(
@@ -43,6 +44,10 @@ export class GuideView implements vscode.WebviewViewProvider {
       return;
     }
     const { review, unit } = this.shown;
+    if (message.type === "draft") {
+      this.drafts.set(draftKey(review, unit), message.text);
+      return;
+    }
     if (message.type !== "explain") {
       await this.handleMessage(review, unit, message);
       return;
@@ -51,6 +56,7 @@ export class GuideView implements vscode.WebviewViewProvider {
     this.render();
     try {
       await this.handleMessage(review, unit, message);
+      this.drafts.delete(draftKey(review, unit));
     } finally {
       this.checkingExplanation = false;
       this.render();
@@ -83,8 +89,13 @@ export class GuideView implements vscode.WebviewViewProvider {
       changedSinceReview: record?.changedSinceReview ?? false,
       deepCheck: this.reviewGuide.deepCheckOf(review, unit),
       explanation: record?.explanation,
+      draft: this.drafts.get(draftKey(review, unit)),
       lastCheck: record?.lastCheck,
       checkingExplanation: this.checkingExplanation,
     };
   }
+}
+
+function draftKey(review: PullRequestReview, unit: ReviewUnit): string {
+  return `${review.pullRequest.number}:${unit.id}`;
 }

@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
-    vscode.window.registerWebviewViewProvider(GuideView.viewId, guideView),
+    vscode.window.registerWebviewViewProvider(GuideView.viewId, guideView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerTreeDataProvider("reviewGuide.ownership", ownershipTree),
     vscode.commands.registerCommand("reviewGuide.refresh", () => pullRequestTree.refresh()),
     vscode.commands.registerCommand("reviewGuide.openPullRequest", reportErrors(openPullRequest)),
@@ -104,6 +104,8 @@ async function handleGuideMessage(reviewGuide: ReviewGuide, review: PullRequestR
       return;
     case "reveal":
       await revealLines(review, unit, message.start, message.end);
+      return;
+    case "draft":
       return;
     case "explain":
       if (message.text.trim() !== "") {
