@@ -122,7 +122,7 @@ describe("buildReviewUnits", () => {
       old: [{ path: "old", kind: "function", startLine: 2, endLine: 3 }],
       new: [],
     });
-    assert.deepStrictEqual(units.map(unitTitle), ["old()", "(outside functions)"]);
+    assert.deepStrictEqual(units.map(unitTitle), ["old()"]);
     assert.deepStrictEqual(units[0].newRange, { start: 2, end: 2 });
   });
 
@@ -133,6 +133,27 @@ describe("buildReviewUnits", () => {
     assert.deepStrictEqual(after.map((unit) => unit.id), before.map((unit) => unit.id));
     assert.strictEqual(after[1].hash, before[1].hash, "pack() did not change");
     assert.notStrictEqual(after[2].hash, before[2].hash, "unpack() changed");
+  });
+
+  it("does not make a unit of blank lines added between functions", () => {
+    const blank = `diff --git a/b.py b/b.py
+--- a/b.py
++++ b/b.py
+@@ -1,2 +1,5 @@
+ def a():
+     return 1
++
++def b():
++    return 2
+`;
+    const units = buildReviewUnits(parseUnifiedDiff(blank)[0], {
+      old: [{ path: "a", kind: "function", startLine: 1, endLine: 2 }],
+      new: [
+        { path: "a", kind: "function", startLine: 1, endLine: 2 },
+        { path: "b", kind: "function", startLine: 4, endLine: 5 },
+      ],
+    });
+    assert.deepStrictEqual(units.map(unitTitle), ["b()"]);
   });
 
   it("marks units in test files", () => {

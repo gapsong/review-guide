@@ -36,8 +36,8 @@ async function runAllSuites() {
   const sharedUserData = path.join(scratch, "user-data-restart");
   const suites = [
     { name: "smoke" },
-    { name: "github-login", disableBuiltinGitHubLogin: true },
-    { name: "open-pr" },
+    { name: "github-login" },
+    { name: "open-pr", withWorkspaceFolder: true },
     { name: "restart-part1", userDataDir: sharedUserData },
     { name: "restart-part2", userDataDir: sharedUserData },
     { name: "packaging" },
@@ -60,11 +60,19 @@ function runSuite(suite, scratch, vscodeExecutablePath) {
     "--skip-welcome",
     "--skip-release-notes",
     "--disable-workspace-trust",
+    // VS Code's own git support refreshes .git/index in the background, which would blur the
+    // "working copy unchanged" checks. The extension does not use it.
+    "--disable-extension", "vscode.git",
   ];
-  if (suite.disableBuiltinGitHubLogin) {
-    launchArgs.push("--disable-extension", "vscode.github-authentication");
-    trustExtensionForGitHubLogin(vscodeExecutablePath);
+  if (suite.withWorkspaceFolder) {
+    // An empty folder; the suite clones its fixture repo into it, as the user's working copy.
+    const workspaceFolder = path.join(scratch, `workspace-${suite.name}`);
+    fs.mkdirSync(workspaceFolder, { recursive: true });
+    launchArgs.unshift(workspaceFolder);
   }
+  // Every suite signs in with a stand-in GitHub login; see test/integration/standInGitHubLogin.ts.
+  launchArgs.push("--disable-extension", "vscode.github-authentication");
+  trustExtensionForGitHubLogin(vscodeExecutablePath);
   return runTests({
     vscodeExecutablePath,
     extensionDevelopmentPath: root,

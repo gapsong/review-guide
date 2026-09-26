@@ -32,6 +32,11 @@
         {
           "id": "reviewGuide.pullRequests",
           "name": "Pull Requests"
+        },
+        {
+          "id": "reviewGuide.guide",
+          "name": "Guide",
+          "type": "webview"
         }
       ]
     },
@@ -41,6 +46,22 @@
         "title": "Refresh",
         "category": "Review Guide",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "reviewGuide.openPullRequest",
+        "title": "Open Pull Request",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.closePullRequest",
+        "title": "Close Pull Request",
+        "category": "Review Guide",
+        "icon": "$(close)"
+      },
+      {
+        "command": "reviewGuide.openUnit",
+        "title": "Open Change",
+        "category": "Review Guide"
       }
     ],
     "menus": {
@@ -49,6 +70,27 @@
           "command": "reviewGuide.refresh",
           "when": "view == reviewGuide.pullRequests",
           "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "reviewGuide.closePullRequest",
+          "when": "view == reviewGuide.pullRequests && viewItem == openPullRequest",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "reviewGuide.openPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.closePullRequest",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.openUnit",
+          "when": "false"
         }
       ]
     },

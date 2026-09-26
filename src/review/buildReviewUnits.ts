@@ -30,6 +30,10 @@ export function buildReviewUnits(file: FileDiff, symbols: FileSymbols): ReviewUn
         continue;
       }
       const owner = findOwner(line, hunk, symbols);
+      if (owner.kind === "module" && line.text.trim() === "") {
+        // A blank line between functions is not worth a unit of its own.
+        continue;
+      }
       const draft = drafts.get(owner.key) ?? newDraft(owner);
       draft.changedLines.push({ hunk, index });
       drafts.set(owner.key, draft);
