@@ -4,6 +4,7 @@ import { overviewSchema } from "../claude/schemas";
 import { PullRequestReview } from "../review/pullRequestReview";
 import { ReviewUnit } from "../review/reviewUnit";
 import { AnalysisCache, CachedOverview } from "../state/analysisCache";
+import { claudeGaveNoTier } from "./finalSorting";
 import { RunRecord, Tier, UnitSorting } from "./sorting";
 
 // A large PR is sorted in parts of about this many units, all at once: one call for 300 units
@@ -137,11 +138,9 @@ function mergeAnswer(
   answer: SortedAnswer,
 ): CachedOverview {
   const sortingsByHash = { ...(cached?.sortingsByHash ?? {}) };
+  // A unit Claude left out is stored with the fallback too, so the same head never asks again (F7).
   for (const unit of unsorted) {
-    const sorting = answer.sortings.get(unit);
-    if (sorting) {
-      sortingsByHash[unit.hash] = sorting;
-    }
+    sortingsByHash[unit.hash] = answer.sortings.get(unit) ?? claudeGaveNoTier;
   }
   const newlySorted = new Set(answer.readingOrder);
   const earlierOrder = (cached?.readingOrder ?? []).filter((id) => !newlySorted.has(id));

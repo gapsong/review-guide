@@ -7,6 +7,7 @@
 //                      units that match nothing are "skim"
 //   FAKE_CLAUDE_QUESTION_LINES  "<start>-<end>": deep check questions point there instead of at the unit
 //   FAKE_CLAUDE_NO_QUESTIONS    "1": deep checks come without questions
+//   FAKE_CLAUDE_OMIT            text in a unit's heading: pass 1 leaves that unit out of its answer
 //
 // It refuses to run unless it gets the read-only flags, so a change to them fails the tests.
 const fs = require("fs");
@@ -67,7 +68,8 @@ function unitHeadings(prompt) {
 
 function overview(prompt) {
   const tierRules = JSON.parse(process.env.FAKE_CLAUDE_TIERS || "{}");
-  const units = unitHeadings(prompt).map((unit) => {
+  const omit = process.env.FAKE_CLAUDE_OMIT;
+  const units = unitHeadings(prompt).filter((unit) => !omit || !unit.heading.includes(omit)).map((unit) => {
     const rule = Object.keys(tierRules).find((text) => unit.heading.includes(text));
     const tier = rule ? tierRules[rule] : "skim";
     return { id: unit.id, tier, reason: `Fake reason for ${unit.heading}.` };

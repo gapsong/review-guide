@@ -97,6 +97,27 @@ describe("pass 1: sorting the units of a PR", () => {
     assert.deepStrictEqual(secondGuide.deepCheckOf(second, packCodes), firstGuide.deepCheckOf(first, packCodes));
   });
 
+  it("F7 also holds when Claude left a unit out: the fallback tier is cached too", async () => {
+    const fakeClaude = useFakeClaude(scratch, {});
+    process.env.FAKE_CLAUDE_OMIT = "learning_rate";
+    const storage = path.join(scratch, "storage");
+    const first = await openAndWait(storage);
+    const learningRate = first.units.find((unit) => unit.symbolPath === "Trainer.learning_rate")!;
+    assert.strictEqual(sortingOf(first, learningRate)!.reason, "Claude gave no tier for this change, so look at it yourself.");
+
+    await openAndWait(storage);
+    assert.strictEqual(fakeClaude.calls().filter((call) => call.pass === "overview").length, 1);
+  });
+
+  it("opening the same PR twice at once loads it once", async () => {
+    const fakeClaude = useFakeClaude(scratch, {});
+    const guide = testReviewGuide(path.join(scratch, "storage"));
+    const [first, second] = await Promise.all([guide.open(pullRequestOf(remote.pull)), guide.open(pullRequestOf(remote.pull))]);
+    await guide.waitForDeepCheck(first);
+    assert.strictEqual(first, second);
+    assert.strictEqual(fakeClaude.calls().filter((call) => call.pass === "overview").length, 1);
+  });
+
   it("after a new push, asks Claude only about the units whose change is different", async () => {
     const fakeClaude = useFakeClaude(scratch, {});
     const storage = path.join(scratch, "storage");

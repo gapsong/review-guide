@@ -48,9 +48,17 @@ export class ReviewStateStore {
   }
 
   // Brings the stored state up to date with the units of a (re)opened PR. A unit whose code
-  // changed since the reviewer's review goes one step back (understood -> read, read -> unread) and is flagged.
+  // changed since the reviewer's review goes one step back (understood -> read, read -> unread) and is
+  // flagged. A unit that is no longer in the PR (after a force-push) is dropped, so the ownership
+  // overview does not count it. An unknown tier (pass 1 failed) keeps the one stored before.
   updateUnits(repo: RepoId, pullRequestNumber: number, units: { unit: ReviewUnit; tier: Tier | undefined }[]): void {
     const state = this.read(repo);
+    const current = new Set(units.map(({ unit }) => recordKey(pullRequestNumber, unit.id)));
+    for (const [key, record] of Object.entries(state.units)) {
+      if (record.pullRequestNumber === pullRequestNumber && !current.has(key)) {
+        delete state.units[key];
+      }
+    }
     for (const { unit, tier } of units) {
       const key = recordKey(pullRequestNumber, unit.id);
       const record = state.units[key] ?? newRecord(pullRequestNumber, unit);
@@ -59,7 +67,7 @@ export class ReviewStateStore {
         record.state = stepBack(record.state);
         record.hash = unit.hash;
       }
-      record.tier = tier;
+      record.tier = tier ?? record.tier;
       state.units[key] = record;
     }
     this.write(repo, state);

@@ -9,8 +9,7 @@ export function finalSorting(unit: ReviewUnit, claudeSorting: UnitSorting | unde
   if (weakening) {
     return { ...claudeSorting, tier: "critical", reason: weakening };
   }
-  if (claudeSorting) {
-    return claudeSorting;
-  }
-  return { tier: "check", reason: "Claude gave no tier for this change, so look at it yourself." };
+  return claudeSorting ?? claudeGaveNoTier;
 }
+
+export const claudeGaveNoTier: UnitSorting = { tier: "check", reason: "Claude gave no tier for this change, so look at it yourself." };

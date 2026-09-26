@@ -34,10 +34,15 @@ export async function runDeepCheckPass(
     runs.push(run);
     const withoutQuestion = batch.filter((unit) => (checks.get(unit)?.questions.length ?? 0) === 0);
     if (withoutQuestion.length > 0) {
-      // Asked once more, on their own: a unit in a batch sometimes gets no question.
-      const retry = await askClaude(review, withoutQuestion, runClaude);
-      runs.push(retry.run);
-      retry.checks.forEach((check, unit) => checks.set(unit, check));
+      // Asked once more, on their own: a unit in a batch sometimes gets no question. If that call
+      // fails, the answers already there are kept and the default question fills the gap.
+      try {
+        const retry = await askClaude(review, withoutQuestion, runClaude);
+        runs.push(retry.run);
+        retry.checks.forEach((check, unit) => checks.set(unit, check));
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : String(error));
+      }
     }
     for (const unit of batch) {
       cache.writeDeepCheck(review.pullRequest, unit.hash, withDefaultQuestion(unit, checks.get(unit)));
@@ -105,6 +110,7 @@ function toDeepCheck(raw: RawDeepCheck, unit: ReviewUnit, lineCount: number): De
     checked: raw.checked,
     onlyYouCanCheck: raw.onlyYouCanCheck,
     unconfirmed: raw.unconfirmed,
+    anchorLine: unit.newRange.start,
   };
 }
 
@@ -125,6 +131,7 @@ function withDefaultQuestion(unit: ReviewUnit, check: DeepCheck | undefined): De
     checked: [],
     onlyYouCanCheck: [],
     unconfirmed: ["Claude gave no deep check for this unit."],
+    anchorLine: unit.newRange.start,
   };
   if (found.questions.length > 0) {
     return found;

@@ -72,4 +72,13 @@ describe("read marks and ownership state", () => {
     store.updateUnits(repo, 8, [{ unit: unit("h2"), tier: "skim" }]);
     assert.strictEqual(store.recordOf(repo, 8, unit("h1").id)!.changedSinceReview, false);
   });
+
+  it("drops units that are no longer in the PR, and keeps the tier when pass 1 gave none", () => {
+    const store = new ReviewStateStore(folder);
+    const other = { ...unit("h9"), id: "qpeft/packing.py#function:unpack_codes" };
+    store.updateUnits(repo, 8, [{ unit: unit("h1"), tier: "critical" }, { unit: other, tier: "critical" }]);
+    store.updateUnits(repo, 8, [{ unit: unit("h1"), tier: undefined }]);
+    assert.strictEqual(store.recordOf(repo, 8, other.id), undefined, "dropped after a force-push removed it");
+    assert.strictEqual(store.recordOf(repo, 8, unit("h1").id)!.tier, "critical");
+  });
 });

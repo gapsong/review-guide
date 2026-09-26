@@ -13,6 +13,25 @@ export interface DeepCheck {
   onlyYouCanCheck: string[];
   // Anything Claude could not confirm.
   unconfirmed: string[];
+  // The unit's first line when Claude checked it. The cache finds the check by the unit's hash,
+  // which ignores line numbers, so a push above the unit moves its lines by the difference.
+  anchorLine: number;
+}
+
+// The check with its line numbers moved to where the unit is now.
+export function movedToUnit(check: DeepCheck, file: string, unitStartLine: number): DeepCheck {
+  const shift = unitStartLine - check.anchorLine;
+  if (shift === 0) {
+    return check;
+  }
+  return {
+    ...check,
+    anchorLine: unitStartLine,
+    questions: check.questions.map((question) =>
+      question.file === file ? { ...question, lines: { start: question.lines.start + shift, end: question.lines.end + shift } } : question),
+    blockingProblems: check.blockingProblems.map((problem) =>
+      problem.file === file ? { ...problem, line: problem.line + shift } : problem),
+  };
 }
 
 export interface BlockingProblem {

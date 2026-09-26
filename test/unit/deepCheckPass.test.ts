@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { PullRequestReview, unitsOfTier } from "../../src/review/pullRequestReview";
 import { deepCheckLimit, ReviewGuide } from "../../src/reviewGuide";
-import { createFixtureRemote, FixtureRemote, makeTempDir, pullRequestOf } from "../support/gitFixture";
+import { createFixtureRemote, FixtureRemote, makeTempDir, pullRequestOf, pushNewHead } from "../support/gitFixture";
 import { pythonBase, pythonHead } from "../support/pythonFixture";
 import { testReviewGuide, useFakeClaude } from "../support/testReviewGuide";
 
@@ -74,6 +74,23 @@ describe("pass 2: deep check of the critical units", () => {
         assert.deepStrictEqual(question.lines, unit.newRange);
       }
     });
+  });
+
+  it("moves cached questions with their unit when a push adds lines above it", async () => {
+    const remote = createFixtureRemote(scratch, pythonBase, pythonHead);
+    useFakeClaude(scratch, { "  unpack_codes()": "critical" });
+    const storage = path.join(scratch, "storage");
+    const firstGuide = testReviewGuide(storage);
+    const first = await openAndWait(firstGuide, remote);
+    const before = first.units.find((unit) => unit.symbolPath === "unpack_codes")!;
+    const questionBefore = firstGuide.deepCheckOf(first, before)!.questions[0].lines;
+
+    pushNewHead(remote, { ...pythonHead, "qpeft/packing.py": `import torch\nimport numpy\n${pythonHead["qpeft/packing.py"]}` });
+    const secondGuide = testReviewGuide(storage);
+    const second = await openAndWait(secondGuide, remote);
+    const after = second.units.find((unit) => unit.symbolPath === "unpack_codes")!;
+    assert.strictEqual(after.hash, before.hash, "the function itself did not change");
+    assert.deepStrictEqual(secondGuide.deepCheckOf(second, after)!.questions[0].lines, { start: questionBefore.start + 2, end: questionBefore.end + 2 });
   });
 
   describe(`F8: with more than ${deepCheckLimit} critical units, pass 2 waits for the user's agreement`, () => {

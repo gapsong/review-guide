@@ -1,4 +1,4 @@
-import { DeepCheck } from "./analysis/deepCheck";
+import { DeepCheck, movedToUnit } from "./analysis/deepCheck";
 import { runDeepCheckPass } from "./analysis/deepCheckPass";
 import { runOverviewPass } from "./analysis/overviewPass";
 import { runOwnershipCheck } from "./analysis/ownershipCheck";
@@ -33,6 +33,7 @@ type ReviewListener = (review: PullRequestReview) => void;
 export class ReviewGuide {
   private readonly reviews = new Map<string, PullRequestReview>();
   private readonly deepChecksRunning = new Map<string, Promise<void>>();
+  private readonly opening = new Map<string, Promise<PullRequestReview>>();
   private readonly listeners: ReviewListener[] = [];
 
   constructor(private readonly parts: ReviewGuideParts) {}
@@ -47,7 +48,18 @@ export class ReviewGuide {
 
   // Loads the PR and runs pass 1. Pass 2 then runs in the background, above the limit only
   // after the reviewer agrees.
-  async open(pullRequest: PullRequest): Promise<PullRequestReview> {
+  // A second click while the PR is still opening waits for the first, instead of racing it.
+  open(pullRequest: PullRequest): Promise<PullRequestReview> {
+    const key = pullRequestKey(pullRequest);
+    let opening = this.opening.get(key);
+    if (!opening) {
+      opening = this.openOnce(pullRequest).finally(() => this.opening.delete(key));
+      this.opening.set(key, opening);
+    }
+    return opening;
+  }
+
+  private async openOnce(pullRequest: PullRequest): Promise<PullRequestReview> {
     const review = await this.load(pullRequest);
     this.reviews.set(pullRequestKey(pullRequest), review);
     await this.sortUnits(review);
@@ -56,8 +68,9 @@ export class ReviewGuide {
     return review;
   }
 
+  // Does not wait for a running pass 2: it may be waiting for the reviewer's answer, or take many minutes.
+  // Its results still land in the cache for the next time the PR is opened.
   async close(pullRequest: PullRequest): Promise<void> {
-    await this.deepChecksRunning.get(pullRequestKey(pullRequest));
     await this.parts.checkouts.remove(pullRequest);
     this.reviews.delete(pullRequestKey(pullRequest));
   }
@@ -72,7 +85,8 @@ export class ReviewGuide {
   }
 
   deepCheckOf(review: PullRequestReview, unit: ReviewUnit): DeepCheck | undefined {
-    return this.parts.cache.readDeepCheck(review.pullRequest, unit.hash);
+    const check = this.parts.cache.readDeepCheck(review.pullRequest, unit.hash);
+    return check && movedToUnit(check, unit.file, unit.newRange.start);
   }
 
   recordOf(review: PullRequestReview, unit: ReviewUnit): UnitRecord | undefined {

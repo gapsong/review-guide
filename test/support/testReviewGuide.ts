@@ -22,6 +22,7 @@ export function useFakeClaude(scratch: string, tiers: Record<string, string>): {
   process.env.FAKE_CLAUDE_TIERS = JSON.stringify(tiers);
   delete process.env.FAKE_CLAUDE_QUESTION_LINES;
   delete process.env.FAKE_CLAUDE_NO_QUESTIONS;
+  delete process.env.FAKE_CLAUDE_OMIT;
   return {
     calls: () =>
       fs.existsSync(logPath)
