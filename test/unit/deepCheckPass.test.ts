@@ -76,6 +76,33 @@ describe("pass 2: deep check of the critical units", () => {
     });
   });
 
+  it("keeps the answers it has when the retry for one unit fails", async () => {
+    const remote = createFixtureRemote(scratch, pythonBase, pythonHead);
+    // Trainer.learning_rate plus the three weakened tests: one batch of four.
+    useFakeClaude(scratch, { "Trainer.learning_rate": "critical" });
+    process.env.FAKE_CLAUDE_NO_QUESTIONS_FOR = "learning_rate";
+    process.env.FAKE_CLAUDE_FAIL_SINGLE = "1";
+    const guide = testReviewGuide(path.join(scratch, "storage"));
+    const review = await openAndWait(guide, remote);
+
+    assert.match(review.status!, /^Pass 2 failed for some units/);
+    for (const unit of unitsOfTier(review, "critical")) {
+      const [question] = guide.deepCheckOf(review, unit)!.questions;
+      assert.strictEqual(question.isDefault, unit.symbolPath === "Trainer.learning_rate", unit.id);
+    }
+  });
+
+  it("closing a PR does not wait for pass 2, even while it waits for the reviewer's answer", async () => {
+    const remote = createFixtureRemote(scratch, manyFunctions(26, 0), manyFunctions(26, 1));
+    useFakeClaude(scratch, { "many.py": "critical" });
+    const guide = testReviewGuide(path.join(scratch, "storage"), () => new Promise<boolean>(() => undefined));
+    const review = await guide.open(pullRequestOf(remote.pull));
+
+    await guide.close(review.pullRequest);
+    assert.strictEqual(fs.existsSync(review.checkout.worktreePath), false);
+    assert.strictEqual(guide.reviewOf(review.pullRequest), undefined);
+  });
+
   it("moves cached questions with their unit when a push adds lines above it", async () => {
     const remote = createFixtureRemote(scratch, pythonBase, pythonHead);
     useFakeClaude(scratch, { "  unpack_codes()": "critical" });

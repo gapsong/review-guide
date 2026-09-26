@@ -23,6 +23,8 @@ export function useFakeClaude(scratch: string, tiers: Record<string, string>): {
   delete process.env.FAKE_CLAUDE_QUESTION_LINES;
   delete process.env.FAKE_CLAUDE_NO_QUESTIONS;
   delete process.env.FAKE_CLAUDE_OMIT;
+  delete process.env.FAKE_CLAUDE_NO_QUESTIONS_FOR;
+  delete process.env.FAKE_CLAUDE_FAIL_SINGLE;
   return {
     calls: () =>
       fs.existsSync(logPath)

@@ -8,6 +8,8 @@
 //   FAKE_CLAUDE_QUESTION_LINES  "<start>-<end>": deep check questions point there instead of at the unit
 //   FAKE_CLAUDE_NO_QUESTIONS    "1": deep checks come without questions
 //   FAKE_CLAUDE_OMIT            text in a unit's heading: pass 1 leaves that unit out of its answer
+//   FAKE_CLAUDE_NO_QUESTIONS_FOR text in a unit's heading: that unit's deep check comes without questions
+//   FAKE_CLAUDE_FAIL_SINGLE     "1": a deep check call for exactly one unit fails, like a crashed CLI
 //
 // It refuses to run unless it gets the read-only flags, so a change to them fails the tests.
 const fs = require("fs");
@@ -84,11 +86,16 @@ function overview(prompt) {
 }
 
 function deepCheck(prompt) {
+  if (process.env.FAKE_CLAUDE_FAIL_SINGLE === "1" && unitHeadings(prompt).length === 1) {
+    process.stderr.write("fake-claude: failing as asked\n");
+    process.exit(1);
+  }
+  const noQuestionsFor = process.env.FAKE_CLAUDE_NO_QUESTIONS_FOR;
   const units = unitHeadings(prompt).map((unit) => ({
     id: unit.id,
     plainWords: `Fake plain words for ${unit.heading}.`,
     blockingProblems: [],
-    questions: process.env.FAKE_CLAUDE_NO_QUESTIONS === "1" ? [] : [questionFor(unit)],
+    questions: process.env.FAKE_CLAUDE_NO_QUESTIONS === "1" || (noQuestionsFor && unit.heading.includes(noQuestionsFor)) ? [] : [questionFor(unit)],
     checked: [{ what: "Read the function before and after", where: unit.heading.split(" ")[0] }],
     onlyYouCanCheck: ["Whether this matches the paper."],
     unconfirmed: [],
