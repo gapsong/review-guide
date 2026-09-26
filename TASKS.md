@@ -31,12 +31,19 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 
 ## Manual (measured once, reported)
 
-- [ ] Q1 gold list units are critical on gapsong/qpeft PR (main...develop at 4369298)
-- [ ] Q2 at most 10 non-gold units are critical
-- [ ] Q3 overview within 2 minutes
+- [x] Q1 measured: 15/15 gold units critical (final prompt, with and without profile)
+- [x] Q2 measured: 25 extra critical units without profile, 28 with the spec profile (target 10: NOT met)
+- [x] Q3 measured: overview 75 s after opening (target 120 s)
 
 ## Found along the way
 - [x] Nested functions (callbacks) belong to their outer function's unit, found with TypeScript symbols
 - [x] Blank lines between functions do not make a unit of their own
 - [x] VS Code's built-in git extension is disabled in tests; it rewrites .git/index in the background
 - [x] S1 control run by hand: the same prompt with Edit/Write allowed does change the repo, so the S1 test can fail
+- [x] First qpeft run: 10 new tests with CUDA/transformers skips were flagged as weakened; a skip now counts only in a test that existed before
+- [x] Pass 1 took 170 s in one call on 314 units; now runs in parallel parts of about 80 units
+- [x] A "critical is under a tenth" prompt budget was tried: Q2 12 but Q1 fell to 11-12/15; removed (DECISIONS.md)
+- [x] Independent code review: 9 bugs fixed (typed explanation wiped, deleted-file click crash, questions not moving with a pushed unit, F7 with an omitted unit, hunk ids, dead units in the overview, close hang, double open, retry failure)
+- [ ] Not fixed: the "not yet" line of an old ownership check does not move with its unit after a push
+- [ ] Not fixed: after a small push the summary is rewritten from the changed units only
+- [ ] Not fixed: PR list shows at most 100 open PRs (no pagination)

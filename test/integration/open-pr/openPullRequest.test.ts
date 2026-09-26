@@ -17,9 +17,10 @@ describe("opening a PR in VS Code", () => {
   let api: ReviewGuideApi;
   let workingCopy: string;
   let pullRequest: PullRequest;
+  let scratch: string;
 
   before(async () => {
-    const scratch = makeTempDir("open-pr");
+    scratch = makeTempDir("open-pr");
     useFakeClaude(scratch, { "packCodes()": "critical", "codesPerWord()": "check" });
     const remote = createFixtureRemote(scratch, baseFiles, headFiles, 12);
     workingCopy = vscode.workspace.workspaceFolders![0].uri.fsPath;
@@ -30,7 +31,10 @@ describe("opening a PR in VS Code", () => {
     pullRequest = pullRequestOf(remote.pull, { owner: "reviewer", name: "packing" });
   });
 
-  after(() => github.stop());
+  after(async () => {
+    await github.stop();
+    fs.rmSync(scratch, { recursive: true, force: true });
+  });
 
   it("F2: checks out the head into a worktree in the extension's storage; the working copy is not changed", async () => {
     // `git status` refreshes .git/index, so it runs before the fingerprint is taken.
