@@ -21,10 +21,22 @@ From Addy Osmani, "Getting the most out of Opus 5.5" (https://claude.dev/blog/ge
 - Read what the run needs from you first.
 - Keep your own check before anything risky or hard to undo.
 
+From Addy Osmani, "Agentic Engineering" (O'Reilly, early release), chapter 1:
+- About his PR triage loop: "The loop doesn't merge anything. It sorts my attention, and the merge stays mine." This is what Review Guide is.
+- Calibrate by who gets hurt, not by technical difficulty: documentation and test-coverage chores are delegated freely, complex problems are watched, anything touching auth, security or money is watched closely.
+- Tests: "Write or review them yourself, so the agent can't game its own scoreboard." The agent that did the work never decides the work is good.
+- "Delegate the task, never the judgment. Green checks can't tell you a feature shouldn't exist."
+- The dangerous failure is believing you review carefully (zone 4) while you only skim (zone 3). The defense is structure, not willpower.
+- His check per change: did a spec exist, did you read every diff well enough to explain it, did tests exist before the change, could you debug it at 3am?
+
 What this means here:
 - Claude sorts and explains; the human reads the critical places.
 - Every claim from Claude carries its evidence (where it looked) or is marked unconfirmed.
 - The first thing the panel shows is what needs the human.
+- The tier follows the damage a quiet bug would do, not how hard the code looks.
+- Changes to tests are never skim: a weakened test (removed assert, looser tolerance, new skip) is critical, because it changes the scoreboard.
+- Claude also flags changes that may not be worth having (new complexity or API surface for little gain); that is a judgment call for the human, not a bug.
+- A PR is shown as "owned" only when every critical unit is understood; until then the panel says honestly how many are only read or unread.
 
 ### Done when
 
@@ -43,6 +55,8 @@ Function (automated tests):
 - F9: One command (`npm run package`) builds a `.vsix` file that installs in VS Code.
 - F10: Lint, type check and all tests pass in one command (`npm test`).
 - F11: For a critical unit, the reviewer can type an explanation in his own words; Claude compares it with the code and answers "understood", "almost" (with what is missing) or "not yet" (with what is wrong). Only "understood" marks the unit as understood.
+- F13: A test file change that removes an assertion, loosens a tolerance or adds a skip is tiered critical (checked with a fixture PR).
+- F14: The PR header shows the 3am check: how many critical units are understood / read / unread, and "owned" only when all are understood.
 - F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 
 Safety (automated test):
@@ -162,6 +176,7 @@ Input:
 
 Output (structured JSON):
 - Per unit: tier, one-sentence reason.
+- Per unit, optional: "worth having?" note when a change adds complexity or API surface for little gain.
 - A reading order.
 - "What this PR does" in 3 to 5 sentences.
 
@@ -217,7 +232,10 @@ Example for qpeft:
 - Docstrings, log messages, README
 ```
 
-Without a profile, Claude uses general rules (math, security, persistence, public API and defaults are critical; tests, docs and renames are skim).
+Without a profile, Claude uses general rules:
+- critical: auth, security, money, persistence and file formats, math and numerics, public API and defaults, concurrency, weakened tests;
+- check: complex logic without those risks, new tests, new dependencies;
+- skim: documentation, comments, renames, formatting.
 On the first PR of a repo without a profile, Claude also writes a draft profile from the code.
 The extension shows the draft; the reviewer edits it and saves it into the repo himself (the extension never writes into the repo).
 
