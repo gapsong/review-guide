@@ -6,6 +6,7 @@ import { Tier, tiers } from "../analysis/sorting";
 import { PullRequestReview, sortingOf, unitsOfTier } from "../review/pullRequestReview";
 import { ReviewUnit, unitTitle } from "../review/reviewUnit";
 import { ReviewGuide } from "../reviewGuide";
+import { ReadState, UnitRecord } from "../state/reviewState";
 
 export type PullRequestTreeNode =
   | { kind: "repo"; repo: RepoId }
@@ -63,7 +64,7 @@ export class PullRequestTree implements vscode.TreeDataProvider<PullRequestTreeN
       case "group":
         return groupItem(node.label, node.units);
       case "unit":
-        return unitItem(node.review, node.unit);
+        return unitItem(node.review, node.unit, this.reviewGuide.recordOf(node.review, node.unit));
     }
   }
 
@@ -168,8 +169,14 @@ function groupItem(label: string, units: ReviewUnit[]): vscode.TreeItem {
   return new vscode.TreeItem(`${label} (${units.length})`, vscode.TreeItemCollapsibleState.Expanded);
 }
 
-function unitItem(review: PullRequestReview, unit: ReviewUnit): vscode.TreeItem {
+const readStateIcons: Record<ReadState, string> = { unread: "circle-large-outline", read: "eye", understood: "pass-filled" };
+
+function unitItem(review: PullRequestReview, unit: ReviewUnit, record: UnitRecord | undefined): vscode.TreeItem {
   const item = new vscode.TreeItem(`${path.basename(unit.file)}  ${unitTitle(unit)}`);
+  const readState = record?.state ?? "unread";
+  item.id = `unit:${review.pullRequest.number}:${unit.id}`;
+  item.iconPath = new vscode.ThemeIcon(record?.changedSinceReview ? "diff-modified" : readStateIcons[readState]);
+  item.contextValue = `unit-${readState}`;
   const sorting = sortingOf(review, unit);
   item.description = sorting?.reason;
   item.tooltip = sorting ? `${unit.file}\n\n${sorting.reason}${sorting.worthHaving ? `\n\nWorth having? ${sorting.worthHaving}` : ""}` : unit.file;

@@ -67,6 +67,23 @@
         "command": "reviewGuide.showProfileDraft",
         "title": "Show Draft Repo Profile",
         "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.startDeepCheck",
+        "title": "Start Pass 2 (Deep Check)",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.markRead",
+        "title": "Mark as Read",
+        "category": "Review Guide",
+        "icon": "$(check)"
+      },
+      {
+        "command": "reviewGuide.markUnread",
+        "title": "Mark as Unread",
+        "category": "Review Guide",
+        "icon": "$(circle-large-outline)"
       }
     ],
     "menus": {
@@ -82,6 +99,19 @@
           "command": "reviewGuide.closePullRequest",
           "when": "view == reviewGuide.pullRequests && viewItem == openPullRequest",
           "group": "inline"
+        },
+        {
+          "command": "reviewGuide.startDeepCheck",
+          "when": "view == reviewGuide.pullRequests && viewItem == openPullRequest"
+        },
+        {
+          "command": "reviewGuide.markRead",
+          "when": "view == reviewGuide.pullRequests && viewItem =~ /^unit-unread/",
+          "group": "inline"
+        },
+        {
+          "command": "reviewGuide.markUnread",
+          "when": "view == reviewGuide.pullRequests && viewItem =~ /^unit-(read|understood)/"
         }
       ],
       "commandPalette": [
@@ -99,6 +129,18 @@
         },
         {
           "command": "reviewGuide.showProfileDraft",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.startDeepCheck",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.markRead",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.markUnread",
           "when": "false"
         }
       ]

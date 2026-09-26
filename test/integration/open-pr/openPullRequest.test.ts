@@ -7,7 +7,9 @@ import { PullRequest } from "../../../src/github/pullRequest";
 import { unitTitle } from "../../../src/review/reviewUnit";
 import { FakeGitHub } from "../../support/fakeGitHub";
 import { createFixtureRemote, fingerprint, git, makeTempDir, pullRequestOf } from "../../support/gitFixture";
+import { useFakeClaude } from "../../support/testReviewGuide";
 import { baseFiles, headFiles } from "../../support/typescriptFixture";
+import { findUnitNode, firstPullRequestNode } from "../sideBar";
 import { startExtension } from "../standInGitHubLogin";
 
 describe("opening a PR in VS Code", () => {
@@ -17,7 +19,9 @@ describe("opening a PR in VS Code", () => {
   let pullRequest: PullRequest;
 
   before(async () => {
-    const remote = createFixtureRemote(makeTempDir("open-pr"), baseFiles, headFiles, 12);
+    const scratch = makeTempDir("open-pr");
+    useFakeClaude(scratch, { "packCodes()": "critical", "codesPerWord()": "check" });
+    const remote = createFixtureRemote(scratch, baseFiles, headFiles, 12);
     workingCopy = vscode.workspace.workspaceFolders![0].uri.fsPath;
     git(workingCopy, "clone", "--quiet", remote.remotePath, ".");
     fs.writeFileSync(path.join(workingCopy, "src", "packing.ts"), "// unsaved local work\n");
@@ -56,10 +60,13 @@ describe("opening a PR in VS Code", () => {
     ]);
   });
 
-  it("opens the diff (base vs head) at the clicked unit and shows it in the guide panel", async () => {
+  it("F5: clicking a unit opens the diff (base vs head) at the unit, and the guide shows its tier, reason and questions", async () => {
     const review = api.reviewGuide.reviewOf(pullRequest)!;
+    await api.reviewGuide.waitForDeepCheck(review);
     const unit = review.units.find((candidate) => candidate.symbolPath === "unpackCodes")!;
-    await vscode.commands.executeCommand("reviewGuide.openUnit", pullRequest, unit.id);
+    const unitNode = await findUnitNode(api, "unpackCodes()");
+    const click = api.pullRequestTree.getTreeItem(unitNode).command!;
+    await vscode.commands.executeCommand(click.command, ...click.arguments!);
 
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab!;
     assert.ok(tab.input instanceof vscode.TabInputTextDiff, "the active tab is a diff");
@@ -70,7 +77,26 @@ describe("opening a PR in VS Code", () => {
     assert.strictEqual(editor.selection.start.line + 1, unit.newRange.start);
     assert.strictEqual(unit.newRange.start, 14, "the changed line of unpackCodes");
 
-    assert.strictEqual(api.guideView.model?.title, "unpackCodes()");
-    assert.ok(api.guideView.html?.includes("unpackCodes()"));
+    const guide = api.guideView.model!;
+    assert.strictEqual(guide.title, "unpackCodes()");
+    assert.strictEqual(guide.tier, "critical");
+    assert.strictEqual(guide.reason, "Fake reason for src/packing.ts  unpackCodes().");
+    assert.deepStrictEqual(guide.deepCheck!.questions.map((question) => [question.text, question.lines]), [
+      ["Check: what happens at line 14?", unit.newRange],
+    ]);
+    const html = api.guideView.html!;
+    const lines = `lines ${unit.newRange.start}-${unit.newRange.end}`;
+    for (const shown of ["unpackCodes()", "critical", "Fake reason for src/packing.ts  unpackCodes().", "Check: what happens at line 14?", lines]) {
+      assert.ok(html.includes(shown), `the guide panel shows "${shown}"`);
+    }
+  });
+
+  it("shows the tiers in the side bar, with the reason next to each unit", async () => {
+    const tree = api.pullRequestTree;
+    const labels = (await tree.getChildren(await firstPullRequestNode(api))).map((node) => tree.getTreeItem(node).label);
+    assert.deepStrictEqual(labels.slice(0, 5), ["What this PR does", "No .review-guide.md: see Claude's draft", "Critical (2)", "Check (1)", "Skim (1)"]);
+    const unitItem = tree.getTreeItem(await findUnitNode(api, "packCodes()"));
+    assert.strictEqual(unitItem.description, "Fake reason for src/packing.ts  packCodes().");
   });
 });
+

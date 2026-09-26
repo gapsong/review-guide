@@ -4,6 +4,7 @@ import { claudeRunner } from "../../src/claude/claudeCli";
 import { PullRequestCheckouts } from "../../src/git/pullRequestCheckout";
 import { ReviewGuide } from "../../src/reviewGuide";
 import { AnalysisCache } from "../../src/state/analysisCache";
+import { ReviewStateStore } from "../../src/state/reviewState";
 import { readPythonSymbols } from "./pythonSymbols";
 
 export const fakeClaudePath = path.resolve(__dirname, "..", "..", "..", "test", "fixtures", "fake-claude.js");
@@ -19,6 +20,8 @@ export function useFakeClaude(scratch: string, tiers: Record<string, string>): {
   const logPath = path.join(scratch, "fake-claude.log");
   process.env.FAKE_CLAUDE_LOG = logPath;
   process.env.FAKE_CLAUDE_TIERS = JSON.stringify(tiers);
+  delete process.env.FAKE_CLAUDE_QUESTION_LINES;
+  delete process.env.FAKE_CLAUDE_NO_QUESTIONS;
   return {
     calls: () =>
       fs.existsSync(logPath)
@@ -28,8 +31,13 @@ export function useFakeClaude(scratch: string, tiers: Record<string, string>): {
 }
 
 // The core, wired like the extension does it, but with Python symbols read by the test and the fake `claude`.
-export function testReviewGuide(storagePath: string): ReviewGuide {
+export function testReviewGuide(
+  storagePath: string,
+  confirmDeepCheck: (criticalUnitCount: number) => Promise<boolean> = async () => true,
+): ReviewGuide {
   return new ReviewGuide({
+    state: new ReviewStateStore(path.join(storagePath, "state")),
+    confirmDeepCheck,
     checkouts: new PullRequestCheckouts(storagePath, async () => ({})),
     readSymbols: readPythonSymbols,
     cache: new AnalysisCache(path.join(storagePath, "cache")),

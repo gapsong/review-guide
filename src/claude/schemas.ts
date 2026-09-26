@@ -24,3 +24,56 @@ export const overviewSchema = {
   },
   required: ["summary", "readingOrder", "units"],
 };
+
+export const deepCheckSchema = {
+  type: "object",
+  properties: {
+    units: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          plainWords: { type: "string", description: "What the code does, in 2-3 plain sentences." },
+          blockingProblems: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                file: { type: "string" },
+                line: { type: "integer" },
+                why: { type: "string" },
+                howToShowFailure: { type: "string", description: "An input or a test that shows the failure." },
+              },
+              required: ["file", "line", "why", "howToShowFailure"],
+            },
+          },
+          questions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                text: { type: "string", description: "Starts with 'Check:'." },
+                startLine: { type: "integer", description: "First line in the new version of the unit's file." },
+                endLine: { type: "integer" },
+              },
+              required: ["text", "startLine", "endLine"],
+            },
+          },
+          checked: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { what: { type: "string" }, where: { type: "string" } },
+              required: ["what", "where"],
+            },
+          },
+          onlyYouCanCheck: { type: "array", items: { type: "string" } },
+          unconfirmed: { type: "array", items: { type: "string" } },
+        },
+        required: ["id", "plainWords", "blockingProblems", "questions", "checked", "onlyYouCanCheck", "unconfirmed"],
+      },
+    },
+  },
+  required: ["units"],
+};

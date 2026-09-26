@@ -5,6 +5,8 @@
 //   FAKE_CLAUDE_LOG    file that gets one JSON line per call ({ pass, unitIds, cwd })
 //   FAKE_CLAUDE_TIERS  JSON object { "<text in the unit's heading>": "critical" | "check" | "skim" };
 //                      units that match nothing are "skim"
+//   FAKE_CLAUDE_QUESTION_LINES  "<start>-<end>": deep check questions point there instead of at the unit
+//   FAKE_CLAUDE_NO_QUESTIONS    "1": deep checks come without questions
 //
 // It refuses to run unless it gets the read-only flags, so a change to them fails the tests.
 const fs = require("fs");
@@ -84,12 +86,17 @@ function deepCheck(prompt) {
     id: unit.id,
     plainWords: `Fake plain words for ${unit.heading}.`,
     blockingProblems: [],
-    questions: [{ text: `Check: what happens at line ${unit.start}?`, startLine: unit.start, endLine: unit.end }],
+    questions: process.env.FAKE_CLAUDE_NO_QUESTIONS === "1" ? [] : [questionFor(unit)],
     checked: [{ what: "Read the function before and after", where: unit.heading.split(" ")[0] }],
     onlyYouCanCheck: ["Whether this matches the paper."],
     unconfirmed: [],
   }));
   return { units, unitIds: units.map((unit) => unit.id) };
+}
+
+function questionFor(unit) {
+  const [start, end] = (process.env.FAKE_CLAUDE_QUESTION_LINES || `${unit.start}-${unit.end}`).split("-").map(Number);
+  return { text: `Check: what happens at line ${start}?`, startLine: start, endLine: end };
 }
 
 // The explanation decides the verdict, so tests can choose it: it contains "wrong", "partly" or neither.

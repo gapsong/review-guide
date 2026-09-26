@@ -56,3 +56,15 @@ The cache file of a PR holds the head commit and pass 1's answer per unit hash. 
 ## Context folder: log and diff, no blame
 
 The extension writes the PR description, commit messages, the full diff and the recent git log of each changed file into a context folder that Claude may read (`--add-dir`). Blame is left out: on a partial clone it would download the history of every changed file, which would cost more time than pass 1 itself.
+
+## Pass 2 runs in batches, and every critical unit gets a question
+
+Pass 2 sends 4 critical units per Claude call and runs up to 3 calls at once; each finished unit is stored at once, so the guide fills while the rest still runs. F4 needs at least one question per critical unit, tied to lines of the new code: line numbers from Claude are kept inside the file; a unit that comes back without a question is asked about once more on its own; if it still has none, the extension adds one default question ("Check: can you say what lines a-b do, and why they are correct?") and the guide says that it is the default, not Claude's.
+
+## Asking before pass 2 does not block
+
+Above 25 critical units the extension shows the number and asks with a normal (non-modal) notification; pass 1's result is usable while the question is open. Until the reviewer agrees, no pass 2 call is made; "Start Pass 2" in the PR's context menu starts it later.
+
+## Read state per unit, per PR, per repo
+
+Read marks live in one JSON file per repo, keyed by PR number and unit id, with the unit hash at the time. When a unit's hash changes on a new push, it steps back (understood -> read, read -> unread) and is flagged "changed since your review". A unit that was never read is not flagged.

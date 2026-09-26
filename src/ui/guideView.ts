@@ -2,7 +2,10 @@ import { randomBytes } from "crypto";
 import * as vscode from "vscode";
 import { PullRequestReview, sortingOf } from "../review/pullRequestReview";
 import { ReviewUnit, unitTitle } from "../review/reviewUnit";
-import { GuideModel, renderGuide } from "./guideHtml";
+import { ReviewGuide } from "../reviewGuide";
+import { GuideMessage, GuideModel, renderGuide } from "./guideHtml";
+
+export type GuideMessageHandler = (review: PullRequestReview, unit: ReviewUnit, message: GuideMessage) => Promise<void>;
 
 // The guide panel next to the diff: what the selected unit is, and what to check there.
 export class GuideView implements vscode.WebviewViewProvider {
@@ -11,9 +14,21 @@ export class GuideView implements vscode.WebviewViewProvider {
   private shown: { review: PullRequestReview; unit: ReviewUnit } | undefined;
   model: GuideModel | undefined;
 
+  constructor(
+    private readonly reviewGuide: ReviewGuide,
+    private readonly handleMessage: GuideMessageHandler,
+  ) {
+    reviewGuide.onDidChangeReview(() => this.render());
+  }
+
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     view.webview.options = { enableScripts: true };
+    view.webview.onDidReceiveMessage((message: GuideMessage) => {
+      if (this.shown) {
+        void this.handleMessage(this.shown.review, this.shown.unit, message);
+      }
+    });
     this.render();
   }
 
@@ -25,32 +40,31 @@ export class GuideView implements vscode.WebviewViewProvider {
     this.render();
   }
 
-  // Called when anything about the shown unit may have changed (a pass finished, a mark was set).
-  refresh(): void {
-    this.render();
+  get html(): string | undefined {
+    return this.view?.webview.html;
   }
 
   private render(): void {
-    this.model = this.shown ? guideModel(this.shown.review, this.shown.unit) : undefined;
+    this.model = this.shown ? this.modelOf(this.shown.review, this.shown.unit) : undefined;
     if (this.view) {
       this.view.webview.html = renderGuide(this.model, randomBytes(16).toString("hex"), this.view.webview.cspSource);
     }
   }
 
-  get html(): string | undefined {
-    return this.view?.webview.html;
+  private modelOf(review: PullRequestReview, unit: ReviewUnit): GuideModel {
+    const sorting = sortingOf(review, unit);
+    const record = this.reviewGuide.recordOf(review, unit);
+    return {
+      pullRequestNumber: review.pullRequest.number,
+      file: unit.file,
+      title: unitTitle(unit),
+      lines: `lines ${unit.newRange.start}-${unit.newRange.end}`,
+      tier: sorting?.tier,
+      reason: sorting?.reason,
+      worthHaving: sorting?.worthHaving,
+      readState: record?.state ?? "unread",
+      changedSinceReview: record?.changedSinceReview ?? false,
+      deepCheck: this.reviewGuide.deepCheckOf(review, unit),
+    };
   }
-}
-
-function guideModel(review: PullRequestReview, unit: ReviewUnit): GuideModel {
-  const sorting = sortingOf(review, unit);
-  return {
-    tier: sorting?.tier,
-    reason: sorting?.reason,
-    worthHaving: sorting?.worthHaving,
-    pullRequestNumber: review.pullRequest.number,
-    file: unit.file,
-    title: unitTitle(unit),
-    lines: `lines ${unit.newRange.start}-${unit.newRange.end}`,
-  };
 }
