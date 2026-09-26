@@ -8,8 +8,10 @@ import type { FakePull } from "./fakeGitHub";
 
 export type FileTree = Record<string, string>;
 
+// The real path: on macOS the temp folder is under /var, a link to /private/var, and processes
+// started in it (git, the fake claude) report the /private/var form.
 export function makeTempDir(prefix: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), `review-guide-${prefix}-`));
+  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `review-guide-${prefix}-`)));
 }
 
 export function git(cwd: string, ...args: string[]): string {
