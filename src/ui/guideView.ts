@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import * as vscode from "vscode";
-import { PullRequestReview } from "../review/pullRequestReview";
+import { PullRequestReview, sortingOf } from "../review/pullRequestReview";
 import { ReviewUnit, unitTitle } from "../review/reviewUnit";
 import { GuideModel, renderGuide } from "./guideHtml";
 
@@ -43,7 +43,11 @@ export class GuideView implements vscode.WebviewViewProvider {
 }
 
 function guideModel(review: PullRequestReview, unit: ReviewUnit): GuideModel {
+  const sorting = sortingOf(review, unit);
   return {
+    tier: sorting?.tier,
+    reason: sorting?.reason,
+    worthHaving: sorting?.worthHaving,
     pullRequestNumber: review.pullRequest.number,
     file: unit.file,
     title: unitTitle(unit),

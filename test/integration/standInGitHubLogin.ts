@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type { ReviewGuideApi } from "../../src/extension";
 import { FakeGitHub } from "../support/fakeGitHub";
+import { fakeClaudePath } from "../support/testReviewGuide";
 
 // The real GitHub login cannot be clicked in a headless run. Every suite starts VS Code with the
 // built-in vscode.github-authentication disabled and registers this stand-in under the same id
@@ -35,11 +36,12 @@ export class StandInGitHubLogin implements vscode.AuthenticationProvider {
   }
 }
 
-// Signs in, points the extension at the fake GitHub and the given repos, and activates it.
+// Signs in, points the extension at the fake GitHub, the given repos and the fake `claude`, and activates it.
 export async function startExtension(github: FakeGitHub, token: string, repos: string[]): Promise<ReviewGuideApi> {
   vscode.authentication.registerAuthenticationProvider("github", "GitHub (test)", new StandInGitHubLogin(token));
   const settings = vscode.workspace.getConfiguration("reviewGuide");
   await settings.update("githubApiUrl", await github.start(), vscode.ConfigurationTarget.Global);
   await settings.update("repositories", repos, vscode.ConfigurationTarget.Global);
+  await settings.update("claudePath", fakeClaudePath, vscode.ConfigurationTarget.Global);
   return vscode.extensions.getExtension<ReviewGuideApi>("gapsong.review-guide")!.activate();
 }

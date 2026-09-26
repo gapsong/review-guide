@@ -62,6 +62,11 @@
         "command": "reviewGuide.openUnit",
         "title": "Open Change",
         "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.showProfileDraft",
+        "title": "Show Draft Repo Profile",
+        "category": "Review Guide"
       }
     ],
     "menus": {
@@ -91,6 +96,10 @@
         {
           "command": "reviewGuide.openUnit",
           "when": "false"
+        },
+        {
+          "command": "reviewGuide.showProfileDraft",
+          "when": "false"
         }
       ]
     },
@@ -109,6 +118,16 @@
           "type": "string",
           "default": "https://api.github.com",
           "description": "GitHub REST API address."
+        },
+        "reviewGuide.claudePath": {
+          "type": "string",
+          "default": "claude",
+          "description": "Path of the Claude Code CLI (`claude`). It runs logged in with your own Claude subscription."
+        },
+        "reviewGuide.model": {
+          "type": "string",
+          "default": "claude-opus-5-5",
+          "description": "Claude model for both passes and the ownership check."
         }
       }
     }

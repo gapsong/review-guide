@@ -36,3 +36,23 @@ Functions, methods and constructors are units; classes (and structs, interfaces)
 ## The diff's two sides are files on disk
 
 The left side of a diff is the base version of the file, written out under the PR's folder in global storage; the right side is the worktree file. Being plain files, both sides get document symbols from the normal language extensions (a virtual document scheme would not). A side where the file does not exist is an empty file.
+
+## Weakened tests are found by a rule, not by Claude
+
+F13 and Osmani's "the agent can't game its own scoreboard" point the same way: whether a test was weakened is decided by the extension itself, from the diff of test files (a removed assertion that is not replaced, a tolerance that got bigger or a number of decimal places that got smaller, an added skip or xfail). Such a unit is critical whatever Claude says, and the reason names what was weakened. Claude is also told the rule, so its reading order agrees.
+
+## A unit Claude leaves out is "check"
+
+F3 needs a tier and a reason for every unit. If Claude's answer misses a unit, the unit becomes "check" with the reason "Claude gave no tier for this change, so look at it yourself." It is not hidden in "skim", and it does not inflate "critical".
+
+## The repo profile is read from the base branch
+
+`.review-guide.md` is read at the merge base, not at the PR head, so a PR cannot change the rules its own review is sorted by.
+
+## Pass 1 cache and a new push
+
+The cache file of a PR holds the head commit and pass 1's answer per unit hash. A second run on the same head finds every unit and calls no Claude (F7). After a new push, only units whose hash is not in the cache are sent to Claude; the unchanged ones are listed in the prompt as context, and the summary is rewritten by that run. The cache stays after a PR is closed in the extension (only the worktree is removed), so reopening is free.
+
+## Context folder: log and diff, no blame
+
+The extension writes the PR description, commit messages, the full diff and the recent git log of each changed file into a context folder that Claude may read (`--add-dir`). Blame is left out: on a partial clone it would download the history of every changed file, which would cost more time than pass 1 itself.

@@ -1,10 +1,5 @@
 import { PullRequest, RepoId, repoToString } from "./pullRequest";
 
-export interface Commit {
-  sha: string;
-  message: string;
-}
-
 // Only reads from GitHub. Nothing is ever posted (spec: no automatic posting).
 export class GitHubClient {
   constructor(
@@ -15,13 +10,6 @@ export class GitHubClient {
   async listOpenPullRequests(repo: RepoId): Promise<PullRequest[]> {
     const pulls = await this.get<GitHubPull[]>(`/repos/${repoToString(repo)}/pulls?state=open&per_page=100`);
     return pulls.map((pull) => toPullRequest(repo, pull));
-  }
-
-  async listCommits(pullRequest: PullRequest): Promise<Commit[]> {
-    const commits = await this.get<GitHubCommit[]>(
-      `/repos/${repoToString(pullRequest.repo)}/pulls/${pullRequest.number}/commits?per_page=100`,
-    );
-    return commits.map((commit) => ({ sha: commit.sha, message: commit.commit.message }));
   }
 
   private async get<T>(path: string): Promise<T> {
@@ -48,11 +36,6 @@ interface GitHubPull {
   user: { login: string } | null;
   base: { ref: string; sha: string; repo: { clone_url: string } };
   head: { ref: string; sha: string };
-}
-
-interface GitHubCommit {
-  sha: string;
-  commit: { message: string };
 }
 
 function toPullRequest(repo: RepoId, pull: GitHubPull): PullRequest {

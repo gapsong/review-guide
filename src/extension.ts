@@ -1,4 +1,6 @@
+import * as path from "path";
 import * as vscode from "vscode";
+import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
 import { gitAuthEnvironment } from "./git/gitAuth";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
 import { findConfiguredRepos } from "./github/configuredRepos";
@@ -7,6 +9,7 @@ import { getGitHubToken } from "./github/githubLogin";
 import { PullRequest } from "./github/pullRequest";
 import { findUnit } from "./review/pullRequestReview";
 import { ReviewGuide } from "./reviewGuide";
+import { AnalysisCache } from "./state/analysisCache";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { GuideView } from "./ui/guideView";
 import { PullRequestTree } from "./ui/pullRequestTree";
@@ -22,7 +25,12 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   const storagePath = context.globalStorageUri.fsPath;
   const github = new GitHubClient(githubApiUrl(), getGitHubToken);
   const checkouts = new PullRequestCheckouts(storagePath, async (cloneUrl) => gitAuthEnvironment(cloneUrl, await getGitHubToken()));
-  const reviewGuide = new ReviewGuide({ checkouts, readSymbols: readFileSymbols });
+  const reviewGuide = new ReviewGuide({
+    checkouts,
+    readSymbols: readFileSymbols,
+    cache: new AnalysisCache(path.join(storagePath, "cache")),
+    runClaude: claudeRunner(claudeSettings),
+  });
   const pullRequestTree = new PullRequestTree(github, reviewGuide, findConfiguredRepos);
   const guideView = new GuideView();
   reviewGuide.onDidChangeReview(() => guideView.refresh());
@@ -52,11 +60,29 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       pullRequestTree.refresh();
     })),
     vscode.commands.registerCommand("reviewGuide.openUnit", reportErrors(openUnit)),
+    vscode.commands.registerCommand("reviewGuide.showProfileDraft", reportErrors(async (pullRequest: PullRequest) => {
+      const draft = reviewGuide.reviewOf(pullRequest)?.overview?.draftProfile ?? "";
+      const document = await vscode.workspace.openTextDocument({ language: "markdown", content: draftProfileText(draft) });
+      await vscode.window.showTextDocument(document);
+    })),
   );
   return { reviewGuide, pullRequestTree, guideView };
 }
 
 export function deactivate(): void {
+}
+
+// The extension never writes into a repo; the reviewer saves the profile there himself.
+function draftProfileText(draft: string): string {
+  return `<!-- Draft of .review-guide.md written by Claude. Edit it, then save it as .review-guide.md in the repo root. -->\n\n${draft}\n`;
+}
+
+function claudeSettings(): ClaudeSettings {
+  const settings = vscode.workspace.getConfiguration("reviewGuide");
+  return {
+    executable: settings.get<string>("claudePath", "claude"),
+    model: settings.get<string>("model", "claude-opus-5-5"),
+  };
 }
 
 function githubApiUrl(): string {

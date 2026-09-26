@@ -12,7 +12,7 @@ export interface FakePull {
   headSha: string;
 }
 
-// A tiny stand-in for the GitHub REST API: open pulls and their commits, per repo.
+// A tiny stand-in for the GitHub REST API: the open pulls of each repo.
 export class FakeGitHub {
   readonly receivedTokens: string[] = [];
   private server: http.Server | undefined;
@@ -44,11 +44,8 @@ export class FakeGitHub {
     }
     const url = new URL(request.url ?? "/", "http://localhost");
     const pullsMatch = /^\/repos\/([^/]+\/[^/]+)\/pulls$/.exec(url.pathname);
-    const commitsMatch = /^\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)\/commits$/.exec(url.pathname);
     if (pullsMatch) {
       reply(response, 200, (this.pullsByRepo.get(pullsMatch[1]) ?? []).map(toGitHubPull));
-    } else if (commitsMatch) {
-      reply(response, 200, [{ sha: "0000000", commit: { message: `Commits of PR ${commitsMatch[2]}` } }]);
     } else {
       reply(response, 404, { message: "Not Found" });
     }
