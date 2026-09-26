@@ -17,7 +17,60 @@
   ],
   "main": "./out/src/extension.js",
   "activationEvents": [],
-  "contributes": {},
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "reviewGuide",
+          "title": "Review Guide",
+          "icon": "media/review-guide.svg"
+        }
+      ]
+    },
+    "views": {
+      "reviewGuide": [
+        {
+          "id": "reviewGuide.pullRequests",
+          "name": "Pull Requests"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "reviewGuide.refresh",
+        "title": "Refresh",
+        "category": "Review Guide",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "reviewGuide.refresh",
+          "when": "view == reviewGuide.pullRequests",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Review Guide",
+      "properties": {
+        "reviewGuide.repositories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "GitHub repositories (owner/name) whose open pull requests are listed. The GitHub repo open in VS Code is always listed."
+        },
+        "reviewGuide.githubApiUrl": {
+          "type": "string",
+          "default": "https://api.github.com",
+          "description": "GitHub REST API address."
+        }
+      }
+    }
+  },
   "scripts": {
     "compile": "tsc -p .",
     "lint": "eslint src test scripts",

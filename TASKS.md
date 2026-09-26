@@ -5,7 +5,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 ## Build steps
 
 - [x] 0. Test harness: TypeScript strict, ESLint, Mocha unit tests, VS Code integration tests under xvfb, MIT license
-- [ ] 1. Skeleton: GitHub login, list of PRs in the side bar
+- [x] 1. Skeleton: GitHub login, list of PRs in the side bar
 - [ ] 2. Open a PR: worktree, review units, diff on click, guide panel
 - [ ] 3. Pass 1 with Claude, cache
 - [ ] 4. Pass 2, read marks, limit of 25
@@ -13,7 +13,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 
 ## Done when (automated)
 
-- [ ] F1 sign in with the VS Code GitHub login, list open PRs of the configured repos
+- [x] F1 sign in with the VS Code GitHub login, list open PRs of the configured repos
 - [ ] F2 opening a PR checks out its head into a separate worktree; working copy unchanged
 - [ ] F3 every review unit gets a tier and one sentence why
 - [ ] F4 every critical unit gets at least one question tied to a line range in the new code

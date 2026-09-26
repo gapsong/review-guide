@@ -4,10 +4,11 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 const { spawnSync } = require("child_process");
-const { runTests } = require("@vscode/test-electron");
+const { downloadAndUnzipVSCode, runTests } = require("@vscode/test-electron");
 
 const root = path.resolve(__dirname, "..");
 const suitesRoot = path.join(root, "out", "test", "integration");
+const extensionId = "gapsong.review-guide";
 
 function main() {
   if (needsVirtualDisplay()) {
@@ -43,14 +44,15 @@ async function runAllSuites() {
   ].filter((suite) => fs.existsSync(path.join(suitesRoot, suite.name)))
     .filter((suite) => !onlySuite || suite.name.startsWith(onlySuite));
 
+  const vscodeExecutablePath = await downloadAndUnzipVSCode("stable");
   for (const suite of suites) {
     console.log(`\n=== integration suite: ${suite.name} ===`);
-    await runSuite(suite, scratch);
+    await runSuite(suite, scratch, vscodeExecutablePath);
   }
   fs.rmSync(scratch, { recursive: true, force: true });
 }
 
-function runSuite(suite, scratch) {
+function runSuite(suite, scratch, vscodeExecutablePath) {
   const userDataDir = suite.userDataDir ?? path.join(scratch, `user-data-${suite.name}`);
   const launchArgs = [
     "--user-data-dir", userDataDir,
@@ -61,13 +63,35 @@ function runSuite(suite, scratch) {
   ];
   if (suite.disableBuiltinGitHubLogin) {
     launchArgs.push("--disable-extension", "vscode.github-authentication");
+    trustExtensionForGitHubLogin(vscodeExecutablePath);
   }
   return runTests({
+    vscodeExecutablePath,
     extensionDevelopmentPath: root,
     extensionTestsPath: path.join(suitesRoot, suite.name, "index.js"),
     launchArgs,
     extensionTestsEnv: { REVIEW_GUIDE_TEST_SCRATCH: scratch },
   });
+}
+
+// Stands in for the one click a person makes the first time: "Allow Review Guide to sign in
+// using GitHub". VS Code keeps that answer in its storage, but test runs use in-memory storage,
+// so it cannot be stored ahead. VS Code's product.json has a list of extensions that are trusted
+// for a login provider without asking; the downloaded test copy of VS Code gets this extension on it.
+function trustExtensionForGitHubLogin(vscodeExecutablePath) {
+  const productPath = findProductJson(vscodeExecutablePath);
+  const product = JSON.parse(fs.readFileSync(productPath, "utf8"));
+  const trusted = product.trustedExtensionAuthAccess ?? {};
+  const githubTrusted = trusted.github ?? [];
+  if (!githubTrusted.includes(extensionId)) {
+    trusted.github = [...githubTrusted, extensionId];
+    product.trustedExtensionAuthAccess = trusted;
+    fs.writeFileSync(productPath, JSON.stringify(product, null, "\t"));
+  }
+}
+
+function findProductJson(vscodeExecutablePath) {
+  return path.join(path.dirname(vscodeExecutablePath), "resources", "app", "product.json");
 }
 
 main();
