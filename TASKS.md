@@ -6,7 +6,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 
 - [x] 0. Test harness: TypeScript strict, ESLint, Mocha unit tests, VS Code integration tests under xvfb, MIT license
 - [x] 1. Skeleton: GitHub login, list of PRs in the side bar
-- [ ] 2. Open a PR: worktree, review units, diff on click, guide panel
+- [x] 2. Open a PR: worktree, review units, diff on click, guide panel
 - [ ] 3. Pass 1 with Claude, cache
 - [ ] 4. Pass 2, read marks, limit of 25
 - [ ] 5. Ownership check and ownership overview
@@ -14,7 +14,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 ## Done when (automated)
 
 - [x] F1 sign in with the VS Code GitHub login, list open PRs of the configured repos
-- [ ] F2 opening a PR checks out its head into a separate worktree; working copy unchanged
+- [x] F2 opening a PR checks out its head into a separate worktree; working copy unchanged
 - [ ] F3 every review unit gets a tier and one sentence why
 - [ ] F4 every critical unit gets at least one question tied to a line range in the new code
 - [ ] F5 clicking a unit opens the diff at that unit; guide panel shows tier, reason, questions
@@ -36,3 +36,6 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [ ] Q3 overview within 2 minutes
 
 ## Found along the way
+- [x] Nested functions (callbacks) belong to their outer function's unit, found with TypeScript symbols
+- [x] Blank lines between functions do not make a unit of their own
+- [x] VS Code's built-in git extension is disabled in tests; it rewrites .git/index in the background
