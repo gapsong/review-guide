@@ -1,0 +1,41 @@
+{
+  "name": "review-guide",
+  "displayName": "Review Guide",
+  "description": "Pre-sorts a GitHub pull request with Claude, so you review the critical changes first and know what to check at each one.",
+  "version": "0.1.0",
+  "publisher": "gapsong",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gapsong/review-guide.git"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/src/extension.js",
+  "activationEvents": [],
+  "contributes": {},
+  "scripts": {
+    "compile": "tsc -p .",
+    "lint": "eslint src test scripts",
+    "test:unit": "mocha --recursive 'out/test/unit/**/*.test.js'",
+    "test:integration": "node scripts/run-integration-tests.js",
+    "test": "npm run compile && npm run lint && npm run test:unit && npm run test:integration",
+    "package": "npm run compile && vsce package --out review-guide.vsix"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.19.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "eslint": "^10.11.0",
+    "mocha": "^12.0.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
+  }
+}

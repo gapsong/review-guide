@@ -1,0 +1,7 @@
+**
+!out/src/**
+!media/**
+!package.json
+!README.md
+!LICENSE
+out/src/**/*.map
