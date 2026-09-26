@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/review-guide-logo-dark.svg">
-    <img alt="Review Guide" src="docs/assets/review-guide-logo-light.svg" width="520">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/review-guide-logo-dark.png">
+    <img alt="Review Guide" src="docs/assets/review-guide-logo-light.png" width="520">
   </picture>
 </h1>
 
