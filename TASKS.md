@@ -27,7 +27,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [ ] F12 ownership overview per file across all PRs of a repo
 - [ ] F13 weakened test (removed assert, looser tolerance, new skip) is critical
 - [ ] F14 PR header shows the 3am check; "owned" only when all critical units are understood
-- [ ] S1 Claude cannot change a file, start a shell or reach the web
+- [x] S1 Claude cannot change a file, start a shell or reach the web
 
 ## Manual (measured once, reported)
 
@@ -39,3 +39,4 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] Nested functions (callbacks) belong to their outer function's unit, found with TypeScript symbols
 - [x] Blank lines between functions do not make a unit of their own
 - [x] VS Code's built-in git extension is disabled in tests; it rewrites .git/index in the background
+- [x] S1 control run by hand: the same prompt with Edit/Write allowed does change the repo, so the S1 test can fail

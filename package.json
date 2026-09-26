@@ -118,8 +118,9 @@
     "lint": "eslint src test scripts",
     "test:unit": "mocha --recursive 'out/test/unit/**/*.test.js'",
     "test:integration": "node scripts/run-integration-tests.js",
-    "test": "npm run compile && npm run lint && npm run test:unit && npm run test:integration",
-    "package": "npm run compile && vsce package --out review-guide.vsix"
+    "test": "npm run compile && npm run lint && npm run test:unit && npm run test:safety && npm run test:integration",
+    "package": "npm run compile && vsce package --out review-guide.vsix",
+    "test:safety": "mocha 'out/test/safety/**/*.test.js'"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
