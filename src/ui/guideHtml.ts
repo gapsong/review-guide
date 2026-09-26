@@ -1,6 +1,7 @@
 import { DeepCheck, Question } from "../analysis/deepCheck";
 import { Tier } from "../analysis/sorting";
 import { ChatTurn, OwnershipCheckResult, ReadState } from "../state/reviewState";
+import { escapeHtml, renderMarkdown } from "./markdown";
 
 // Renders the guide panel. Pure: takes the view model, returns HTML, so it can be tested without VS Code.
 
@@ -99,7 +100,7 @@ function questionItem(question: Question): string {
   const lines = question.lines.start === question.lines.end ? `line ${question.lines.start}` : `lines ${question.lines.start}-${question.lines.end}`;
   const message = escapeHtml(JSON.stringify({ type: "reveal", start: question.lines.start, end: question.lines.end }));
   const isDefault = question.isDefault ? ` <span class="muted">(Claude gave no question; this is the default one)</span>` : "";
-  return `${richText(question.text)} <a href="#" data-message="${message}">${lines}</a>${isDefault}`;
+  return `${renderMarkdown(question.text)} <a href="#" data-message="${message}">${lines}</a>${isDefault}`;
 }
 
 function listSection(title: string, items: string[]): string {
@@ -129,10 +130,10 @@ ${checking}`;
 
 function chatTurn(turn: ChatTurn): string {
   if (turn.speaker === "reviewer") {
-    return `<div class="turn turn-reviewer"><strong>You</strong>${richText(turn.text)}</div>`;
+    return `<div class="turn turn-reviewer"><strong>You</strong>${renderMarkdown(turn.text)}</div>`;
   }
   const { verdict } = turn.result;
-  return `<div class="turn turn-claude"><strong>Claude</strong> <span class="verdict verdict-${verdict.replace(" ", "-")}">${verdict}</span>${richText(turn.result.feedback)}${verdictLine(turn.result)}</div>`;
+  return `<div class="turn turn-claude"><strong>Claude</strong> <span class="verdict verdict-${verdict.replace(" ", "-")}">${verdict}</span>${renderMarkdown(turn.result.feedback)}${verdictLine(turn.result)}</div>`;
 }
 
 function verdictLine(check: OwnershipCheckResult): string {
@@ -152,7 +153,7 @@ function plainWordsSection(model: GuideModel): string {
   if (!model.explanation) {
     return `<p class="muted">Claude's plain-words summary opens after you have written your own explanation.</p>`;
   }
-  return `<details open><summary>Claude's plain-words summary</summary>${richText(plainWords)}</details>`;
+  return `<details open><summary>Claude's plain-words summary</summary>${renderMarkdown(plainWords)}</details>`;
 }
 
 function readButtons(model: GuideModel): string {
@@ -161,32 +162,18 @@ function readButtons(model: GuideModel): string {
   return `<p><button data-message="${escapeHtml(JSON.stringify(message))}">${label}</button></p>`;
 }
 
-// Text from Claude or the reviewer: fenced blocks (```) become preformatted diagram blocks, the rest
-// becomes paragraphs. Everything is escaped.
-export function richText(text: string): string {
-  const parts = text.split(/```[\w-]*\n?([\s\S]*?)```/);
-  return parts
-    .map((part, index) => {
-      const isFenced = index % 2 === 1;
-      if (isFenced) {
-        return `<pre class="diagram">${escapeHtml(part.replace(/\n$/, ""))}</pre>`;
-      }
-      return part.trim() === "" ? "" : `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br>")}</p>`;
-    })
-    .join("");
-}
-
-export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 const styles = `
-body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); color: var(--vscode-foreground); padding: 0 12px 16px; }
+body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); line-height: 1.55; color: var(--vscode-foreground); padding: 0 12px 16px; max-width: 72ch; }
+p { margin: 6px 0; }
+strong { font-weight: 600; }
+code { font-family: var(--vscode-editor-font-family); font-size: 0.92em; background: var(--vscode-textCodeBlock-background); padding: 1px 4px; border-radius: 3px; }
+h4, h5, h6 { font-size: 1em; margin: 12px 0 4px; }
+ol { padding-left: 22px; margin: 4px 0; }
+table { border-collapse: collapse; margin: 8px 0; font-size: 0.95em; }
+th, td { border: 1px solid var(--vscode-editorWidget-border, var(--vscode-descriptionForeground)); padding: 3px 8px; text-align: left; vertical-align: top; }
+th { background: var(--vscode-textCodeBlock-background); font-weight: 600; }
+blockquote { margin: 8px 0; padding: 2px 10px; border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-descriptionForeground)); background: var(--vscode-textBlockQuote-background); }
+details summary { cursor: pointer; font-weight: 600; margin: 12px 0 4px; }
 h2 { font-size: 1.1em; margin: 12px 0 2px; }
 h3 { font-size: 0.85em; margin: 16px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); }
 ul { padding-left: 18px; margin: 4px 0; }
@@ -200,10 +187,10 @@ li { margin: 4px 0; }
 .state-understood { border-color: var(--vscode-testing-iconPassed); }
 .changed { border: 1px solid var(--vscode-inputValidation-warningBorder); }
 .worth { border-left: 3px solid var(--vscode-inputValidation-infoBorder); padding-left: 8px; }
-pre.diagram { font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); background: var(--vscode-textCodeBlock-background); padding: 6px 8px; overflow-x: auto; white-space: pre; }
-.turn { border-left: 3px solid var(--vscode-descriptionForeground); padding-left: 8px; margin: 8px 0; }
+pre.diagram { font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); line-height: 1.35; background: var(--vscode-textCodeBlock-background); padding: 8px 10px; border-radius: 4px; overflow-x: auto; white-space: pre; }
+.turn { border-left: 3px solid var(--vscode-descriptionForeground); border-radius: 4px; padding: 6px 10px; margin: 10px 0; background: var(--vscode-editorWidget-background); }
 .turn-claude { border-left-color: var(--vscode-textLink-foreground); }
-.turn p { margin: 4px 0; }
+.turn > strong:first-child { display: inline-block; margin-bottom: 2px; }
 textarea { width: 100%; box-sizing: border-box; font-family: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
 .verdict { display: inline-block; padding: 0 6px; border-radius: 3px; font-weight: 600; font-size: 0.8em; border: 1px solid var(--vscode-descriptionForeground); }
 .verdict-understood { border-color: var(--vscode-testing-iconPassed); }
