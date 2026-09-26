@@ -34,7 +34,7 @@ export const deepCheckSchema = {
         type: "object",
         properties: {
           id: { type: "string" },
-          plainWords: { type: "string", description: "What the code does, in 2-3 plain sentences." },
+          plainWords: { type: "string", description: "What the code does, in 2-3 plain sentences, with an ASCII diagram in a ``` block and an everyday analogy when they help." },
           blockingProblems: {
             type: "array",
             items: {
@@ -84,7 +84,7 @@ export const ownershipCheckSchema = {
     verdict: { type: "string", enum: ["understood", "almost", "not yet"] },
     feedback: {
       type: "string",
-      description: "understood: what the explanation got right. almost: what is missing. not yet: what is wrong.",
+      description: "The reply to the reviewer: the answer to his question, and for the verdict what is right, missing or wrong. ASCII diagrams go in ``` blocks.",
     },
     line: { type: "integer", description: "For 'not yet': the line of the new code the mistake is about." },
   },

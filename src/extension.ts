@@ -109,7 +109,7 @@ async function handleGuideMessage(reviewGuide: ReviewGuide, review: PullRequestR
       return;
     case "explain":
       if (message.text.trim() !== "") {
-        await reviewGuide.checkExplanation(review, unit.id, message.text);
+        await reviewGuide.sendOwnershipMessage(review, unit.id, message.text);
       }
       return;
   }

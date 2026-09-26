@@ -90,7 +90,7 @@ export class GuideView implements vscode.WebviewViewProvider {
       deepCheck: this.reviewGuide.deepCheckOf(review, unit),
       explanation: record?.explanation,
       draft: this.drafts.get(draftKey(review, unit)),
-      lastCheck: record?.lastCheck,
+      conversation: record?.conversation ?? [],
       checkingExplanation: this.checkingExplanation,
     };
   }

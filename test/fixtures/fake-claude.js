@@ -108,16 +108,22 @@ function questionFor(unit) {
   return { text: `Check: what happens at line ${start}?`, startLine: start, endLine: end };
 }
 
-// The explanation decides the verdict, so tests can choose it: it contains "wrong", "partly" or neither.
+// the reviewer's message decides the verdict, so tests can choose it: it contains "wrong", "partly", a
+// question mark (Claude answers with a diagram), or none of these.
 function ownershipCheck(prompt) {
-  const explanation = /## the reviewer's explanation\n([\s\S]*?)\n## /.exec(prompt)[1].toLowerCase();
-  if (explanation.includes("wrong")) {
-    return { verdict: "not yet", feedback: "Line 5 shifts by bits, not by the word size.", line: 5, unitIds: [] };
+  const message = /## the reviewer's new message\n([\s\S]*?)\n## End of message/.exec(prompt)[1].toLowerCase();
+  const earlierTurns = (prompt.match(/^\*\*the reviewer:\*\*/gm) || []).length;
+  const unitIds = [`turns-before:${earlierTurns}`];
+  if (message.includes("wrong")) {
+    return { verdict: "not yet", feedback: "Line 5 shifts by bits, not by the word size.", line: 5, unitIds };
   }
-  if (explanation.includes("partly")) {
-    return { verdict: "almost", feedback: "What happens at a 3-bit word boundary?", unitIds: [] };
+  if (message.includes("?")) {
+    return { verdict: "almost", feedback: "Think of a staircase:\n```\n__|--|__\n```\nThe steps are flat.", unitIds };
   }
-  return { verdict: "understood", feedback: "Right, and it covers the word boundary.", unitIds: [] };
+  if (message.includes("partly")) {
+    return { verdict: "almost", feedback: "What happens at a 3-bit word boundary?", unitIds };
+  }
+  return { verdict: "understood", feedback: "Right, and it covers the word boundary.", unitIds };
 }
 
 function log(entry) {

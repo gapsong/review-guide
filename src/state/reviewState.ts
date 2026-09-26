@@ -12,10 +12,16 @@ export type Verdict = "understood" | "almost" | "not yet";
 
 export interface OwnershipCheckResult {
   verdict: Verdict;
-  // What is missing ("almost") or wrong ("not yet"), or what the explanation got right.
+  // Claude's reply: what is missing ("almost") or wrong ("not yet"), what the explanation got
+  // right, and an answer to the reviewer's question. May hold fenced ASCII diagrams.
   feedback: string;
   line?: number;
 }
+
+// One message of the ownership chat about a unit.
+export type ChatTurn =
+  | { speaker: "reviewer"; text: string }
+  | { speaker: "claude"; result: OwnershipCheckResult };
 
 // the reviewer's state of one unit of one PR. Stored locally and never sent anywhere except to his local Claude.
 export interface UnitRecord {
@@ -27,8 +33,10 @@ export interface UnitRecord {
   tier: Tier | undefined;
   state: ReadState;
   changedSinceReview: boolean;
+  // the reviewer's first explanation: until there is one, Claude's own summary stays hidden.
   explanation?: string;
   lastCheck?: OwnershipCheckResult;
+  conversation?: ChatTurn[];
 }
 
 interface RepoState {
@@ -80,12 +88,14 @@ export class ReviewStateStore {
     });
   }
 
-  saveOwnershipCheck(repo: RepoId, pullRequestNumber: number, unit: ReviewUnit, explanation: string, result: OwnershipCheckResult): void {
+  // Adds one exchange of the ownership chat: The reviewer's message and Claude's reply.
+  saveOwnershipTurn(repo: RepoId, pullRequestNumber: number, unit: ReviewUnit, message: string, result: OwnershipCheckResult): void {
     this.change(repo, pullRequestNumber, unit, (record) => {
-      record.explanation = explanation;
+      record.explanation ??= message;
+      record.conversation = [...(record.conversation ?? []), { speaker: "reviewer", text: message }, { speaker: "claude", result }];
       record.lastCheck = result;
       record.changedSinceReview = false;
-      // The latest explanation counts: a wrong one after an understood one takes it away again.
+      // The latest verdict counts: a wrong answer after an understood one takes it away again.
       record.state = result.verdict === "understood" ? "understood" : "read";
     });
   }

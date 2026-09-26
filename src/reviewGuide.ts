@@ -101,15 +101,17 @@ export class ReviewGuide {
     }
   }
 
-  // the reviewer explains a unit in his own words; only Claude's "understood" marks it as understood.
-  async checkExplanation(review: PullRequestReview, unitId: string, explanation: string): Promise<OwnershipCheckResult> {
+  // The ownership chat: The reviewer explains a unit in his own words, then may answer or ask back.
+  // Every reply carries a verdict; only Claude's "understood" marks the unit as understood.
+  async sendOwnershipMessage(review: PullRequestReview, unitId: string, message: string): Promise<OwnershipCheckResult> {
     const unit = findUnit(review, unitId);
     if (!unit) {
       throw new Error(`No unit ${unitId} in PR #${review.pullRequest.number}`);
     }
-    const { result, run } = await runOwnershipCheck(review, unit, explanation, this.parts.runClaude);
+    const conversation = this.recordOf(review, unit)?.conversation ?? [];
+    const { result, run } = await runOwnershipCheck(review, unit, conversation, message, this.parts.runClaude);
     review.runs.push(run);
-    this.parts.state.saveOwnershipCheck(review.pullRequest.repo, review.pullRequest.number, unit, explanation, result);
+    this.parts.state.saveOwnershipTurn(review.pullRequest.repo, review.pullRequest.number, unit, message, result);
     this.notify(review);
     return result;
   }

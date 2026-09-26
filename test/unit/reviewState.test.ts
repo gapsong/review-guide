@@ -59,7 +59,7 @@ describe("read marks and ownership state", () => {
 
   it("sets an understood unit back to read when its code changes, and flags it", () => {
     const store = new ReviewStateStore(folder);
-    store.saveOwnershipCheck(repo, 8, unit("h1"), "It packs codes.", { verdict: "understood", feedback: "Right." });
+    store.saveOwnershipTurn(repo, 8, unit("h1"), "It packs codes.", { verdict: "understood", feedback: "Right." });
     store.updateUnits(repo, 8, [{ unit: unit("h2"), tier: "critical" }]);
     const record = store.recordOf(repo, 8, unit("h1").id)!;
     assert.strictEqual(record.state, "read");

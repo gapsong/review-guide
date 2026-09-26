@@ -1,6 +1,6 @@
 import { DeepCheck, Question } from "../analysis/deepCheck";
 import { Tier } from "../analysis/sorting";
-import { OwnershipCheckResult, ReadState } from "../state/reviewState";
+import { ChatTurn, OwnershipCheckResult, ReadState } from "../state/reviewState";
 
 // Renders the guide panel. Pure: takes the view model, returns HTML, so it can be tested without VS Code.
 
@@ -21,7 +21,7 @@ export interface GuideModel {
   explanation: string | undefined;
   // What the reviewer has typed but not sent yet; it must survive the panel being redrawn.
   draft: string | undefined;
-  lastCheck: OwnershipCheckResult | undefined;
+  conversation: ChatTurn[];
   checkingExplanation: boolean;
 }
 
@@ -99,7 +99,7 @@ function questionItem(question: Question): string {
   const lines = question.lines.start === question.lines.end ? `line ${question.lines.start}` : `lines ${question.lines.start}-${question.lines.end}`;
   const message = escapeHtml(JSON.stringify({ type: "reveal", start: question.lines.start, end: question.lines.end }));
   const isDefault = question.isDefault ? ` <span class="muted">(Claude gave no question; this is the default one)</span>` : "";
-  return `${escapeHtml(question.text)} <a href="#" data-message="${message}">${lines}</a>${isDefault}`;
+  return `${richText(question.text)} <a href="#" data-message="${message}">${lines}</a>${isDefault}`;
 }
 
 function listSection(title: string, items: string[]): string {
@@ -109,19 +109,30 @@ function listSection(title: string, items: string[]): string {
   return `<h3>${escapeHtml(title)}</h3>\n<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 }
 
+// The ownership chat: The reviewer's first try, then as many replies and questions as he needs.
 function ownershipSection(model: GuideModel): string {
   if (model.tier !== "critical") {
     return "";
   }
-  const verdict = model.lastCheck
-    ? `<p><span class="verdict verdict-${model.lastCheck.verdict.replace(" ", "-")}">${model.lastCheck.verdict}</span> ${escapeHtml(model.lastCheck.feedback)}${verdictLine(model.lastCheck)}</p>`
-    : "";
-  const checking = model.checkingExplanation ? `<p class="muted">Claude is checking your explanation...</p>` : "";
+  const isFirstTry = model.conversation.length === 0;
+  const hint = isFirstTry
+    ? `In 1-2 sentences: what does this code do, and why is it correct? Only "understood" marks the unit as understood.`
+    : `Answer, try again, or ask back. The verdict can change with every reply; only "understood" counts.`;
+  const checking = model.checkingExplanation ? `<p class="muted">Claude is answering...</p>` : "";
   return `<h3>Do you own it?</h3>
-<p class="muted">In 1-2 sentences: what does this code do, and why is it correct? Only "understood" marks the unit as understood.</p>
-<textarea id="explanation" rows="4">${escapeHtml(model.draft ?? model.explanation ?? "")}</textarea>
-<p><button id="explain"${model.checkingExplanation ? " disabled" : ""}>Check my explanation</button></p>
-${checking}${verdict}`;
+${model.conversation.map(chatTurn).join("\n")}
+<p class="muted">${hint}</p>
+<textarea id="explanation" rows="4">${escapeHtml(model.draft ?? "")}</textarea>
+<p><button id="explain"${model.checkingExplanation ? " disabled" : ""}>${isFirstTry ? "Check my explanation" : "Send"}</button></p>
+${checking}`;
+}
+
+function chatTurn(turn: ChatTurn): string {
+  if (turn.speaker === "reviewer") {
+    return `<div class="turn turn-reviewer"><strong>You</strong>${richText(turn.text)}</div>`;
+  }
+  const { verdict } = turn.result;
+  return `<div class="turn turn-claude"><strong>Claude</strong> <span class="verdict verdict-${verdict.replace(" ", "-")}">${verdict}</span>${richText(turn.result.feedback)}${verdictLine(turn.result)}</div>`;
 }
 
 function verdictLine(check: OwnershipCheckResult): string {
@@ -141,13 +152,28 @@ function plainWordsSection(model: GuideModel): string {
   if (!model.explanation) {
     return `<p class="muted">Claude's plain-words summary opens after you have written your own explanation.</p>`;
   }
-  return `<details open><summary>Claude's plain-words summary</summary><p>${escapeHtml(plainWords)}</p></details>`;
+  return `<details open><summary>Claude's plain-words summary</summary>${richText(plainWords)}</details>`;
 }
 
 function readButtons(model: GuideModel): string {
   const message: GuideMessage = model.readState === "unread" ? { type: "markRead" } : { type: "markUnread" };
   const label = model.readState === "unread" ? "Mark as read" : "Mark as unread";
   return `<p><button data-message="${escapeHtml(JSON.stringify(message))}">${label}</button></p>`;
+}
+
+// Text from Claude or the reviewer: fenced blocks (```) become preformatted diagram blocks, the rest
+// becomes paragraphs. Everything is escaped.
+export function richText(text: string): string {
+  const parts = text.split(/```[\w-]*\n?([\s\S]*?)```/);
+  return parts
+    .map((part, index) => {
+      const isFenced = index % 2 === 1;
+      if (isFenced) {
+        return `<pre class="diagram">${escapeHtml(part.replace(/\n$/, ""))}</pre>`;
+      }
+      return part.trim() === "" ? "" : `<p>${escapeHtml(part.trim()).replace(/\n/g, "<br>")}</p>`;
+    })
+    .join("");
 }
 
 export function escapeHtml(text: string): string {
@@ -174,6 +200,10 @@ li { margin: 4px 0; }
 .state-understood { border-color: var(--vscode-testing-iconPassed); }
 .changed { border: 1px solid var(--vscode-inputValidation-warningBorder); }
 .worth { border-left: 3px solid var(--vscode-inputValidation-infoBorder); padding-left: 8px; }
+pre.diagram { font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); background: var(--vscode-textCodeBlock-background); padding: 6px 8px; overflow-x: auto; white-space: pre; }
+.turn { border-left: 3px solid var(--vscode-descriptionForeground); padding-left: 8px; margin: 8px 0; }
+.turn-claude { border-left-color: var(--vscode-textLink-foreground); }
+.turn p { margin: 4px 0; }
 textarea { width: 100%; box-sizing: border-box; font-family: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
 .verdict { display: inline-block; padding: 0 6px; border-radius: 3px; font-weight: 600; font-size: 0.8em; border: 1px solid var(--vscode-descriptionForeground); }
 .verdict-understood { border-color: var(--vscode-testing-iconPassed); }

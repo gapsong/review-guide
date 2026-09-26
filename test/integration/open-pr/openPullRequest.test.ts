@@ -103,7 +103,7 @@ describe("opening a PR in VS Code", () => {
     assert.strictEqual(unitItem.description, "Fake reason for src/packing.ts  packCodes().");
   });
 
-  it("F11 in VS Code: The reviewer explains the shown unit in the guide panel and sees Claude's verdict", async () => {
+  it("F11 and F15 in VS Code: The reviewer explains the unit, asks back in the chat, and the verdict changes", async () => {
     const unitNode = await findUnitNode(api, "unpackCodes()");
     const click = api.pullRequestTree.getTreeItem(unitNode).command!;
     await vscode.commands.executeCommand(click.command, ...click.arguments!);
@@ -115,14 +115,19 @@ describe("opening a PR in VS Code", () => {
     assert.ok(api.guideView.html!.includes("It masks the low</textarea>"), "a redraw keeps what the reviewer has typed");
 
     await api.guideView.receive({ type: "explain", text: "It masks the low bits, partly." });
-    assert.strictEqual(api.guideView.model!.lastCheck!.verdict, "almost");
+    assert.strictEqual(lastVerdict(api), "almost");
     assert.ok(api.guideView.html!.includes("What happens at a 3-bit word boundary?"));
     assert.ok(api.guideView.html!.includes("Fake plain words for src/packing.ts  unpackCodes()."), "shown once the reviewer has written his");
     assert.strictEqual(api.guideView.model!.readState, "read");
 
+    await api.guideView.receive({ type: "explain", text: "Why is the shift unsigned?" });
+    assert.ok(api.guideView.html!.includes(`<pre class="diagram">__|--|__</pre>`), "Claude's diagram is shown as a preformatted block");
+    assert.ok(api.guideView.html!.includes("Why is the shift unsigned?"), "the chat shows the reviewer's question");
+
     await api.guideView.receive({ type: "explain", text: "It masks the low bits of each word after an unsigned shift." });
-    assert.strictEqual(api.guideView.model!.lastCheck!.verdict, "understood");
+    assert.strictEqual(lastVerdict(api), "understood");
     assert.strictEqual(api.guideView.model!.readState, "understood");
+    assert.strictEqual(api.guideView.model!.conversation.length, 6);
   });
 
   it("F14 in VS Code: the PR header shows the 3am check", async () => {
@@ -144,3 +149,8 @@ describe("opening a PR in VS Code", () => {
     assert.deepStrictEqual(files, ["src/packing.ts 2/2"]);
   });
 });
+
+function lastVerdict(api: ReviewGuideApi): string | undefined {
+  const last = api.guideView.model!.conversation.at(-1);
+  return last?.speaker === "claude" ? last.result.verdict : undefined;
+}
