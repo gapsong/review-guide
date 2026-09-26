@@ -34,13 +34,17 @@ async function readSymbols(filePath: string): Promise<CodeSymbol[] | undefined> 
 function waitForSymbolProvider(uri: vscode.Uri, languageId: string): Promise<boolean> {
   let ready = symbolProviderReady.get(languageId);
   if (!ready) {
-    ready = pollForSymbols(uri, 8_000);
+    ready = pollForSymbols(uri, languageServerStartupMilliseconds);
     symbolProviderReady.set(languageId, ready);
   }
   return ready;
 }
 
 const symbolProviderReady = new Map<string, Promise<boolean>>();
+
+// Pylance can take this long to start on a busy machine. Languages without any provider (plain
+// text, TOML) cost this wait once, in parallel with the others.
+const languageServerStartupMilliseconds = 20_000;
 
 async function pollForSymbols(uri: vscode.Uri, timeoutMilliseconds: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMilliseconds;

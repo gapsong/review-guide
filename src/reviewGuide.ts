@@ -132,9 +132,9 @@ export class ReviewGuide {
   private async sortUnits(review: PullRequestReview): Promise<void> {
     this.setStatus(review, "Pass 1 (overview) is running...");
     try {
-      const { overview, run } = await runOverviewPass(review, this.parts.cache, this.parts.runClaude);
+      const { overview, runs } = await runOverviewPass(review, this.parts.cache, this.parts.runClaude);
       review.overview = overview;
-      review.runs.push(run);
+      review.runs.push(...runs);
       this.setStatus(review, undefined);
     } catch (error) {
       this.setStatus(review, `Pass 1 failed: ${messageOf(error)}`);

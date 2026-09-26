@@ -84,3 +84,15 @@ The overview sums, per file, the critical units of every PR opened in that repo 
 ## "Owned" with no critical units
 
 The 3am check says "owned" only when every critical unit is understood. A PR with no critical unit at all shows "3am: owned (no critical units)", so the header never claims more than it knows.
+
+## Pass 1 runs in parallel parts for a large PR
+
+The first real run on qpeft (314 units) took 170 s in one Claude call, over the 2 minutes of Q3. Pass 1 now splits the units into parts of about 80 (the units of one file stay together) and runs the parts at the same time. Each part sees the PR description and the titles of all other units, and is told to sort by the standard of the whole PR; part 1 writes the summary and the draft profile. On qpeft this brought the overview from 194 s to 68 s after opening.
+
+## Reasons are short; skim units are left out of the reading order
+
+Pass 1's output tokens were most of its time. Reasons are one sentence of at most 20 words, and the reading order lists only critical and check units (skim units need no order).
+
+## Q1 over Q2: no critical budget in the prompt
+
+Measured on qpeft (measurements/README.md): telling Claude that critical is "well under a tenth of the units" brought the extra critical units from about 25 to 12, but it also moved 3 to 4 of the reviewer's gold units (clamp_scale, freeze_codes, QATTrainer.__init__, the QA-LoRA mean pooling) to "check", and it overrode the repo profile. Without it, all 15 gold units are critical in both runs. A missed critical change is the failure that costs ownership; an extra critical unit costs a few minutes. So the prompt has no budget, and Q2 is not met (25 extra). Most extras are persistence and public defaults, which the spec's own general rules and the qpeft example profile both call critical.

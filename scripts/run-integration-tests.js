@@ -5,10 +5,10 @@ const os = require("os");
 const fs = require("fs");
 const { spawnSync } = require("child_process");
 const { downloadAndUnzipVSCode, runTests } = require("@vscode/test-electron");
+const { trustExtensionForGitHubLogin } = require("./trust-github-login");
 
 const root = path.resolve(__dirname, "..");
 const suitesRoot = path.join(root, "out", "test", "integration");
-const extensionId = "gapsong.review-guide";
 
 function main() {
   if (needsVirtualDisplay()) {
@@ -79,26 +79,6 @@ function runSuite(suite, scratch, vscodeExecutablePath) {
     launchArgs,
     extensionTestsEnv: { REVIEW_GUIDE_TEST_SCRATCH: scratch },
   });
-}
-
-// Stands in for the one click a person makes the first time: "Allow Review Guide to sign in
-// using GitHub". VS Code keeps that answer in its storage, but test runs use in-memory storage,
-// so it cannot be stored ahead. VS Code's product.json has a list of extensions that are trusted
-// for a login provider without asking; the downloaded test copy of VS Code gets this extension on it.
-function trustExtensionForGitHubLogin(vscodeExecutablePath) {
-  const productPath = findProductJson(vscodeExecutablePath);
-  const product = JSON.parse(fs.readFileSync(productPath, "utf8"));
-  const trusted = product.trustedExtensionAuthAccess ?? {};
-  const githubTrusted = trusted.github ?? [];
-  if (!githubTrusted.includes(extensionId)) {
-    trusted.github = [...githubTrusted, extensionId];
-    product.trustedExtensionAuthAccess = trusted;
-    fs.writeFileSync(productPath, JSON.stringify(product, null, "\t"));
-  }
-}
-
-function findProductJson(vscodeExecutablePath) {
-  return path.join(path.dirname(vscodeExecutablePath), "resources", "app", "product.json");
 }
 
 main();

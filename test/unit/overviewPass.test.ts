@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
+import { splitIntoParts } from "../../src/analysis/overviewPass";
 import { PullRequestReview, sortingOf } from "../../src/review/pullRequestReview";
 import { unitTitle } from "../../src/review/reviewUnit";
 import { createFixtureRemote, FixtureRemote, makeTempDir, pullRequestOf, pushNewHead } from "../support/gitFixture";
@@ -109,4 +110,41 @@ describe("pass 1: sorting the units of a PR", () => {
     assert.strictEqual(review.overview!.headSha, remote.headSha);
     assert.ok(review.units.every((unit) => sortingOf(review, unit)));
   });
+
+  it("sorts a large PR in parts at the same time, keeping each file in one part", async () => {
+    const manyFiles = (offset: number) => Object.fromEntries(Array.from({ length: 17 }, (_, file) => [
+      `qpeft/module_${file}.py`,
+      Array.from({ length: 10 }, (_, index) => `def f${index}():\n    return ${index + offset}\n`).join("\n\n"),
+    ]));
+    remote = createFixtureRemote(path.join(scratch, "large"), manyFiles(0), manyFiles(1), 30);
+    const fakeClaude = useFakeClaude(scratch, {});
+    const review = await openAndWait(path.join(scratch, "storage"));
+
+    assert.strictEqual(review.units.length, 170);
+    const overviewCalls = fakeClaude.calls().filter((call) => call.pass === "overview");
+    assert.strictEqual(overviewCalls.length, 3);
+    assert.deepStrictEqual(overviewCalls.map((call) => call.unitIds.length).sort(), [50, 50, 70]);
+    assert.ok(review.units.every((unit) => sortingOf(review, unit)?.reason.startsWith("Fake reason")));
+    assert.deepStrictEqual(review.runs.filter((run) => run.pass === "overview").length, 3);
+  });
+
+  it("splits into parts of about equal size, never splitting a file", () => {
+    const units = ["a", "a", "b", "b", "b", "c", "d", "d"].map((file, index) => ({ ...unitIn(), id: `${file}#${index}`, file }));
+    const parts = splitIntoParts(units, 3);
+    assert.deepStrictEqual(parts.map((part) => part.map((unit) => unit.file).join("")), ["aa", "bbb", "cdd"]);
+  });
 });
+
+function unitIn() {
+  return {
+    id: "",
+    file: "",
+    kind: "function" as const,
+    symbolPath: "f",
+    newRange: { start: 1, end: 1 },
+    lines: [],
+    hash: "h",
+    isTestFile: false,
+    existedBefore: true,
+  };
+}
