@@ -4,7 +4,8 @@ Date: 2026-09-26. Everything below is pushed to gapsong/review-guide, branch mai
 
 ## Bottom line
 
-- **All automated criteria are met: F1 to F14 and S1**, each proven by a test in `npm test`. `npm test` passes in a fresh clone (`git clone`, `npm ci`, `npm test`, exit 0).
+- **All automated criteria are met: F1 to F16 and S1**, each proven by a test in `npm test`. `npm test` passes in a fresh clone (`git clone`, `npm ci`, `npm test`, exit 0; see "Fresh clone" below for the commit).
+- **Your new requirements from tonight are in:** F15 (the ownership check is now a chat) and F16 (ASCII diagrams and everyday analogies) are in SPEC.md, built and tested. A real Opus reply to your `_ste` question is in `measurements/ste-chat-example.md`. It took 15 s, drew the forward/backward diagram, used a price-tag analogy mapped back to the code, explained the float32 reason, and still said "almost" and asked for your own words.
 - **Q1 met, Q2 not met, Q3 met** on gapsong/qpeft PR #8 at 4369298: all 15 gold units are critical, but 25 other units are critical too (target: at most 10), and the overview is there 75 s after opening.
 - **The big learning:** Q1 and Q2 pull against each other. When the prompt caps "critical" at a tenth of the units, Q2 drops to 12, but Claude moves 3 to 4 of your gold units down to "check". Your example profile does not fix this, because the extra units are save/load and config defaults, and your own profile calls those critical. So the gold list and the profile disagree, and you have to decide which one is right. I chose to never miss a gold unit (see DECISIONS.md).
 - An independent review found 9 real bugs after the build. All 9 are fixed and have tests.
@@ -20,7 +21,8 @@ Date: 2026-09-26. Everything below is pushed to gapsong/review-guide, branch mai
 | 4 | Pass 2 (questions per critical unit), read marks, limit of 25 (F4, F6, F8) | 3c4907a |
 | 5 | Ownership check, ownership overview, 3am check; .vsix package test, README (F9, F11, F12, F14) | d12b844, 15ac96c |
 | After | Skip rule fix (from the real run), pass 1 in parallel parts, Q measurements | dc6f1e1, 1672a05 |
-| After | 9 fixes from an independent code review | e0618e8, affea59, e8539a5 |
+| After | 9 fixes from an independent code review, and tests for the last two | e0618e8, affea59, e8539a5, bfd91fe |
+| New | the reviewer's new requirements: F15 ownership chat, F16 visual explanations (spec, code, tests); S1 check made robust | c1b0f39, de7e3e9, a1da174 |
 
 ## Verified, criterion by criterion
 
@@ -36,16 +38,19 @@ Date: 2026-09-26. Everything below is pushed to gapsong/review-guide, branch mai
 | F8 | pass | `test/unit/deepCheckPass.test.ts`: the 3 "F8" tests (waits until yes, no, 25 without asking) |
 | F9 | pass | `test/packaging/package.test.ts`: runs `npm run package`, installs the .vsix with the VS Code CLI, checks what is shipped |
 | F10 | pass | `npm test` = compile (type check) + lint + unit + S1 + integration + package; exit 0 in a fresh clone |
-| F11 | pass | `test/unit/ownership.test.ts`: the 4 "F11" tests; `test/integration/open-pr`: "F11 in VS Code" |
+| F11 | pass | `test/unit/ownership.test.ts`: the 4 "F11" tests; `test/integration/open-pr`: "F11 and F15 in VS Code" |
 | F12 | pass | `test/unit/ownership.test.ts`: "F12: lists per file ... across all PRs of the repo"; `open-pr`: "F12 in VS Code" |
 | F13 | pass | `test/unit/overviewPass.test.ts`: "F13: ..." with a fixture PR where the fake Claude says "skim" for every test; `test/unit/weakenedTests.test.ts` |
 | F14 | pass | `test/unit/ownership.test.ts`: the "F14" tests; `open-pr`: "F14 in VS Code" |
+| F15 | pass | `test/unit/ownership.test.ts`: "F15: keeps the unit, the reviewer's earlier messages and the code as context, and lets the verdict change" (3 turns, each prompt sees the earlier turns, history survives a new store, only "understood" counts) and "tells Claude not to explain before the reviewer's first try"; `test/integration/open-pr`: "F11 and F15 in VS Code" (chat in the real guide panel) |
+| F16 | pass | `test/unit/visualExplanations.test.ts`: the pass 2 and chat prompts ask for an ASCII diagram and an everyday analogy mapped back to the code; the panel renders fenced blocks as escaped `<pre>` blocks in plain words, questions and chat. Also checked in the real panel ("F11 and F15 in VS Code"). |
 | S1 | pass | `test/safety/readOnlyClaude.test.ts`: the **real** `claude` CLI (haiku) is asked to edit, create, run a shell command, fetch a URL and search the web. Afterwards no byte of the repo (`.git` included) changed and a local web server got 0 requests. Control, done by hand: the same prompt with Edit/Write allowed does change the repo, so the test can fail. |
 
 Notes:
 - **F1 does not click the real login.** A headless run cannot click it. The test disables VS Code's built-in GitHub login and registers a stand-in under the same id `github`. The extension still calls the real `vscode.authentication.getSession("github")`, and a local fake GitHub API checks the token. VS Code keeps all storage in memory during tests, so your one "Allow" click could not be stored ahead. Instead, the test copy of VS Code gets the extension on its `trustedExtensionAuthAccess` list.
 - The fake `claude` in unit and integration tests refuses to run unless it gets the read-only flags, so a change to those flags breaks the tests.
 - `npm test` takes about 45 s. S1 costs one small haiku call.
+- S1 failed once tonight, and not on safety: haiku put all its attempts into one entry, and the check "Claude ran and reported at least 3 attempts" failed. That check now accepts any report. The safety checks (no byte changed, no request reached the server) are unchanged.
 
 ## Q1 to Q3: measured on qpeft PR #8
 
@@ -68,7 +73,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 1. `src/reviewGuide.ts`: the core. Open a PR, pass 1, pass 2, read marks, the ownership check. Everything else plugs into it.
 2. `src/review/buildReviewUnits.ts`: how a diff becomes review units (functions, not hunks).
 3. `src/claude/claudeCli.ts`: the read-only Claude call and why each flag is there.
-4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2.
+4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2. Then `ownershipPrompt.ts` and `explanationStyle.ts` for the chat (F15, F16).
 5. `src/state/reviewState.ts` and `src/state/ownership.ts`: read / understood, the step back after a push, the 3am check.
 
 `DECISIONS.md` lists every place where I read the spec one way and why (22 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
@@ -77,6 +82,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 
 - **Decide Q2:** is the gold list right (then save/load and defaults should drop out of the profile), or the profile (then the gold list should grow)? After that, write `.review-guide.md` in qpeft. Claude's draft is in `measurements/qpeft-pr8-without-profile.md`.
 - **Check my reading of the gold list** (strict/generous mapping above).
+- **Try the chat on a unit you do not understand yet**, and tell me whether the diagrams and analogies help. The style lives in one place: `src/claude/explanationStyle.ts`.
 - **Install and try it:** `npm run package`, then `code --install-extension review-guide.vsix`. On first use, VS Code asks once to allow the GitHub login.
 - **R1:** read the code (order above).
 - Before going public: check the Claude Code terms, word for word (spec, "Publishing").

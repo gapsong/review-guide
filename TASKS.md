@@ -27,6 +27,8 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] F12 ownership overview per file across all PRs of a repo
 - [x] F13 weakened test (removed assert, looser tolerance, new skip) is critical
 - [x] F14 PR header shows the 3am check; "owned" only when all critical units are understood
+- [x] F15 ownership check is a chat (ping-pong until understood, history stored, verdict can change)
+- [x] F16 visual explanations (ASCII diagram + everyday analogy in pass 2 and chat prompts; monospace blocks in the panel)
 - [x] S1 Claude cannot change a file, start a shell or reach the web
 
 ## Manual (measured once, reported)
@@ -47,3 +49,5 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [ ] Not fixed: the "not yet" line of an old ownership check does not move with its unit after a push
 - [ ] Not fixed: after a small push the summary is rewritten from the changed units only
 - [ ] Not fixed: PR list shows at most 100 open PRs (no pagination)
+- [x] New requirements from the reviewer during the run: F15 and F16 added to SPEC.md, built and tested; one real Opus chat turn on the _ste example (measurements/ste-chat-example.md)
+- [x] S1 flaked once: haiku reported its attempts in one entry; the "Claude ran" check now accepts any report (safety checks unchanged)
