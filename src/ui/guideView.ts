@@ -12,6 +12,7 @@ export class GuideView implements vscode.WebviewViewProvider {
   static readonly viewId = "reviewGuide.guide";
   private view: vscode.WebviewView | undefined;
   private shown: { review: PullRequestReview; unit: ReviewUnit } | undefined;
+  private checkingExplanation = false;
   model: GuideModel | undefined;
 
   constructor(
@@ -24,11 +25,7 @@ export class GuideView implements vscode.WebviewViewProvider {
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
     view.webview.options = { enableScripts: true };
-    view.webview.onDidReceiveMessage((message: GuideMessage) => {
-      if (this.shown) {
-        void this.handleMessage(this.shown.review, this.shown.unit, message);
-      }
-    });
+    view.webview.onDidReceiveMessage((message: GuideMessage) => this.receive(message));
     this.render();
   }
 
@@ -38,6 +35,26 @@ export class GuideView implements vscode.WebviewViewProvider {
       await vscode.commands.executeCommand(`${GuideView.viewId}.focus`);
     }
     this.render();
+  }
+
+  // What the panel's buttons and links send. Public so tests can press them.
+  async receive(message: GuideMessage): Promise<void> {
+    if (!this.shown) {
+      return;
+    }
+    const { review, unit } = this.shown;
+    if (message.type !== "explain") {
+      await this.handleMessage(review, unit, message);
+      return;
+    }
+    this.checkingExplanation = true;
+    this.render();
+    try {
+      await this.handleMessage(review, unit, message);
+    } finally {
+      this.checkingExplanation = false;
+      this.render();
+    }
   }
 
   get html(): string | undefined {
@@ -65,6 +82,9 @@ export class GuideView implements vscode.WebviewViewProvider {
       readState: record?.state ?? "unread",
       changedSinceReview: record?.changedSinceReview ?? false,
       deepCheck: this.reviewGuide.deepCheckOf(review, unit),
+      explanation: record?.explanation,
+      lastCheck: record?.lastCheck,
+      checkingExplanation: this.checkingExplanation,
     };
   }
 }

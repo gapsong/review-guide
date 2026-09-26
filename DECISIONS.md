@@ -68,3 +68,19 @@ Above 25 critical units the extension shows the number and asks with a normal (n
 ## Read state per unit, per PR, per repo
 
 Read marks live in one JSON file per repo, keyed by PR number and unit id, with the unit hash at the time. When a unit's hash changes on a new push, it steps back (understood -> read, read -> unread) and is flagged "changed since your review". A unit that was never read is not flagged.
+
+## The latest explanation decides "understood"
+
+A unit is "understood" exactly when Claude's verdict on the reviewer's latest explanation is "understood". A later explanation that is "almost" or "not yet" takes it back to "read": the state should say what he can explain now. Writing an explanation counts as having read the unit.
+
+## Claude's summary is hidden, not just folded, until the reviewer has written his
+
+"Folded" in the spec could mean a collapsed section one click away. That would make it too easy to peek, which defeats the check. The guide does not show Claude's plain-words summary at all until the reviewer has sent an explanation; after that it is shown open.
+
+## Ownership overview counts critical units per PR
+
+The overview sums, per file, the critical units of every PR opened in that repo (PRs closed in the extension included). A function that is critical in two PRs counts twice, once per PR, because each PR changed it and each change needs owning.
+
+## "Owned" with no critical units
+
+The 3am check says "owned" only when every critical unit is understood. A PR with no critical unit at all shows "3am: owned (no critical units)", so the header never claims more than it knows.

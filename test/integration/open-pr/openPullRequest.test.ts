@@ -98,5 +98,40 @@ describe("opening a PR in VS Code", () => {
     const unitItem = tree.getTreeItem(await findUnitNode(api, "packCodes()"));
     assert.strictEqual(unitItem.description, "Fake reason for src/packing.ts  packCodes().");
   });
-});
 
+  it("F11 in VS Code: The reviewer explains the shown unit in the guide panel and sees Claude's verdict", async () => {
+    const unitNode = await findUnitNode(api, "unpackCodes()");
+    const click = api.pullRequestTree.getTreeItem(unitNode).command!;
+    await vscode.commands.executeCommand(click.command, ...click.arguments!);
+    assert.ok(!api.guideView.html!.includes("Fake plain words"), "Claude's summary stays hidden before the reviewer has written his");
+
+    await api.guideView.receive({ type: "explain", text: "It masks the low bits, partly." });
+    assert.strictEqual(api.guideView.model!.lastCheck!.verdict, "almost");
+    assert.ok(api.guideView.html!.includes("What happens at a 3-bit word boundary?"));
+    assert.ok(api.guideView.html!.includes("Fake plain words for src/packing.ts  unpackCodes()."), "shown once the reviewer has written his");
+    assert.strictEqual(api.guideView.model!.readState, "read");
+
+    await api.guideView.receive({ type: "explain", text: "It masks the low bits of each word after an unsigned shift." });
+    assert.strictEqual(api.guideView.model!.lastCheck!.verdict, "understood");
+    assert.strictEqual(api.guideView.model!.readState, "understood");
+  });
+
+  it("F14 in VS Code: the PR header shows the 3am check", async () => {
+    const header = api.pullRequestTree.getTreeItem(await firstPullRequestNode(api));
+    assert.strictEqual(header.description, "feature -> main  [1/4 read]  3am: 1 understood · 0 read · 1 unread");
+
+    const packCodes = await findUnitNode(api, "packCodes()");
+    const click = api.pullRequestTree.getTreeItem(packCodes).command!;
+    await vscode.commands.executeCommand(click.command, ...click.arguments!);
+    await api.guideView.receive({ type: "explain", text: "It shifts each code into its place in the word." });
+    const owned = api.pullRequestTree.getTreeItem(await firstPullRequestNode(api));
+    assert.strictEqual(owned.description, "feature -> main  [2/4 read]  3am: owned");
+  });
+
+  it("F12 in VS Code: the Ownership view lists understood critical units per file", async () => {
+    const tree = api.ownershipTree;
+    const [repo] = await tree.getChildren();
+    const files = (await tree.getChildren(repo)).map((node) => tree.getTreeItem(node).label);
+    assert.deepStrictEqual(files, ["src/packing.ts 2/2"]);
+  });
+});

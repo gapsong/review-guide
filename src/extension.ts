@@ -15,6 +15,7 @@ import { ReviewStateStore } from "./state/reviewState";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { GuideMessage } from "./ui/guideHtml";
 import { GuideView } from "./ui/guideView";
+import { OwnershipTree } from "./ui/ownershipTree";
 import { PullRequestTree } from "./ui/pullRequestTree";
 import { revealLines, showUnitDiff } from "./ui/unitDiff";
 
@@ -22,6 +23,7 @@ export interface ReviewGuideApi {
   reviewGuide: ReviewGuide;
   pullRequestTree: PullRequestTree;
   guideView: GuideView;
+  ownershipTree: OwnershipTree;
 }
 
 export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
@@ -37,7 +39,10 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     confirmDeepCheck: askToStartDeepCheck,
   });
   const pullRequestTree = new PullRequestTree(github, reviewGuide, findConfiguredRepos);
-  const guideView = new GuideView(reviewGuide, (review, unit, message) => handleGuideMessage(reviewGuide, review, unit, message));
+  const guideView = new GuideView(reviewGuide, (review, unit, message) =>
+    handleGuideMessage(reviewGuide, review, unit, message).catch(showError),
+  );
+  const ownershipTree = new OwnershipTree(reviewGuide, findConfiguredRepos);
 
   const openPullRequest = async (pullRequest: PullRequest) => {
     await vscode.window.withProgress(
@@ -57,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
     vscode.window.registerWebviewViewProvider(GuideView.viewId, guideView),
+    vscode.window.registerTreeDataProvider("reviewGuide.ownership", ownershipTree),
     vscode.commands.registerCommand("reviewGuide.refresh", () => pullRequestTree.refresh()),
     vscode.commands.registerCommand("reviewGuide.openPullRequest", reportErrors(openPullRequest)),
     vscode.commands.registerCommand("reviewGuide.closePullRequest", reportErrors(async (node: { pullRequest: PullRequest }) => {
@@ -82,7 +88,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       await vscode.window.showTextDocument(document);
     })),
   );
-  return { reviewGuide, pullRequestTree, guideView };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree };
 }
 
 export function deactivate(): void {
@@ -98,6 +104,11 @@ async function handleGuideMessage(reviewGuide: ReviewGuide, review: PullRequestR
       return;
     case "reveal":
       await revealLines(review, unit, message.start, message.end);
+      return;
+    case "explain":
+      if (message.text.trim() !== "") {
+        await reviewGuide.checkExplanation(review, unit.id, message.text);
+      }
       return;
   }
 }
@@ -135,8 +146,12 @@ function reportErrors<Args extends unknown[]>(command: (...args: Args) => Promis
     try {
       await command(...args);
     } catch (error) {
-      void vscode.window.showErrorMessage(`Review Guide: ${error instanceof Error ? error.message : String(error)}`);
+      showError(error);
       throw error;
     }
   };
+}
+
+function showError(error: unknown): void {
+  void vscode.window.showErrorMessage(`Review Guide: ${error instanceof Error ? error.message : String(error)}`);
 }

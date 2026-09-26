@@ -57,6 +57,15 @@ export function pushNewHead(remote: FixtureRemote, files: FileTree): string {
   return headSha;
 }
 
+// Publishes a second PR against the same base, from its own branch.
+export function addPullRequest(remote: FixtureRemote, files: FileTree, number: number): FakePull {
+  git(remote.remotePath, "checkout", "--quiet", "-b", `feature-${number}`, remote.baseSha);
+  const headSha = commitFiles(remote.remotePath, files, `Head of PR ${number}`);
+  git(remote.remotePath, "update-ref", `refs/pull/${number}/head`, headSha);
+  git(remote.remotePath, "checkout", "--quiet", "main");
+  return { number, title: `Fixture PR ${number}`, cloneUrl: remote.remotePath, baseRef: "main", baseSha: remote.baseSha, headRef: `feature-${number}`, headSha };
+}
+
 // Replaces the whole tree with `files` and commits it.
 function commitFiles(repoPath: string, files: FileTree, message: string): string {
   for (const entry of fs.readdirSync(repoPath)) {

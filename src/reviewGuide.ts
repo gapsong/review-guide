@@ -1,15 +1,17 @@
 import { DeepCheck } from "./analysis/deepCheck";
 import { runDeepCheckPass } from "./analysis/deepCheckPass";
 import { runOverviewPass } from "./analysis/overviewPass";
+import { runOwnershipCheck } from "./analysis/ownershipCheck";
 import { RunClaude } from "./claude/claudeCli";
 import { readCommitMessages, readRepoProfile, writeClaudeContext } from "./git/claudeContext";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
-import { PullRequest } from "./github/pullRequest";
+import { PullRequest, RepoId } from "./github/pullRequest";
 import { loadPullRequest, SymbolReader } from "./review/loadPullRequest";
 import { findUnit, PullRequestReview, pullRequestKey, sortingOf, unitsOfTier } from "./review/pullRequestReview";
 import { ReviewUnit } from "./review/reviewUnit";
 import { AnalysisCache } from "./state/analysisCache";
-import { ReviewStateStore, UnitRecord } from "./state/reviewState";
+import { FileOwnership, ownershipByFile, threeAmCheck, ThreeAmCheck } from "./state/ownership";
+import { OwnershipCheckResult, ReviewStateStore, UnitRecord } from "./state/reviewState";
 
 // Above this many critical units, pass 2 would take long and cost a lot, so the reviewer decides.
 export const deepCheckLimit = 25;
@@ -83,6 +85,31 @@ export class ReviewGuide {
       this.parts.state.setReadState(review.pullRequest.repo, review.pullRequest.number, unit, readState);
       this.notify(review);
     }
+  }
+
+  // the reviewer explains a unit in his own words; only Claude's "understood" marks it as understood.
+  async checkExplanation(review: PullRequestReview, unitId: string, explanation: string): Promise<OwnershipCheckResult> {
+    const unit = findUnit(review, unitId);
+    if (!unit) {
+      throw new Error(`No unit ${unitId} in PR #${review.pullRequest.number}`);
+    }
+    const { result, run } = await runOwnershipCheck(review, unit, explanation, this.parts.runClaude);
+    review.runs.push(run);
+    this.parts.state.saveOwnershipCheck(review.pullRequest.repo, review.pullRequest.number, unit, explanation, result);
+    this.notify(review);
+    return result;
+  }
+
+  threeAmCheckOf(review: PullRequestReview): ThreeAmCheck {
+    return threeAmCheck(unitsOfTier(review, "critical").map((unit) => this.recordOf(review, unit)));
+  }
+
+  readCount(review: PullRequestReview): number {
+    return review.units.filter((unit) => (this.recordOf(review, unit)?.state ?? "unread") !== "unread").length;
+  }
+
+  ownershipOf(repo: RepoId): FileOwnership[] {
+    return ownershipByFile(this.parts.state.recordsOfRepo(repo));
   }
 
   private async load(pullRequest: PullRequest): Promise<PullRequestReview> {

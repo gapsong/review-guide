@@ -77,11 +77,8 @@ export class ReviewStateStore {
       record.explanation = explanation;
       record.lastCheck = result;
       record.changedSinceReview = false;
-      if (result.verdict === "understood") {
-        record.state = "understood";
-      } else if (record.state === "unread") {
-        record.state = "read";
-      }
+      // The latest explanation counts: a wrong one after an understood one takes it away again.
+      record.state = result.verdict === "understood" ? "understood" : "read";
     });
   }
 

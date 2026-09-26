@@ -37,6 +37,10 @@
           "id": "reviewGuide.guide",
           "name": "Guide",
           "type": "webview"
+        },
+        {
+          "id": "reviewGuide.ownership",
+          "name": "Ownership"
         }
       ]
     },

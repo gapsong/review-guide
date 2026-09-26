@@ -9,7 +9,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] 2. Open a PR: worktree, review units, diff on click, guide panel
 - [x] 3. Pass 1 with Claude, cache
 - [x] 4. Pass 2, read marks, limit of 25
-- [ ] 5. Ownership check and ownership overview
+- [x] 5. Ownership check and ownership overview
 
 ## Done when (automated)
 
@@ -23,10 +23,10 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] F8 more than 25 critical units: pass 2 waits for the user's agreement
 - [ ] F9 `npm run package` builds a .vsix that installs in VS Code
 - [ ] F10 lint, type check and all tests pass in `npm test`
-- [ ] F11 ownership check: understood / almost / not yet; only "understood" marks understood
-- [ ] F12 ownership overview per file across all PRs of a repo
+- [x] F11 ownership check: understood / almost / not yet; only "understood" marks understood
+- [x] F12 ownership overview per file across all PRs of a repo
 - [x] F13 weakened test (removed assert, looser tolerance, new skip) is critical
-- [ ] F14 PR header shows the 3am check; "owned" only when all critical units are understood
+- [x] F14 PR header shows the 3am check; "owned" only when all critical units are understood
 - [x] S1 Claude cannot change a file, start a shell or reach the web
 
 ## Manual (measured once, reported)

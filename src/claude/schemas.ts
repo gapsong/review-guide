@@ -77,3 +77,16 @@ export const deepCheckSchema = {
   },
   required: ["units"],
 };
+
+export const ownershipCheckSchema = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["understood", "almost", "not yet"] },
+    feedback: {
+      type: "string",
+      description: "understood: what the explanation got right. almost: what is missing. not yet: what is wrong.",
+    },
+    line: { type: "integer", description: "For 'not yet': the line of the new code the mistake is about." },
+  },
+  required: ["verdict", "feedback"],
+};

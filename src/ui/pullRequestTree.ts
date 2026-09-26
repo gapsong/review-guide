@@ -6,6 +6,7 @@ import { Tier, tiers } from "../analysis/sorting";
 import { PullRequestReview, sortingOf, unitsOfTier } from "../review/pullRequestReview";
 import { ReviewUnit, unitTitle } from "../review/reviewUnit";
 import { ReviewGuide } from "../reviewGuide";
+import { describeThreeAmCheck } from "../state/ownership";
 import { ReadState, UnitRecord } from "../state/reviewState";
 
 export type PullRequestTreeNode =
@@ -54,7 +55,7 @@ export class PullRequestTree implements vscode.TreeDataProvider<PullRequestTreeN
       case "repo":
         return repoItem(node.repo);
       case "pullRequest":
-        return pullRequestItem(node.pullRequest, this.reviewGuide.reviewOf(node.pullRequest));
+        return pullRequestItem(node.pullRequest, this.reviewGuide.reviewOf(node.pullRequest), this.reviewGuide);
       case "message":
         return messageItem(node.text, node.tooltip);
       case "summary":
@@ -130,12 +131,17 @@ function repoItem(repo: RepoId): vscode.TreeItem {
   return item;
 }
 
-function pullRequestItem(pullRequest: PullRequest, review: PullRequestReview | undefined): vscode.TreeItem {
+function pullRequestItem(pullRequest: PullRequest, review: PullRequestReview | undefined, reviewGuide: ReviewGuide): vscode.TreeItem {
   const collapsible = review ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None;
   const item = new vscode.TreeItem(`PR #${pullRequest.number}  ${pullRequest.title}`, collapsible);
   item.id = `pr:${repoToString(pullRequest.repo)}#${pullRequest.number}:${review ? "open" : "closed"}`;
   item.description = `${pullRequest.headRef} -> ${pullRequest.baseRef}`;
   item.tooltip = `${pullRequest.title}\nby ${pullRequest.author}`;
+  if (review?.overview) {
+    const threeAm = describeThreeAmCheck(reviewGuide.threeAmCheckOf(review));
+    item.description += `  [${reviewGuide.readCount(review)}/${review.units.length} read]  ${threeAm}`;
+    item.tooltip += `\n\n${threeAm}: could you debug every critical unit at 3am? A unit counts as owned only when Claude confirmed your own explanation of it.`;
+  }
   item.iconPath = new vscode.ThemeIcon("git-pull-request");
   item.contextValue = review ? "openPullRequest" : "pullRequest";
   if (!review) {

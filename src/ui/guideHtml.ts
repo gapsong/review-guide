@@ -1,6 +1,6 @@
 import { DeepCheck, Question } from "../analysis/deepCheck";
 import { Tier } from "../analysis/sorting";
-import { ReadState } from "../state/reviewState";
+import { OwnershipCheckResult, ReadState } from "../state/reviewState";
 
 // Renders the guide panel. Pure: takes the view model, returns HTML, so it can be tested without VS Code.
 
@@ -17,13 +17,18 @@ export interface GuideModel {
   changedSinceReview: boolean;
   // Pass 2's result, for critical units once it is there.
   deepCheck: DeepCheck | undefined;
+  // the reviewer's own explanation and Claude's verdict on it (critical units).
+  explanation: string | undefined;
+  lastCheck: OwnershipCheckResult | undefined;
+  checkingExplanation: boolean;
 }
 
 // Messages the panel's buttons and links send back to the extension.
 export type GuideMessage =
   | { type: "markRead" }
   | { type: "markUnread" }
-  | { type: "reveal"; start: number; end: number };
+  | { type: "reveal"; start: number; end: number }
+  | { type: "explain"; text: string };
 
 export function renderGuide(model: GuideModel | undefined, nonce: string, cspSource: string): string {
   const body = model ? unitSections(model) : `<p class="muted">Click a change in the side bar to see what to check.</p>`;
@@ -47,6 +52,8 @@ function unitSections(model: GuideModel): string {
     heading(model),
     tierSection(model),
     deepCheckSections(model),
+    ownershipSection(model),
+    plainWordsSection(model),
     readButtons(model),
   ].join("\n");
 }
@@ -99,6 +106,41 @@ function listSection(title: string, items: string[]): string {
   return `<h3>${escapeHtml(title)}</h3>\n<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 }
 
+function ownershipSection(model: GuideModel): string {
+  if (model.tier !== "critical") {
+    return "";
+  }
+  const verdict = model.lastCheck
+    ? `<p><span class="verdict verdict-${model.lastCheck.verdict.replace(" ", "-")}">${model.lastCheck.verdict}</span> ${escapeHtml(model.lastCheck.feedback)}${verdictLine(model.lastCheck)}</p>`
+    : "";
+  const checking = model.checkingExplanation ? `<p class="muted">Claude is checking your explanation...</p>` : "";
+  return `<h3>Do you own it?</h3>
+<p class="muted">In 1-2 sentences: what does this code do, and why is it correct? Only "understood" marks the unit as understood.</p>
+<textarea id="explanation" rows="4">${escapeHtml(model.explanation ?? "")}</textarea>
+<p><button id="explain"${model.checkingExplanation ? " disabled" : ""}>Check my explanation</button></p>
+${checking}${verdict}`;
+}
+
+function verdictLine(check: OwnershipCheckResult): string {
+  if (!check.line) {
+    return "";
+  }
+  const message = escapeHtml(JSON.stringify({ type: "reveal", start: check.line, end: check.line }));
+  return ` <a href="#" data-message="${message}">line ${check.line}</a>`;
+}
+
+// Claude's own summary stays hidden until the reviewer has written his: it must not give him the answer first.
+function plainWordsSection(model: GuideModel): string {
+  const plainWords = model.deepCheck?.plainWords;
+  if (model.tier !== "critical" || !plainWords) {
+    return "";
+  }
+  if (!model.explanation) {
+    return `<p class="muted">Claude's plain-words summary opens after you have written your own explanation.</p>`;
+  }
+  return `<details open><summary>Claude's plain-words summary</summary><p>${escapeHtml(plainWords)}</p></details>`;
+}
+
 function readButtons(model: GuideModel): string {
   const message: GuideMessage = model.readState === "unread" ? { type: "markRead" } : { type: "markUnread" };
   const label = model.readState === "unread" ? "Mark as read" : "Mark as unread";
@@ -129,12 +171,21 @@ li { margin: 4px 0; }
 .state-understood { border-color: var(--vscode-testing-iconPassed); }
 .changed { border: 1px solid var(--vscode-inputValidation-warningBorder); }
 .worth { border-left: 3px solid var(--vscode-inputValidation-infoBorder); padding-left: 8px; }
+textarea { width: 100%; box-sizing: border-box; font-family: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
+.verdict { display: inline-block; padding: 0 6px; border-radius: 3px; font-weight: 600; font-size: 0.8em; border: 1px solid var(--vscode-descriptionForeground); }
+.verdict-understood { border-color: var(--vscode-testing-iconPassed); }
+.verdict-almost { border-color: var(--vscode-inputValidation-warningBorder); }
+.verdict-not-yet { border-color: var(--vscode-inputValidation-errorBorder); }
 button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 4px 10px; cursor: pointer; }
 `;
 
 const script = `
 const vscode = acquireVsCodeApi();
 document.addEventListener("click", (event) => {
+  if (event.target.id === "explain") {
+    vscode.postMessage({ type: "explain", text: document.getElementById("explanation").value });
+    return;
+  }
   const target = event.target.closest("[data-message]");
   if (target) {
     event.preventDefault();
