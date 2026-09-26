@@ -60,7 +60,7 @@ function findOwner(line: DiffLine, hunk: Hunk, symbols: FileSymbols): Owner {
   const isAdded = line.kind === "added";
   const sideSymbols = isAdded ? symbols.new : symbols.old;
   if (!sideSymbols) {
-    return { key: `hunk@${hunk.oldStart},${hunk.newStart}`, kind: "hunk", symbolPath: "" };
+    return { key: `hunk:${hunkFingerprint(hunk)}`, kind: "hunk", symbolPath: "" };
   }
   const lineNumber = isAdded ? line.newLine! : line.oldLine!;
   const symbol = innermostSymbolAt(sideSymbols, lineNumber);
@@ -68,6 +68,15 @@ function findOwner(line: DiffLine, hunk: Hunk, symbols: FileSymbols): Owner {
     return { key: "module", kind: "module", symbolPath: "" };
   }
   return { key: `${symbol.kind}:${symbol.path}`, kind: symbol.kind, symbolPath: symbol.path };
+}
+
+// A hunk unit is known by its changed text, not its position, so a push that shifts it keeps its id.
+function hunkFingerprint(hunk: Hunk): string {
+  const hash = createHash("sha256");
+  for (const line of hunk.lines.filter((candidate) => candidate.kind !== "context")) {
+    hash.update(`${line.kind}:${line.text}\n`);
+  }
+  return hash.digest("hex").slice(0, 12);
 }
 
 function innermostSymbolAt(symbols: CodeSymbol[], lineNumber: number): CodeSymbol | undefined {
@@ -124,10 +133,14 @@ function linesWithContext(draft: UnitDraft): DiffLine[] {
   return lines;
 }
 
+// A removed file anchors its lines at 0 ("+0,0"); line 1 of the empty file stands in for it.
 function newRangeOf(lines: DiffLine[]): LineRange {
   const changed = lines.filter((line) => line.kind !== "context");
-  const positions = changed.map((line) => line.newLine ?? line.newAnchor!);
-  return { start: Math.min(...positions), end: Math.max(...positions) };
+  const positions = changed.map((line) => Math.max(1, line.newLine ?? line.newAnchor!));
+  return {
+    start: positions.reduce((smallest, position) => Math.min(smallest, position)),
+    end: positions.reduce((largest, position) => Math.max(largest, position)),
+  };
 }
 
 // Built from the changed text only, not from line numbers, so moving an unchanged function keeps its hash.

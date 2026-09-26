@@ -156,6 +156,31 @@ describe("buildReviewUnits", () => {
     assert.deepStrictEqual(units.map(unitTitle), ["b()"]);
   });
 
+  it("keeps a hunk unit's id when a push moves it, and points a deleted file at line 1", () => {
+    const hunkDiff = (start: number) => `diff --git a/c.toml b/c.toml
+--- a/c.toml
++++ b/c.toml
+@@ -${start},1 +${start},1 @@
+-bits = 3
++bits = 4
+`;
+    const [before] = buildReviewUnits(parseUnifiedDiff(hunkDiff(2))[0], { old: undefined, new: undefined });
+    const [after] = buildReviewUnits(parseUnifiedDiff(hunkDiff(22))[0], { old: undefined, new: undefined });
+    assert.strictEqual(after.id, before.id);
+    assert.strictEqual(after.hash, before.hash);
+
+    const deleted = `diff --git a/gone.py b/gone.py
+deleted file mode 100644
+--- a/gone.py
++++ /dev/null
+@@ -1,2 +0,0 @@
+-def f():
+-    return 1
+`;
+    const [unit] = buildReviewUnits(parseUnifiedDiff(deleted)[0], { old: [{ path: "f", kind: "function", startLine: 1, endLine: 2 }], new: [] });
+    assert.deepStrictEqual(unit.newRange, { start: 1, end: 1 });
+  });
+
   it("marks units in test files", () => {
     const testDiff = diff.replace(/packing\.py/g, "tests/test_packing.py");
     const units = buildReviewUnits(parseUnifiedDiff(testDiff)[0], { old: oldSymbols, new: newSymbols });
