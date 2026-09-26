@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 140 140" role="img" aria-label="Review Guide">
+  <defs>
+    <linearGradient id="acc" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <!-- the banner's icon tile: three changes sorted by tier (critical, check, skim); the critical one is understood -->
+  <rect width="140" height="140" rx="32" fill="#f5f3ff"/>
+  <line x1="24" y1="63" x2="116" y2="63" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="3 5"/>
+  <circle cx="34" cy="38" r="11" fill="#ec4899"/>
+  <path d="M28.5 38.5 L32.5 42.5 L40 34.5" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="51" y="33" width="68" height="10" rx="5" fill="url(#acc)"/>
+  <circle cx="34" cy="84" r="8" fill="#f59e0b"/>
+  <line x1="56" y1="84" x2="98" y2="84" stroke="#a5b4fc" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="34" cy="108" r="6" fill="none" stroke="#9ca3af" stroke-width="2.5"/>
+  <line x1="56" y1="108" x2="82" y2="108" stroke="#d1d5db" stroke-width="6" stroke-linecap="round"/>
+</svg>

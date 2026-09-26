@@ -4,6 +4,7 @@
   "description": "Pre-sorts a GitHub pull request with Claude, so you review the critical changes first and know what to check at each one.",
   "version": "0.1.0",
   "publisher": "gapsong",
+  "icon": "media/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
