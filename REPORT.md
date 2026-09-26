@@ -71,7 +71,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2.
 5. `src/state/reviewState.ts` and `src/state/ownership.ts`: read / understood, the step back after a push, the 3am check.
 
-`DECISIONS.md` lists every place where I read the spec one way and why (21 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
+`DECISIONS.md` lists every place where I read the spec one way and why (22 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
 
 ## Needs from you
 
