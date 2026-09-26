@@ -40,7 +40,6 @@ async function runAllSuites() {
     { name: "open-pr", withWorkspaceFolder: true },
     { name: "restart-part1", userDataDir: sharedUserData },
     { name: "restart-part2", userDataDir: sharedUserData },
-    { name: "packaging" },
   ].filter((suite) => fs.existsSync(path.join(suitesRoot, suite.name)))
     .filter((suite) => !onlySuite || suite.name.startsWith(onlySuite));
 

@@ -21,8 +21,8 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] F6 read marks survive a restart of VS Code
 - [x] F7 second run on the same head commit does not call Claude again
 - [x] F8 more than 25 critical units: pass 2 waits for the user's agreement
-- [ ] F9 `npm run package` builds a .vsix that installs in VS Code
-- [ ] F10 lint, type check and all tests pass in `npm test`
+- [x] F9 `npm run package` builds a .vsix that installs in VS Code
+- [x] F10 lint, type check and all tests pass in `npm test`
 - [x] F11 ownership check: understood / almost / not yet; only "understood" marks understood
 - [x] F12 ownership overview per file across all PRs of a repo
 - [x] F13 weakened test (removed assert, looser tolerance, new skip) is critical
