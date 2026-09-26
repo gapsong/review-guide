@@ -56,6 +56,25 @@ describe("findTestWeakening", () => {
     assert.match(weakeningOf("src/pack.spec.ts", [], ["  it.skip('packs 3 bit codes', () => {"])!, /adds a skip/);
   });
 
+  it("does not count a skip in a test file or test function the PR adds", () => {
+    const newFile = `diff --git a/tests/test_cuda.py b/tests/test_cuda.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_cuda.py
+@@ -0,0 +1,3 @@
++@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
++def test_kernel():
++    assert kernel() == 1
+`;
+    const [unit] = buildReviewUnits(parseUnifiedDiff(newFile)[0], { old: [], new: [{ path: "test_kernel", kind: "function", startLine: 1, endLine: 3 }] });
+    assert.strictEqual(findTestWeakening(unit), undefined);
+
+    const newFunction = newFile.replace("new file mode 100644\n", "").replace("--- /dev/null", "--- a/tests/test_cuda.py");
+    const [added] = buildReviewUnits(parseUnifiedDiff(newFunction)[0], { old: [], new: [{ path: "test_kernel", kind: "function", startLine: 1, endLine: 3 }] });
+    assert.strictEqual(added.existedBefore, false);
+    assert.strictEqual(findTestWeakening(added), undefined);
+  });
+
   it("ignores source files: the rules are about the scoreboard", () => {
     assert.strictEqual(weakeningOf("src/packing.py", ["    assert bits in (2, 3, 4)"], []), undefined);
   });

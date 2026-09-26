@@ -39,7 +39,7 @@ export function buildReviewUnits(file: FileDiff, symbols: FileSymbols): ReviewUn
       drafts.set(owner.key, draft);
     }
   }
-  return [...drafts.values()].map((draft) => finishUnit(file, draft));
+  return [...drafts.values()].map((draft) => finishUnit(file, draft, symbols));
 }
 
 interface Owner {
@@ -76,7 +76,7 @@ function innermostSymbolAt(symbols: CodeSymbol[], lineNumber: number): CodeSymbo
   return containing[0];
 }
 
-function finishUnit(file: FileDiff, draft: UnitDraft): ReviewUnit {
+function finishUnit(file: FileDiff, draft: UnitDraft, symbols: FileSymbols): ReviewUnit {
   const path = file.status === "deleted" ? file.oldPath : file.newPath;
   const lines = linesWithContext(draft);
   return {
@@ -88,7 +88,19 @@ function finishUnit(file: FileDiff, draft: UnitDraft): ReviewUnit {
     lines,
     hash: hashOf(path, draft),
     isTestFile: isTestFile(path),
+    existedBefore: existedBefore(file, draft, symbols),
   };
+}
+
+// Unknown old symbols count as "existed": the weakened-test rule then errs on the side of critical.
+function existedBefore(file: FileDiff, draft: UnitDraft, symbols: FileSymbols): boolean {
+  if (file.status === "added") {
+    return false;
+  }
+  if (draft.kind !== "function" && draft.kind !== "class") {
+    return true;
+  }
+  return symbols.old?.some((symbol) => symbol.path === draft.symbolPath) ?? true;
 }
 
 // The unit's own changed lines plus a few unchanged lines around them. Changed lines that belong

@@ -9,7 +9,8 @@ export function findTestWeakening(unit: ReviewUnit): string | undefined {
   }
   const removed = unit.lines.filter((line) => line.kind === "removed");
   const added = unit.lines.filter((line) => line.kind === "added");
-  return removedAssertion(removed, added) ?? loosenedTolerance(removed, added) ?? addedSkip(added);
+  // A skip in a test the PR adds (e.g. "needs CUDA") guards a new test; it does not weaken an old one.
+  return removedAssertion(removed, added) ?? loosenedTolerance(removed, added) ?? (unit.existedBefore ? addedSkip(added) : undefined);
 }
 
 const assertionPattern =

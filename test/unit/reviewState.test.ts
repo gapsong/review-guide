@@ -17,6 +17,7 @@ function unit(hash: string): ReviewUnit {
     lines: [],
     hash,
     isTestFile: false,
+    existedBefore: true,
   };
 }
 

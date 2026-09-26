@@ -22,6 +22,8 @@ export interface ReviewUnit {
   // Changes whenever the unit's changed lines change; drives the cache and "changed since your review".
   hash: string;
   isTestFile: boolean;
+  // False for a function or file that the PR adds: it cannot weaken anything that was there before.
+  existedBefore: boolean;
 }
 
 export function unitTitle(unit: ReviewUnit): string {

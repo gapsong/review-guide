@@ -11,6 +11,7 @@ const unit: ReviewUnit = {
   lines: [{ kind: "added", text: "    shift = 0", newLine: 6 }],
   hash: "abc",
   isTestFile: false,
+  existedBefore: true,
 };
 
 describe("finalSorting", () => {
