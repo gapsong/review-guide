@@ -55,9 +55,9 @@ Function (automated tests):
 - F9: One command (`npm run package`) builds a `.vsix` file that installs in VS Code.
 - F10: Lint, type check and all tests pass in one command (`npm test`).
 - F11: For a critical unit, the reviewer can type an explanation in his own words; Claude compares it with the code and answers "understood", "almost" (with what is missing) or "not yet" (with what is wrong). Only "understood" marks the unit as understood.
+- F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 - F13: A test file change that removes an assertion, loosens a tolerance or adds a skip is tiered critical (checked with a fixture PR).
 - F14: The PR header shows the 3am check: how many critical units are understood / read / unread, and "owned" only when all are understood.
-- F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 
 Safety (automated test):
 - S1: In a run, Claude cannot change a file, start a shell or reach the web; the test tries each and checks that the worktree is unchanged.
