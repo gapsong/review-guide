@@ -58,6 +58,8 @@ Function (automated tests):
 - F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 - F13: A test file change that removes an assertion, loosens a tolerance or adds a skip is tiered critical (checked with a fixture PR).
 - F14: The PR header shows the 3am check: how many critical units are understood / read / unread, and "owned" only when all are understood.
+- F15: The ownership check is a chat: after Claude's verdict, the reviewer can reply and ask back and forth in the guide panel until he understands. Every turn keeps the unit, his earlier messages and the code as context and stays read-only; the history is stored locally with the unit. Claude does not reveal its own summary before the reviewer's first try. The verdict can change during the chat; only "understood" counts.
+- F16: Explanations are visual and use analogies: the prompts of pass 2 and the ownership chat ask for a small ASCII diagram (data flow, shapes, bit layout, before/after) whenever it helps, and for WHY explained with an everyday analogy that is mapped back to the code; the guide panel shows ASCII diagrams as preformatted (monospace) blocks.
 
 Safety (automated test):
 - S1: In a run, Claude cannot change a file, start a shell or reach the web; the test tries each and checks that the worktree is unchanged.
@@ -187,6 +189,7 @@ For each critical unit it looks at: the full function before and after, its call
 
 Output (structured JSON) per unit:
 - What the code does, in plain words (2-3 sentences), so the reader understands it before judging it.
+- Explanations are visual (added 2026-09-26): whenever it helps, the plain words, the questions and the chat answers include a small ASCII diagram (data flow, shapes, bit layout, before/after), and say WHY with an everyday analogy that is then mapped back to the code. Example: for `_ste(value, x): return value.detach() + (x - x.detach())`, rounding is a staircase with slope 0, so no gradient; the STE uses the rounded value forward and the slope of x backward; `x - x.detach()` is a zero that carries x's gradient; the usual form `x + (value - x).detach()` is not exact in float32 (clamp(3.7046e-05, 1e-4) gives 1.0000000475e-04 instead of 9.9999997474e-05).
 - Blocking problems only: file and line, why it is wrong, and how to show that it fails (an input, a test).
 - Questions for you ("Check: ..."), each tied to a line range.
 - What Claude checked itself, and where it looked (e.g. "read test_packing.py: 3-bit case covered").
@@ -204,7 +207,8 @@ So every critical unit has three states: unread, read, understood.
   - almost: right, but misses something (Claude names it, e.g. "what happens at a 3-bit word boundary");
   - not yet: something is wrong (Claude names it and points to the line).
 - Claude does not give you the answer before you try; its own plain-words summary is folded until you have written yours.
-- Your explanations are stored locally, next to the read marks, and are never sent anywhere except to your local Claude.
+- After the verdict it is a chat (added 2026-09-26): you can answer, try again or ask back ("why detach?"), as often as you need. Every turn sends the unit, the code and the conversation so far to the same read-only call; Claude answers and gives a new verdict. Its explanations do not count as your understanding: only "understood", judged on your own words, marks the unit.
+- Your explanations and the whole chat are stored locally, next to the read marks, and are never sent anywhere except to your local Claude.
 - When the code of an understood unit changes in a new push, it goes back to "read".
 
 The ownership overview (per repo) sums this up per file, so you see which parts of the repo you do not own yet.
