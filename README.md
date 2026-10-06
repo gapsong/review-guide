@@ -143,7 +143,7 @@ npm run package   # builds review-guide.vsix
 ```
 
 Integration tests run in a real VS Code downloaded into `.vscode-test/`, under `xvfb-run` when there is no display.
-They run on Linux; on macOS the downloaded test copy of VS Code does not start once the test setup has patched its signed `product.json` (for the stand-in GitHub login).
+They run on Linux and macOS.
 
 [SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, S1, Q1-Q3, R1) and the code style.
 [REPORT.md](REPORT.md) says which test proves which criterion, and [DECISIONS.md](DECISIONS.md) records the choices the spec left open.

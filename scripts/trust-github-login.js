@@ -19,8 +19,14 @@ function trustExtensionForGitHubLogin(vscodeExecutablePath) {
   }
 }
 
+// On macOS the executable sits in Code.app/Contents/MacOS and the app files in Contents/Resources;
+// on Linux and Windows both sit in the same folder.
 function findProductJson(vscodeExecutablePath) {
-  return path.join(path.dirname(vscodeExecutablePath), "resources", "app", "product.json");
+  const executableFolder = path.dirname(vscodeExecutablePath);
+  const resources = process.platform === "darwin"
+    ? path.join(executableFolder, "..", "Resources")
+    : path.join(executableFolder, "resources");
+  return path.join(resources, "app", "product.json");
 }
 
 module.exports = { trustExtensionForGitHubLogin };

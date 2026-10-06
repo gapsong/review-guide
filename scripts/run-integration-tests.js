@@ -11,6 +11,9 @@ const root = path.resolve(__dirname, "..");
 const suitesRoot = path.join(root, "out", "test", "integration");
 
 function main() {
+  // Started from a terminal inside VS Code, this variable is inherited and would make the test
+  // copy of VS Code start as plain Node, which rejects VS Code's own options.
+  delete process.env.ELECTRON_RUN_AS_NODE;
   if (needsVirtualDisplay()) {
     rerunUnderXvfb();
     return;
@@ -32,8 +35,10 @@ function rerunUnderXvfb() {
 
 async function runAllSuites() {
   const onlySuite = process.argv[2];
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "review-guide-it-"));
-  const sharedUserData = path.join(scratch, "user-data-restart");
+  // Short names: VS Code puts its IPC socket in the user data folder, and macOS allows socket
+  // paths of at most 103 characters.
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "rg-it-"));
+  const sharedUserData = path.join(scratch, "ud-restart");
   const suites = [
     { name: "smoke" },
     { name: "github-login" },
@@ -52,7 +57,7 @@ async function runAllSuites() {
 }
 
 function runSuite(suite, scratch, vscodeExecutablePath) {
-  const userDataDir = suite.userDataDir ?? path.join(scratch, `user-data-${suite.name}`);
+  const userDataDir = suite.userDataDir ?? path.join(scratch, `ud-${suite.name}`);
   const launchArgs = [
     "--user-data-dir", userDataDir,
     "--extensions-dir", path.join(scratch, "extensions"),

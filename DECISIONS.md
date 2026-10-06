@@ -96,3 +96,9 @@ Pass 1's output tokens were most of its time. Reasons are one sentence of at mos
 ## Q1 over Q2: no critical budget in the prompt
 
 Measured on qpeft (measurements/README.md): telling Claude that critical is "well under a tenth of the units" brought the extra critical units from about 25 to 12, but it also moved 3 to 4 of the reviewer's gold units (clamp_scale, freeze_codes, QATTrainer.__init__, the QA-LoRA mean pooling) to "check", and it overrode the repo profile. Without it, all 15 gold units are critical in both runs. A missed critical change is the failure that costs ownership; an extra critical unit costs a few minutes. So the prompt has no budget, and Q2 is not met (25 extra). Most extras are persistence and public defaults, which the spec's own general rules and the qpeft example profile both call critical.
+
+## Integration tests run on macOS
+
+The README said the VS Code integration tests do not start on macOS.
+On 2026-10-05 three other causes were found and fixed, and all suites now pass on macOS: the test runner looked for the test VS Code's `product.json` next to the executable, which on macOS is in `Contents/Resources` instead; a terminal inside VS Code passes `ELECTRON_RUN_AS_NODE` on, which makes the test VS Code start as plain Node; and macOS allows socket paths of at most 103 characters, which the long user data folder names went over.
+A patched `product.json` does not stop the test copy of VS Code 1.140 from starting.
