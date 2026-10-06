@@ -28,7 +28,7 @@ export interface ReviewGuideApi {
 
 export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   const storagePath = context.globalStorageUri.fsPath;
-  const github = new GitHubClient(githubApiUrl(), getGitHubToken);
+  const github = new GitHubClient(githubApiUrl, getGitHubToken);
   const checkouts = new PullRequestCheckouts(storagePath, async (cloneUrl) => gitAuthEnvironment(cloneUrl, await getGitHubToken()));
   const reviewGuide = new ReviewGuide({
     checkouts,

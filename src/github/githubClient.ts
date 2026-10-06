@@ -2,8 +2,9 @@ import { PullRequest, RepoId, repoToString } from "./pullRequest";
 
 // Only reads from GitHub. Nothing is ever posted (spec: no automatic posting).
 export class GitHubClient {
+  // Both are asked for at every request, so a changed setting or a new login counts without a reload.
   constructor(
-    private readonly apiUrl: string,
+    private readonly apiUrl: () => string,
     private readonly getToken: () => Promise<string>,
   ) {}
 
@@ -14,7 +15,7 @@ export class GitHubClient {
 
   private async get<T>(path: string): Promise<T> {
     const token = await this.getToken();
-    const response = await fetch(this.apiUrl.replace(/\/$/, "") + path, {
+    const response = await fetch(this.apiUrl().replace(/\/$/, "") + path, {
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
