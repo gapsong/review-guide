@@ -1,6 +1,9 @@
+import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
+import { ExplainRequest, explainTerminal } from "./claude/explainPrompt";
+import { WorkspaceCodemaps } from "./codemap/workspaceCodemaps";
 import { gitAuthEnvironment } from "./git/gitAuth";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
 import { findConfiguredRepos } from "./github/configuredRepos";
@@ -12,7 +15,9 @@ import { ReviewUnit } from "./review/reviewUnit";
 import { deepCheckLimit, ReviewGuide } from "./reviewGuide";
 import { AnalysisCache } from "./state/analysisCache";
 import { ReviewStateStore } from "./state/reviewState";
+import { CodemapDecorations } from "./ui/codemapDecorations";
 import { readFileSymbols } from "./ui/documentSymbols";
+import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
 import { GuideView } from "./ui/guideView";
 import { OwnershipTree } from "./ui/ownershipTree";
@@ -24,6 +29,9 @@ export interface ReviewGuideApi {
   pullRequestTree: PullRequestTree;
   guideView: GuideView;
   ownershipTree: OwnershipTree;
+  codemaps: WorkspaceCodemaps;
+  codemapDecorations: CodemapDecorations;
+  explainPanels: ExplainPanels;
 }
 
 export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
@@ -43,6 +51,9 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     handleGuideMessage(reviewGuide, review, unit, message).catch(showError),
   );
   const ownershipTree = new OwnershipTree(reviewGuide, findConfiguredRepos);
+  const codemaps = new WorkspaceCodemaps(codemapFile);
+  const codemapDecorations = new CodemapDecorations(codemaps);
+  const explainPanels = new ExplainPanels(codemaps, (folder, request) => startExplainTerminal(context, folder, request), showError);
 
   const openPullRequest = async (pullRequest: PullRequest) => {
     await vscode.window.withProgress(
@@ -60,6 +71,9 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   };
 
   context.subscriptions.push(
+    codemaps,
+    explainPanels,
+    vscode.window.registerFileDecorationProvider(codemapDecorations),
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
     vscode.window.registerWebviewViewProvider(GuideView.viewId, guideView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerTreeDataProvider("reviewGuide.ownership", ownershipTree),
@@ -87,8 +101,17 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       const document = await vscode.workspace.openTextDocument({ language: "markdown", content: draftProfileText(draft) });
       await vscode.window.showTextDocument(document);
     })),
+    // From the Explorer's context menu VS Code passes the clicked file or folder; from the command
+    // palette nothing, so the active editor's file is explained.
+    vscode.commands.registerCommand("reviewGuide.explainPath", reportErrors(async (uri?: vscode.Uri) => {
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (!target) {
+        throw new Error("Open a file, or right-click a file or folder in the Explorer, to explain it.");
+      }
+      await explainPanels.show(target);
+    })),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, codemapDecorations, explainPanels };
 }
 
 export function deactivate(): void {
@@ -125,6 +148,16 @@ async function askToStartDeepCheck(criticalUnitCount: number): Promise<boolean> 
   return answer === start;
 }
 
+// Unlike the read-only review runs, this run may run the app and write files, so it runs visibly in a
+// terminal, under Claude Code's normal permission prompts, and only after the reviewer pressed the button
+// (DECISIONS.md). Claude Code is the terminal's process, not a shell, so no file name can become a command.
+function startExplainTerminal(context: vscode.ExtensionContext, folder: vscode.WorkspaceFolder, request: ExplainRequest): void {
+  const template = fs.readFileSync(path.join(context.extensionPath, "media", "explainPrompt.md"), "utf8");
+  const command = explainTerminal(claudeSettings().executable, template, request);
+  const terminal = vscode.window.createTerminal({ name: command.name, cwd: folder.uri, shellPath: command.executable, shellArgs: command.args });
+  terminal.show();
+}
+
 // The extension never writes into a repo; the reviewer saves the profile there himself.
 function draftProfileText(draft: string): string {
   return `<!-- Draft of .review-guide.md written by Claude. Edit it, then save it as .review-guide.md in the repo root. -->\n\n${draft}\n`;
@@ -136,6 +169,10 @@ function claudeSettings(): ClaudeSettings {
     executable: settings.get<string>("claudePath", "claude"),
     model: settings.get<string>("model", "claude-opus-5-5"),
   };
+}
+
+function codemapFile(): string {
+  return vscode.workspace.getConfiguration("reviewGuide").get<string>("codemapFile", ".codemap/codemap.yaml");
 }
 
 function githubApiUrl(): string {

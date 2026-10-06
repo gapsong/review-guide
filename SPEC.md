@@ -5,7 +5,10 @@ Owner: The reviewer.
 
 ## Goal
 
-A VS Code extension, "Review Guide", that pre-sorts a GitHub pull request with Claude, so the reviewer reviews the critical changes first and knows what to check at each one.
+A VS Code extension, "Review Guide", that helps the reviewer own his code: know what each important part of a repo does and where it can hurt.
+It has two parts.
+The codemap (see "Codemap") shows the reviewer's own one-line notes about the important folders and files of a repo while he browses the code, and a generated visual explanation per path.
+The pull request review, one part of owning code, pre-sorts a GitHub pull request with Claude, so the reviewer reviews the critical changes first and knows what to check at each one.
 
 The main purpose is ownership: The reviewer wants to understand what his code does again, even when an agent wrote it.
 The extension takes the routine work off him, so his own attention goes to the few places where a human must look.
@@ -76,6 +79,13 @@ Gold list (the reviewer, 2026-09-26), every changed function in:
 - Block-AP and trainer defaults: `block_ap.py` (fp32 cast, norm training), `trainer.py` (bit-dependent learning rates), `tuners/qa_lora/layer.py` (mean pooling).
 - Q3: The overview (pass 1) is shown within 2 minutes of opening the PR.
 
+Codemap (automated tests; see "Codemap"):
+- C1: Explorer hover: every path in the codemap gets a badge (the label's emoji: money 💰, security 🔒, core ⚙️, feature 🧩, util 🧰; plus 🧠 as a second character for a deep module) and a tooltip (the `says` sentence, then " · " and the label, plus " · deep module"). The badge is not passed on to a folder's files and has no color. Badges follow every change of the codemap file without a reload.
+- C2: Every problem in the codemap file shows in the Problems view on its line (unknown key, bad label, `deep` that is not true or false, empty `says` or one over 160 characters, a path listed twice, a path that does not exist, broken YAML), and follows every change. An entry with a problem gets no badge, except one whose path does not exist. Without a codemap file there are no badges and no problem.
+- C3: "Explain" (Explorer context menu for files and folders; command palette for the active editor's file) opens a panel "Explain: <name>" with the badge, the path, `says`, the label and deep. When `.codemap/explanations/<path>/index.html` exists, the panel shows that page, with its relative links, images, GIFs and scripts working, under a content security policy that lets it load nothing from outside the explanations folder. A path that is not in the codemap can be explained too ("Not in the codemap yet").
+- C4: Without an explanation the panel says so and shows "Generate explanation" ("Regenerate" when one exists). The button opens a terminal "Explain: <path>" in the workspace folder that runs `claude` (setting `reviewGuide.claudePath`) interactively with one prompt, built from the template `media/explainPrompt.md` with the path, the codemap entry (or "none") and the output folder. No file name can become a shell command. When the page appears or changes, an open panel for that path shows it by itself.
+- C5: Unit tests cover reading and checking the codemap (each problem, on the right line), badge and tooltip, the explanation folder of a path, the panel's HTML (escaping, the page only when it exists, the content security policy) and the prompt (values filled in, safe as one argument). An integration test in a real VS Code checks badges, problems, the Explain command and the button's terminal run.
+
 Readability (manual check by the reviewer):
 - R1: The reviewer has read every source file and can explain each in his own words (see "Code style").
 
@@ -83,6 +93,29 @@ Readability (manual check by the reviewer):
 
 - Any item above not met, or met only with a manual workaround.
 - Tests that pass only because they were weakened or skipped.
+
+## Codemap
+
+Reading pull requests is one way to own code; knowing the map of a repo is the other.
+The codemap is the reviewer's own map: a personal, gitignored YAML file in the repo, `.codemap/codemap.yaml` (setting `reviewGuide.codemapFile`).
+It lists the important folders and files, each with one sentence and a label:
+
+```yaml
+- path: shop/checkout/payment.py   # file or folder, relative to the repo root
+  says: The only way to the payment provider. Reserves the amount first, then charges it.   # at most 160 characters
+  label: money        # money | security | core | feature | util
+  deep: true          # optional: a deep module (small interface, much hidden logic)
+```
+
+The label says why the path matters, calibrated by who gets hurt (see "Principles"):
+money decides or records what someone pays; security is login, tenant separation, secrets or a door to the outside; core is the main request path and product logic; feature is a product feature docked onto that path; util is plumbing.
+
+- While the reviewer browses the code, the Explorer shows each path's badge, and its sentence on hover.
+- The codemap file is checked like code: every problem is in the Problems view on its line, so a path that moved is noticed at once.
+- "Explain" on a file or folder opens a panel with the entry and a generated visual explanation page, if there is one.
+- "Generate explanation" starts Claude Code in a terminal, which writes the page into `.codemap/explanations/<path>/` (index.html plus its images and scripts). The prompt shapes the page by the label: money shows where cost is decided and recorded and who loses money if it breaks; security shows where a secret or identity is born, lives and dies and which attack the code stops; deep shows the small interface against what it hides; core shows its place in the main request path; feature shows a real screenshot of where users see it plus 3 sentences; util is only 3 sentences.
+- Unlike the review runs, the explanation run is not read-only: it may run the app and render images. So it runs visibly in a terminal, under Claude Code's normal permission prompts, and only after the reviewer pressed the button. The review runs stay read-only (S1).
+- The extension itself only reads the codemap and the explanations; the pages are written by Claude Code, into the personal `.codemap` folder.
 
 ## Non-goals (MVP)
 

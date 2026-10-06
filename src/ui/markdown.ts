@@ -1,6 +1,6 @@
 // A small Markdown renderer for Claude's answers and the reviewer's chat messages in the guide panel.
 // It covers what those texts use: paragraphs, headings, lists, tables, quotes, fenced blocks,
-// **bold**, *italic* and `code`. The extension ships without dependencies, so no library.
+// **bold**, *italic* and `code`. Those few rules are all these texts need, so no library.
 // Safe by construction: every piece of text is escaped first; only this file adds tags.
 
 type Block =

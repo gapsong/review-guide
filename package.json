@@ -1,8 +1,8 @@
 {
   "name": "review-guide",
   "displayName": "Review Guide",
-  "description": "Pre-sorts a GitHub pull request with Claude, so you review the critical changes first and know what to check at each one.",
-  "version": "0.1.0",
+  "description": "Helps you own your code with Claude: a codemap in the Explorer, a visual explanation per path, and pull requests pre-sorted so you review the critical changes first.",
+  "version": "0.2.0",
   "publisher": "gapsong",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -17,7 +17,10 @@
     "Other"
   ],
   "main": "./out/src/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:.codemap/codemap.yaml",
+    "onStartupFinished"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -89,6 +92,11 @@
         "title": "Mark as Unread",
         "category": "Review Guide",
         "icon": "$(circle-large-outline)"
+      },
+      {
+        "command": "reviewGuide.explainPath",
+        "title": "Explain",
+        "category": "Review Guide"
       }
     ],
     "menus": {
@@ -147,6 +155,16 @@
         {
           "command": "reviewGuide.markUnread",
           "when": "false"
+        },
+        {
+          "command": "reviewGuide.explainPath",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "reviewGuide.explainPath",
+          "group": "reviewGuide"
         }
       ]
     },
@@ -175,6 +193,11 @@
           "type": "string",
           "default": "claude-opus-5-5",
           "description": "Claude model for both passes and the ownership check."
+        },
+        "reviewGuide.codemapFile": {
+          "type": "string",
+          "default": ".codemap/codemap.yaml",
+          "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`) and an optional `deep: true`. Keep it personal (gitignored)."
         }
       }
     }
@@ -200,5 +223,8 @@
     "mocha": "^12.0.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
   }
 }

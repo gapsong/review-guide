@@ -97,6 +97,49 @@ Pass 1's output tokens were most of its time. Reasons are one sentence of at mos
 
 Measured on qpeft (measurements/README.md): telling Claude that critical is "well under a tenth of the units" brought the extra critical units from about 25 to 12, but it also moved 3 to 4 of the reviewer's gold units (clamp_scale, freeze_codes, QATTrainer.__init__, the QA-LoRA mean pooling) to "check", and it overrode the repo profile. Without it, all 15 gold units are critical in both runs. A missed critical change is the failure that costs ownership; an extra critical unit costs a few minutes. So the prompt has no budget, and Q2 is not met (25 extra). Most extras are persistence and public defaults, which the spec's own general rules and the qpeft example profile both call critical.
 
+## Generating an explanation is not a read-only run
+
+The review runs (both passes and the ownership chat) stay read-only, and S1 is unchanged.
+Generating an explanation (C4) cannot be read-only: to show real screenshots, recordings and GIFs, Claude must run the app and render images, and it must write the page.
+So it is a different kind of run, with three guards instead of the tool lists: it starts only when the reviewer presses the button; it runs visibly in a terminal, where the reviewer sees every step; and it runs under Claude Code's normal permission prompts, with the reviewer's own settings, not with `--permission-mode dontAsk`.
+It writes into `.codemap/explanations/`, the reviewer's personal, gitignored folder; the extension itself still never writes into a repo.
+
+## Claude Code is the terminal's process, not a command typed into a shell
+
+The task asked to quote the prompt for the shell.
+Instead, the terminal runs `claude` directly (`shellPath` and `shellArgs`), with the prompt as its one argument, so there is no shell to quote for: a file name like `it's $(touch x).py` reaches Claude byte for byte and never runs.
+This is safer than quoting, which depends on the shell (zsh, bash, fish and PowerShell quote differently), and it keeps a long, many-line prompt out of the shell's history.
+When Claude Code ends, the terminal says so and stays open until the reviewer closes it.
+
+## The explanation is the panel's own page, not an iframe
+
+The task asked for an iframe whose `src` is the page's webview address.
+Measured in VS Code 1.140 on 2026-10-05: such an iframe never loads, with or without a content security policy, and neither does an iframe with `srcdoc`.
+VS Code serves a webview's files from a service worker that only answers the webview's own document; an iframe's navigation never reaches it.
+What works is to make the page itself the webview's document, with `<base href>` set to the page's folder: relative images, GIFs, scripts and `fetch` then load from the explanations folder.
+The panel's header (badge, path, sentence, label, buttons) is put on top of the page inside a shadow root, so the page's styles and the header's styles leave each other alone; it brings its own background, because the page may be light while VS Code is dark.
+
+## What the explanation page may do
+
+The `explain-visually` stepper uses an inline script and embeds its screenshots and fonts as `data:` URLs, so the page's policy allows inline scripts and `data:` images, media and fonts.
+Everything else is limited to the webview's own address (`localResourceRoots` is the explanations folder), there are no frames, and nothing comes from the web: the prompt tells Claude to copy any library into the folder instead of linking a CDN.
+The page's scripts cannot talk to the extension: the panel's script runs first and takes the one handle VS Code gives out, and it counts only real clicks, not clicks a script makes.
+VS Code would send a link to one of the page's own files to the web browser, where it cannot load; the panel catches those clicks first and shows another page of the explanation in the panel, or opens another file (an image, a recording) in VS Code.
+
+## A broken codemap shows nothing; a missing path is only reported
+
+When the YAML itself is broken, the codemap shows no badges at all and the Problems view names the line: guessing what a broken file meant could show a wrong sentence next to a file.
+An entry with a problem (unknown key, bad label, `deep` that is not a boolean, a `says` that is empty or over 160 characters, a path listed twice or one that could leave the workspace folder) is left out; all its problems are reported at once.
+An entry whose path does not exist is reported and kept: it is still the reviewer's knowledge, and he decides whether the code moved or is gone.
+All problems are warnings: the codemap is notes, not code that fails a build.
+
+## Activation for the codemap
+
+The badges must be there when the Explorer opens, before any Review Guide view or command is used.
+The extension activates when the workspace contains `.codemap/codemap.yaml` (early), and on `onStartupFinished` for a codemap at another path (`reviewGuide.codemapFile`).
+Activation does not call GitHub or Claude, so activating in every window costs little.
+Because the extension now starts before anyone opens its views, the GitHub API address is read at every request, not once at activation; otherwise a changed `reviewGuide.githubApiUrl` would only count after a reload (the F1 test caught this).
+
 ## Integration tests run on macOS
 
 The README said the VS Code integration tests do not start on macOS.

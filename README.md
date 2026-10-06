@@ -5,13 +5,13 @@
   </picture>
 </h1>
 
-<h3 align="center">A VS Code extension that pre-sorts a pull request with Claude, so you read the critical changes first and own your code again.</h3>
+<h3 align="center">A VS Code extension that helps you own your code again: a codemap of what matters in your repo, a visual explanation per path, and pull requests pre-sorted with Claude so you read the critical changes first.</h3>
 
 <p align="center">
   <img alt="VS Code" src="https://img.shields.io/badge/VS%20Code-%E2%89%A51.95-007ACC?logo=visualstudiocode&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white">
   <img alt="Claude Code" src="https://img.shields.io/badge/runs%20on-your%20Claude%20Code-D97757">
-  <img alt="read-only" src="https://img.shields.io/badge/Claude-read--only-6366f1">
+  <img alt="read-only reviews" src="https://img.shields.io/badge/reviews-read--only-6366f1">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-ec4899">
   <img alt="status" src="https://img.shields.io/badge/status-alpha-lightgrey">
 </p>
@@ -19,6 +19,7 @@
 <p align="center">
   <a href="#quickstart">Quickstart</a> ·
   <a href="#how-it-works">How it works</a> ·
+  <a href="#codemap">Codemap</a> ·
   <a href="#safety">Safety</a> ·
   <a href="SPEC.md">Spec</a>
 </p>
@@ -100,6 +101,7 @@ If VS Code cannot find `claude` (common when VS Code is started from the Dock), 
 | `reviewGuide.claudePath` | `claude` | Path of the Claude Code CLI. |
 | `reviewGuide.model` | `claude-opus-5-5` | Model for both passes and the ownership check. |
 | `reviewGuide.githubApiUrl` | `https://api.github.com` | GitHub REST API address. |
+| `reviewGuide.codemapFile` | `.codemap/codemap.yaml` | Your codemap, relative to each workspace folder. |
 
 ## Repo profile: `.review-guide.md`
 
@@ -120,15 +122,36 @@ A short file in the root of your repo that tells Claude what matters there, whic
 It is read from the PR's base branch, so a PR cannot change its own rules.
 Without one, Claude uses general rules and writes a draft for you; the extension never writes into your repo.
 
+## Codemap
+
+Pull requests are one way to own code; knowing the map of your repo is the other.
+The codemap is your own map: a personal YAML file, `.codemap/codemap.yaml`, with one sentence and a label per important folder or file.
+Keep it out of git (add `/.codemap/` to `.gitignore`).
+
+```yaml
+- path: shop/checkout/payment.py
+  says: The only way to the payment provider. Reserves the amount first, then charges it.
+  label: money        # money 💰 | security 🔒 | core ⚙️ | feature 🧩 | util 🧰
+  deep: true          # optional: a deep module 🧠 (small interface, much hidden logic)
+```
+
+- **Badges in the Explorer**: every listed path shows its label's emoji (and 🧠 for a deep module); hover for the sentence.
+- **Problems view**: a moved or deleted path, a typo in a label, a sentence over 160 characters, a path listed twice: each shows on its line as soon as you save.
+- **Explain** (right-click a file or folder, or "Review Guide: Explain" for the open file): a panel with the entry and the visual explanation from `.codemap/explanations/<path>/index.html`.
+- **Generate explanation**: starts Claude Code in a terminal, where you see every step and answer its permission prompts. It writes the page (with screenshots, steppers and GIFs, using the `explain-visually` skill when you have it) into that folder, shaped by the label: for money, where cost is decided and who loses money; for security, where a secret lives and which attack the code stops. The panel shows the page as soon as it is written.
+
 ## Safety
 
-- Claude runs read-only: its only tools are Read, Grep and Glob.
+- The review runs (both passes and the ownership chat) are read-only: Claude's only tools are Read, Grep and Glob.
   No shell, no edit, no write, no web.
   Project and user settings files, hooks and MCP servers are not loaded for these runs (`--restricted --strict-mcp-config`).
   An automated test (S1) asks Claude to edit a file, run a shell command and fetch a URL, and checks that the repo stays byte for byte the same.
 - Claude gets no shell, not even for git: `git log --output=<file>` can write files.
   The extension runs git itself and hands Claude the output as files to read.
 - PR code is never executed.
+- The one run that is not read-only is "Generate explanation" for the codemap: it may run your app to take screenshots and it writes the page into `.codemap/explanations/`.
+  It starts only when you press the button, runs visibly in a terminal under Claude Code's normal permission prompts, and gets the prompt as one argument with no shell in between.
+  The explanation page is shown without network access and cannot send anything to the extension.
 - Nothing is posted to GitHub.
   The GitHub token stays in VS Code's secret storage.
 - Everything Claude writes is escaped before it is shown; the panel renders Markdown without passing any HTML through.
@@ -145,7 +168,7 @@ npm run package   # builds review-guide.vsix
 Integration tests run in a real VS Code downloaded into `.vscode-test/`, under `xvfb-run` when there is no display.
 They run on Linux and macOS.
 
-[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, S1, Q1-Q3, R1) and the code style.
+[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, C1-C5, S1, Q1-Q3, R1) and the code style.
 [REPORT.md](REPORT.md) says which test proves which criterion, and [DECISIONS.md](DECISIONS.md) records the choices the spec left open.
 
 ## Status

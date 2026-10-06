@@ -41,6 +41,7 @@ async function runAllSuites() {
   const sharedUserData = path.join(scratch, "ud-restart");
   const suites = [
     { name: "smoke" },
+    { name: "codemap", withWorkspaceFolder: true },
     { name: "github-login" },
     { name: "open-pr", withWorkspaceFolder: true },
     { name: "restart-part1", userDataDir: sharedUserData },

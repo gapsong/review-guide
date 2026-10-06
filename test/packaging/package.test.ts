@@ -6,7 +6,7 @@ import { downloadAndUnzipVSCode, resolveCliArgsFromVSCodeExecutablePath } from "
 import { makeTempDir } from "../support/gitFixture";
 
 const root = path.resolve(__dirname, "..", "..", "..");
-const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version: string };
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version: string; dependencies: Record<string, string> };
 
 describe("F9: `npm run package` builds a .vsix that installs in VS Code", function () {
   this.timeout(5 * 60 * 1000);
@@ -20,7 +20,7 @@ describe("F9: `npm run package` builds a .vsix that installs in VS Code", functi
     fs.rmSync(scratch, { recursive: true, force: true });
   });
 
-  it("installs into a fresh VS Code and ships only the compiled extension", async () => {
+  it("installs into a fresh VS Code and ships only the compiled extension and its runtime dependencies", async () => {
     const vsixPath = path.join(root, "review-guide.vsix");
     fs.rmSync(vsixPath, { force: true });
     execFileSync("npm", ["run", "package"], { cwd: root, stdio: "pipe" });
@@ -36,7 +36,12 @@ describe("F9: `npm run package` builds a .vsix that installs in VS Code", functi
     const installedFolder = path.join(extensionsDir, `gapsong.review-guide-${packageJson.version}`);
     assert.ok(fs.existsSync(path.join(installedFolder, "out", "src", "extension.js")));
     assert.ok(!fs.existsSync(path.join(installedFolder, "out", "test")), "tests are not shipped");
-    assert.ok(!fs.existsSync(path.join(installedFolder, "node_modules")), "no dependencies are shipped");
+    assert.deepStrictEqual(fs.readdirSync(path.join(installedFolder, "node_modules")), Object.keys(packageJson.dependencies), "only the runtime dependencies are shipped");
+
+    // The installed copy finds its YAML library: it reads a codemap with the files of the .vsix alone.
+    const { parseCodemap } = (await import(path.join(installedFolder, "out", "src", "codemap", "codemap.js"))) as typeof import("../../src/codemap/codemap");
+    const codemap = parseCodemap("- path: src/a.py\n  says: Reads YAML.\n  label: util\n", () => true);
+    assert.deepStrictEqual(codemap.entries.map((entry) => entry.says), ["Reads YAML."]);
   });
 });
 

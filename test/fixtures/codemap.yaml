@@ -1,0 +1,57 @@
+# Test fixture: the codemap of a made-up web shop.
+# One sentence and a label per important folder or key file.
+#
+# Personal and gitignored (/.codemap/): these are the owner's notes, in the owner's words.
+#
+# label - why it matters (pick the most critical thing the path is mostly about):
+#   money     decides or records what someone pays
+#   security  login, tenant separation, secrets, or a door open to the outside
+#   core      the request path and the main product logic
+#   feature   a product feature docked onto the request path
+#   util      plumbing; little logic of its own
+#
+# deep: true - a deep module (John Ousterhout): a small interface that hides a lot
+#   of logic. Read its interface first; you rarely need to read its inside.
+
+- path: shop
+  says: The shop's HTTP API. It checks the login, builds the cart, takes the payment and writes the order.
+  label: core
+
+- path: shop/app.py
+  says: Builds the web app and mounts every route.
+  label: util
+
+- path: shop/checkout/payment.py
+  says: The only way to the payment provider. It reserves the amount first, then charges it, then writes the receipt with the final price.
+  label: money
+  deep: true
+
+- path: shop/billing/discounts.py
+  says: Applies coupons and volume discounts. A total never goes below zero, and a coupon counts once per order.
+  label: money
+
+- path: shop/auth/session.py
+  says: Checks the session cookie against the signing key. A session ends after 30 minutes without a request.
+  label: security
+  deep: true
+
+- path: shop/auth/passwords.py
+  says: Hashes passwords with a per-user salt and compares them in constant time.
+  label: security
+
+- path: shop/cart
+  says: The cart. It adds and removes items, checks the stock and keeps prices as they were when the item was added.
+  label: core
+
+- path: shop/search
+  says: Product search. It ranks by name first, then by description, and hides products that are out of stock.
+  label: feature
+  deep: true
+
+- path: shop/emails
+  says: Order and shipping emails. They are rendered from templates and sent after the order is saved.
+  label: feature
+
+- path: shop/util/money.py
+  says: Amounts in cents as whole numbers, so 0.1 + 0.2 never becomes 0.30000000000000004.
+  label: util

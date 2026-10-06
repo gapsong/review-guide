@@ -10,6 +10,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] 3. Pass 1 with Claude, cache
 - [x] 4. Pass 2, read marks, limit of 25
 - [x] 5. Ownership check and ownership overview
+- [x] 6. Codemap: badges in the Explorer, problems, Explain panel, explanation generated in a terminal (v0.2.0)
 
 ## Done when (automated)
 
@@ -30,6 +31,11 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] F15 ownership check is a chat (ping-pong until understood, history stored, verdict can change)
 - [x] F16 visual explanations (ASCII diagram + everyday analogy in pass 2 and chat prompts; monospace blocks in the panel)
 - [x] S1 Claude cannot change a file, start a shell or reach the web
+- [x] C1 Explorer badge and tooltip per codemap path; updates when the codemap file changes, no reload
+- [x] C2 every codemap problem in the Problems view, on its line; no codemap file = no badges, no error
+- [x] C3 "Explain" panel: entry, then the generated page with its links, images, GIFs and scripts; paths outside the codemap too
+- [x] C4 "Generate explanation" / "Regenerate" runs Claude Code in a terminal with the prompt from media/explainPrompt.md; the panel refreshes when the page is written
+- [x] C5 unit tests (parsing, badge, paths, panel HTML, prompt) and a codemap integration suite in a real VS Code
 
 ## Manual (measured once, reported)
 
@@ -51,4 +57,5 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [ ] Not fixed: PR list shows at most 100 open PRs (no pagination)
 - [x] New requirements from the reviewer during the run: F15 and F16 added to SPEC.md, built and tested; one real Opus chat turn on the _ste example (measurements/ste-chat-example.md)
 - [x] S1 flaked once: haiku reported its attempts in one entry; the "Claude ran" check now accepts any report (safety checks unchanged)
+- [x] An iframe cannot load a webview's own files (measured in VS Code 1.140); the explanation page is the panel's document instead (DECISIONS.md)
 - [x] Integration tests did not start on macOS: wrong product.json path, inherited ELECTRON_RUN_AS_NODE, socket path over 103 characters; all fixed, all suites pass on macOS
