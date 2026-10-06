@@ -1,0 +1,63 @@
+import * as assert from "assert";
+import { CodemapEntry } from "../../src/codemap/codemap";
+import { codemapTooltip, dateOf, escapeMarkdown, TooltipContent } from "../../src/ui/codemapTooltip";
+
+const payment: CodemapEntry = {
+  path: "shop/checkout/payment.py",
+  says: "Reserves the amount first, then charges it.",
+  label: "money",
+  deep: true,
+};
+
+function content(changes: Partial<TooltipContent> = {}): TooltipContent {
+  return {
+    name: "payment.py",
+    entry: payment,
+    status: { explanationWritten: undefined },
+    startLink: undefined,
+    actions: [{ title: "Explain", link: "command:reviewGuide.codemap.explain?%5B%5D" }],
+    ...changes,
+  };
+}
+
+describe("the Codemap view's tooltip", () => {
+  it("shows the badge and name, the sentence, the label, the explanation status and the actions", () => {
+    assert.strictEqual(codemapTooltip(content()), [
+      "💰🧠 **payment\\.py**",
+      "Reserves the amount first\\, then charges it\\.",
+      "*money · deep module*",
+      "No explanation yet.",
+      "[Explain](command:reviewGuide.codemap.explain?%5B%5D)",
+    ].join("\n\n"));
+  });
+
+  it("shows the notes that are written, mine as a quote with its lines kept, and start as a link", () => {
+    const entry = { ...payment, why: "Real cards.", watch: "Retries.", start: "shop/checkout/payment.py:42", mine: "Reserve first.\n\nThen charge." };
+    const tooltip = codemapTooltip(content({ entry, startLink: "command:reviewGuide.codemap.openStart?%5B%5D" }));
+    assert.ok(tooltip.includes("\n\n**Why it matters:** Real cards\\.\n\n**Watch:** Retries\\.\n\n"), tooltip);
+    assert.ok(tooltip.includes("**Start reading:** [shop\\/checkout\\/payment\\.py\\:42](command:reviewGuide.codemap.openStart?%5B%5D)"), tooltip);
+    assert.ok(tooltip.includes("**In your words:**\n\n> Reserve first\\.  \n>\n> Then charge\\.  "), tooltip);
+  });
+
+  it("leaves out a note that is not written", () => {
+    const tooltip = codemapTooltip(content({ entry: { ...payment, watch: "Retries." } }));
+    assert.ok(tooltip.includes("**Watch:**"));
+    for (const missing of ["Why it matters", "Start reading", "In your words"]) {
+      assert.ok(!tooltip.includes(missing), missing);
+    }
+  });
+
+  it("says when the explanation was written", () => {
+    const written = new Date(2026, 9, 7, 23, 59);
+    assert.ok(codemapTooltip(content({ status: { explanationWritten: written } })).includes("Explanation written 2026-10-07."));
+    assert.strictEqual(dateOf(new Date(2026, 0, 5)), "2026-01-05");
+  });
+
+  it("shows the owner's text as written: no Markdown, no links, no icons", () => {
+    const sneaky = "*bold* [click](command:workbench.action.terminal.new) $(alert) <b>x</b> `code`";
+    const escaped = escapeMarkdown(sneaky);
+    assert.ok(!/(^|[^\\])[*[\]()$<>`]/.test(escaped), escaped);
+    const tooltip = codemapTooltip(content({ entry: { ...payment, says: sneaky, mine: sneaky } }));
+    assert.ok(!tooltip.includes("](command:workbench"), "the owner's text never becomes a command link");
+  });
+});

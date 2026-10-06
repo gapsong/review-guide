@@ -15,7 +15,11 @@ import { ReviewUnit } from "./review/reviewUnit";
 import { deepCheckLimit, ReviewGuide } from "./reviewGuide";
 import { AnalysisCache } from "./state/analysisCache";
 import { ReviewStateStore } from "./state/reviewState";
+import { CodemapCodeLenses } from "./ui/codemapCodeLens";
 import { CodemapDecorations } from "./ui/codemapDecorations";
+import { openCodemapPath, openStartOf } from "./ui/codemapNavigation";
+import { CodemapTarget, uriOfTarget } from "./ui/codemapTarget";
+import { CodemapView, codemapCommands } from "./ui/codemapView";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
@@ -31,6 +35,8 @@ export interface ReviewGuideApi {
   ownershipTree: OwnershipTree;
   codemaps: WorkspaceCodemaps;
   codemapDecorations: CodemapDecorations;
+  codemapView: CodemapView;
+  codemapCodeLenses: CodemapCodeLenses;
   explainPanels: ExplainPanels;
 }
 
@@ -53,6 +59,8 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   const ownershipTree = new OwnershipTree(reviewGuide, findConfiguredRepos);
   const codemaps = new WorkspaceCodemaps(codemapFile);
   const codemapDecorations = new CodemapDecorations(codemaps);
+  const codemapView = new CodemapView(codemaps);
+  const codemapCodeLenses = new CodemapCodeLenses(codemaps);
   const explainPanels = new ExplainPanels(codemaps, (folder, request) => startExplainTerminal(context, folder, request), showError);
 
   const openPullRequest = async (pullRequest: PullRequest) => {
@@ -72,8 +80,11 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
 
   context.subscriptions.push(
     codemaps,
+    codemapView,
+    codemapCodeLenses,
     explainPanels,
     vscode.window.registerFileDecorationProvider(codemapDecorations),
+    vscode.languages.registerCodeLensProvider({ scheme: "file" }, codemapCodeLenses),
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
     vscode.window.registerWebviewViewProvider(GuideView.viewId, guideView, { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.registerTreeDataProvider("reviewGuide.ownership", ownershipTree),
@@ -110,8 +121,27 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       }
       await explainPanels.show(target);
     })),
+    // The codemap commands get a CodemapTarget: from the Codemap view, a tooltip link or a CodeLens.
+    vscode.commands.registerCommand(codemapCommands.open, reportErrors(openCodemapPath)),
+    vscode.commands.registerCommand(codemapCommands.explain, reportErrors((target: CodemapTarget) => explainPanels.show(uriOfTarget(target)))),
+    vscode.commands.registerCommand(codemapCommands.openStart, reportErrors(async (target: CodemapTarget) => {
+      const entry = codemaps.entryOf(uriOfTarget(target));
+      if (entry) {
+        await openStartOf(target, entry);
+      }
+    })),
+    vscode.commands.registerCommand("reviewGuide.codemap.showAll", () => codemapView.setFilter("all")),
+    vscode.commands.registerCommand("reviewGuide.codemap.showMoney", () => codemapView.setFilter("money")),
+    vscode.commands.registerCommand("reviewGuide.codemap.showSecurity", () => codemapView.setFilter("security")),
+    vscode.commands.registerCommand("reviewGuide.codemap.showDeep", () => codemapView.setFilter("deep")),
+    vscode.commands.registerCommand("reviewGuide.codemap.openFile", reportErrors(async () => {
+      const folder = codemaps.foldersWithCodemap()[0];
+      if (folder) {
+        await vscode.commands.executeCommand("vscode.open", codemaps.codemapFileOf(folder));
+      }
+    })),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, codemapDecorations, explainPanels };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
 }
 
 export function deactivate(): void {

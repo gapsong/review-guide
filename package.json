@@ -46,6 +46,12 @@
           "id": "reviewGuide.ownership",
           "name": "Ownership"
         }
+      ],
+      "explorer": [
+        {
+          "id": "reviewGuide.codemap",
+          "name": "Codemap"
+        }
       ]
     },
     "commands": [
@@ -97,6 +103,52 @@
         "command": "reviewGuide.explainPath",
         "title": "Explain",
         "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.codemap.open",
+        "title": "Open",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.codemap.explain",
+        "title": "Explain",
+        "category": "Review Guide",
+        "icon": "$(book)"
+      },
+      {
+        "command": "reviewGuide.codemap.openStart",
+        "title": "Open Where to Start Reading",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.codemap.showAll",
+        "title": "Show All",
+        "category": "Review Guide",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "reviewGuide.codemap.showMoney",
+        "title": "Show Money Only",
+        "category": "Review Guide",
+        "icon": "$(credit-card)"
+      },
+      {
+        "command": "reviewGuide.codemap.showSecurity",
+        "title": "Show Security Only",
+        "category": "Review Guide",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "reviewGuide.codemap.showDeep",
+        "title": "Show Deep Modules Only",
+        "category": "Review Guide",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "reviewGuide.codemap.openFile",
+        "title": "Open Codemap File",
+        "category": "Review Guide",
+        "icon": "$(go-to-file)"
       }
     ],
     "menus": {
@@ -105,6 +157,31 @@
           "command": "reviewGuide.refresh",
           "when": "view == reviewGuide.pullRequests",
           "group": "navigation"
+        },
+        {
+          "command": "reviewGuide.codemap.showMoney",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != money",
+          "group": "navigation@1"
+        },
+        {
+          "command": "reviewGuide.codemap.showSecurity",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != security",
+          "group": "navigation@2"
+        },
+        {
+          "command": "reviewGuide.codemap.showDeep",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != deep",
+          "group": "navigation@3"
+        },
+        {
+          "command": "reviewGuide.codemap.showAll",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != all",
+          "group": "navigation@4"
+        },
+        {
+          "command": "reviewGuide.codemap.openFile",
+          "when": "view == reviewGuide.codemap && reviewGuide.hasCodemap",
+          "group": "2_codemap"
         }
       ],
       "view/item/context": [
@@ -125,6 +202,11 @@
         {
           "command": "reviewGuide.markUnread",
           "when": "view == reviewGuide.pullRequests && viewItem =~ /^unit-(read|understood)/"
+        },
+        {
+          "command": "reviewGuide.codemap.explain",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "inline"
         }
       ],
       "commandPalette": [
@@ -159,6 +241,38 @@
         {
           "command": "reviewGuide.explainPath",
           "when": "resourceScheme == file"
+        },
+        {
+          "command": "reviewGuide.codemap.open",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.explain",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.openStart",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.showAll",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.showMoney",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.showSecurity",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.showDeep",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.openFile",
+          "when": "reviewGuide.hasCodemap"
         }
       ],
       "explorer/context": [
@@ -202,10 +316,27 @@
         "reviewGuide.codemapFile": {
           "type": "string",
           "default": ".codemap/codemap.yaml",
-          "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`) and an optional `deep: true`. Keep it personal (gitignored)."
+          "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`), an optional `deep: true` and optional notes (`why`, `watch`, `start`, `mine`). Keep it personal (gitignored)."
         }
       }
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "reviewGuide.codemap",
+        "when": "!reviewGuide.hasCodemap",
+        "contents": "No codemap in this workspace yet.\nA codemap is your own map of the repo: one sentence and a label (money, security, core, feature, util) for each important file or folder, so you see what matters while you read the code.\nWrite it as a YAML list in .codemap/codemap.yaml (setting: reviewGuide.codemapFile) and keep the .codemap folder out of git.\n[Read how it works](https://github.com/gapsong/review-guide#codemap)"
+      },
+      {
+        "view": "reviewGuide.codemap",
+        "when": "reviewGuide.hasCodemap && reviewGuide.codemapFilter != all",
+        "contents": "No entry matches this filter.\n[Show All](command:reviewGuide.codemap.showAll)"
+      },
+      {
+        "view": "reviewGuide.codemap",
+        "when": "reviewGuide.hasCodemap && reviewGuide.codemapFilter == all",
+        "contents": "The codemap has no entry to show. An entry with a problem is left out; the Problems view lists each one on its line.\n[Open Codemap File](command:reviewGuide.codemap.openFile)"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",

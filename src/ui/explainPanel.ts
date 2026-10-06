@@ -6,6 +6,8 @@ import { ExplainRequest } from "../claude/explainPrompt";
 import { explanationFolderOf, explanationPageName, explanationsFolder } from "../codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../codemap/repoPath";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
+import { openStartOf } from "./codemapNavigation";
+import { targetOf } from "./codemapTarget";
 import { ExplainHeader, ExplainMessage, renderExplainPanel, renderExplanationPage } from "./explainHtml";
 
 interface OpenExplanation {
@@ -97,6 +99,13 @@ export class ExplainPanels implements vscode.Disposable {
       case "openLink":
         await this.openLink(explanation, message.target);
         return;
+      case "openStart": {
+        const entry = this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath));
+        if (entry) {
+          await openStartOf(targetOf(explanation.folder, explanation.repoPath), entry);
+        }
+        return;
+      }
     }
   }
 

@@ -27,6 +27,20 @@ export class WorkspaceCodemaps implements vscode.Disposable {
     this.loadAll();
   }
 
+  // The workspace folders that have a codemap file, even one without valid entries.
+  foldersWithCodemap(): vscode.WorkspaceFolder[] {
+    return (vscode.workspace.workspaceFolders ?? []).filter((folder) => this.entriesByFolder.has(folder.uri.toString()));
+  }
+
+  // In the order of the codemap file.
+  entriesOf(folder: vscode.WorkspaceFolder): CodemapEntry[] {
+    return [...(this.entriesByFolder.get(folder.uri.toString())?.values() ?? [])];
+  }
+
+  codemapFileOf(folder: vscode.WorkspaceFolder): vscode.Uri {
+    return vscode.Uri.joinPath(folder.uri, this.codemapFile());
+  }
+
   entryOf(uri: vscode.Uri): CodemapEntry | undefined {
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     const repoPath = folder && repoPathOf(folder.uri.fsPath, uri.fsPath);

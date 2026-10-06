@@ -3,11 +3,14 @@ The owner wants to own this code again: understand what it does, why, and where 
 
 ## The codemap entry
 
-The owner's own one-line note about this path, from the codemap (or "none" when it has no entry yet):
+The owner's own note about this path, from the codemap (or "none" when it has no entry yet):
 
 ```
 {{entry}}
 ```
+
+The optional notes are what the owner already knows or worries about: `why` (why it matters), `watch` (a sharp edge), `start` (where to start reading) and `mine` (the owner's own explanation).
+Build on them: start the page where `start` points, show the sharp edge from `watch`, and where the code disagrees with `mine`, say so plainly with `file:line`.
 
 ## What to write
 

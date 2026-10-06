@@ -134,10 +134,17 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
   says: The only way to the payment provider. Reserves the amount first, then charges it.
   label: money        # money 💰 | security 🔒 | core ⚙️ | feature 🧩 | util 🧰
   deep: true          # optional: a deep module 🧠 (small interface, much hidden logic)
+  why: A wrong amount is charged to a real card.          # optional notes, shown on hover
+  watch: The provider retries on timeout, so a charge must be idempotent.
+  start: shop/checkout/payment.py:42                      # where to start reading
+  mine: |                                                 # your own words
+    First reserve, then charge. The receipt is written last.
 ```
 
-- **Badges in the Explorer**: every listed path shows its label's emoji (and 🧠 for a deep module); hover for the sentence.
-- **Problems view**: a moved or deleted path, a typo in a label, a sentence over 160 characters, a path listed twice: each shows on its line as soon as you save.
+- **The Codemap view** (in the Explorer, below the files): your codemap as a tree, each entry with its badge and sentence. Hover for the notes, click to open, press "Explain" for the panel. Filter to money, security or deep modules in the view's title.
+- **CodeLens**: a file in the codemap shows its badge and sentence above its first line, with "Explain".
+- **Badges in the Explorer**: every listed path shows its label's emoji (and 🧠 for a deep module); hover for the sentence. VS Code hides a folder's badge while the folder holds changed files; the Codemap view always shows it.
+- **Problems view**: a moved or deleted path, a typo in a label, a sentence over 160 characters (notes have their own limits), a path listed twice: each shows on its line as soon as you save.
 - **Explain** (right-click a file or folder, or "Review Guide: Explain" for the open file): a panel with the entry and the visual explanation from `.codemap/explanations/<path>/index.html`.
 - **Generate explanation**: starts Claude Code in a terminal, where you see every step and answer its permission prompts. It writes the page (with screenshots, steppers and GIFs, using the `explain-visually` skill when you have it) into that folder, shaped by the label: for money, where cost is decided and who loses money; for security, where a secret lives and which attack the code stops. The panel shows the page as soon as it is written.
 
@@ -169,7 +176,7 @@ npm run package   # builds review-guide.vsix
 Integration tests run in a real VS Code downloaded into `.vscode-test/`, under `xvfb-run` when there is no display.
 They run on Linux and macOS.
 
-[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, C1-C5, S1, Q1-Q3, R1) and the code style.
+[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, C1-C8, S1, Q1-Q3, R1) and the code style.
 [REPORT.md](REPORT.md) says which test proves which criterion, and [DECISIONS.md](DECISIONS.md) records the choices the spec left open.
 
 ## Status

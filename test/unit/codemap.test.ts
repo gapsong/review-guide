@@ -2,7 +2,7 @@ import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
 import { badgeOf, tooltipOf } from "../../src/codemap/badge";
-import { CodemapEntry, parseCodemap } from "../../src/codemap/codemap";
+import { CodemapEntry, parseCodemap, startLocationOf } from "../../src/codemap/codemap";
 import { explanationFolderOf, explanationPageOf } from "../../src/codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../../src/codemap/repoPath";
 
@@ -36,7 +36,7 @@ describe("C1, C2: reading the codemap", () => {
 
   it("reports an unknown key on its line and skips the entry", () => {
     const text = "- path: src/a.py\n  says: A.\n  label: core\n  owner: me\n";
-    assert.deepStrictEqual(problemsOf(text), [[4, "unknown key \"owner\" (allowed: path, says, label, deep)"]]);
+    assert.deepStrictEqual(problemsOf(text), [[4, "unknown key \"owner\" (allowed: path, says, label, deep, why, watch, start, mine)"]]);
     assert.deepStrictEqual(parseCodemap(text, everyPathExists).entries, []);
   });
 
@@ -90,6 +90,62 @@ describe("C1, C2: reading the codemap", () => {
       [4, "deep must be true or false, not \"1\""],
     ]);
     assert.deepStrictEqual(parseCodemap(text, everyPathExists).entries.map((entry) => entry.path), ["src/b.py"]);
+  });
+
+  it("reads the optional notes why, watch, start and mine, with mine over several lines", () => {
+    const text = [
+      "- path: shop/checkout/payment.py",
+      "  says: Reserves the amount, then charges it.",
+      "  label: money",
+      "  why: A wrong amount is charged to a real card.",
+      "  watch: The provider retries on timeout, so a charge must be idempotent.",
+      "  start: shop/checkout/payment.py:42",
+      "  mine: |",
+      "    First reserve, then charge.",
+      "    The receipt is written last.",
+      "",
+    ].join("\n");
+    const codemap = parseCodemap(text, everyPathExists);
+    assert.deepStrictEqual(codemap.problems, []);
+    assert.deepStrictEqual(codemap.entries[0], {
+      path: "shop/checkout/payment.py",
+      says: "Reserves the amount, then charges it.",
+      label: "money",
+      deep: false,
+      why: "A wrong amount is charged to a real card.",
+      watch: "The provider retries on timeout, so a charge must be idempotent.",
+      start: "shop/checkout/payment.py:42",
+      mine: "First reserve, then charge.\nThe receipt is written last.",
+    });
+  });
+
+  it("reports a note that is empty, not text, too long, or on several lines when it must be one", () => {
+    const entry = (note: string) => `- path: src/a.py\n  says: A.\n  label: core\n${note}`;
+    assert.deepStrictEqual(problemsOf(entry("  why:\n")), [[4, "why is empty (leave it out instead)"]]);
+    assert.deepStrictEqual(problemsOf(entry("  watch: 12\n")), [[4, "watch must be text"]]);
+    assert.deepStrictEqual(problemsOf(entry(`  why: ${"a".repeat(301)}\n`)), [[4, "why is 301 characters long (at most 300)"]]);
+    assert.deepStrictEqual(problemsOf(entry(`  watch: ${"ü".repeat(200)}\n`)), []);
+    assert.deepStrictEqual(problemsOf(entry(`  mine: ${"a".repeat(1501)}\n`)), [[4, "mine is 1501 characters long (at most 1500)"]]);
+    assert.deepStrictEqual(problemsOf(entry("  watch: |\n    one\n    two\n")), [[4, "watch must be one line (only mine may span several)"]]);
+    assert.deepStrictEqual(parseCodemap(entry("  why:\n"), everyPathExists).entries, [], "an entry with a broken note gets no badge");
+  });
+
+  it("checks that start is a path in the workspace folder with an optional line, and that it exists", () => {
+    const entry = (start: string) => `- path: src/a.py\n  says: A.\n  label: core\n  start: ${start}\n`;
+    const message = "start must be a path in the workspace folder, optionally with a line, like \"src/app.py:120\"";
+    assert.deepStrictEqual(problemsOf(entry("src/a.py:120")), []);
+    assert.deepStrictEqual(problemsOf(entry("src/a.py")), []);
+    assert.deepStrictEqual(problemsOf(entry("../a.py:3")), [[4, message]]);
+    assert.deepStrictEqual(problemsOf(entry("src/a.py:0")), [[4, message]]);
+    const moved = parseCodemap(entry("src/old.py:7"), (repoPath) => repoPath !== "src/old.py");
+    assert.deepStrictEqual(moved.problems, [{ line: 4, message: "start points to a path that does not exist (moved or deleted?)" }]);
+    assert.strictEqual(moved.entries.length, 1, "like a missing path, a missing start is only reported");
+  });
+
+  it("splits start into its path and line", () => {
+    assert.deepStrictEqual(startLocationOf("src/x.py:120"), { path: "src/x.py", line: 120 });
+    assert.deepStrictEqual(startLocationOf(" ./src/x.py "), { path: "src/x.py", line: undefined });
+    assert.strictEqual(startLocationOf("/etc/passwd:1"), undefined);
   });
 
   it("reports broken YAML on its line and reads no entries from it", () => {

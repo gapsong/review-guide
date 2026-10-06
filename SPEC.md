@@ -85,6 +85,9 @@ Codemap (automated tests; see "Codemap"):
 - C3: "Explain" (Explorer context menu for files and folders; command palette for the active editor's file) opens a panel "Explain: <name>" with the badge, the path, `says`, the label and deep. When `.codemap/explanations/<path>/index.html` exists, the panel shows that page, with its relative links, images, GIFs and scripts working, under a content security policy that lets it load nothing from outside the explanations folder. A path that is not in the codemap can be explained too ("Not in the codemap yet").
 - C4: Without an explanation the panel says so and shows "Generate explanation" ("Regenerate" when one exists). The button opens a terminal "Explain: <path>" in the workspace folder that runs `claude` (setting `reviewGuide.claudePath`) interactively with one prompt, built from the template `media/explainPrompt.md` with the path, the codemap entry (or "none"), the output folder and the page's language (setting `reviewGuide.explanationLanguage`, default English). No file name can become a shell command. When the page appears or changes, an open panel for that path shows it by itself.
 - C5: Unit tests cover reading and checking the codemap (each problem, on the right line), badge and tooltip, the explanation folder of a path, the panel's HTML (escaping, the page only when it exists, the content security policy) and the prompt (values filled in, safe as one argument). An integration test in a real VS Code checks badges, problems, the Explain command and the button's terminal run.
+- C6: A tree view "Codemap" in the Explorer (below the file tree) shows the codemap. Path segments on the way to entries that are not entries themselves are plain folder nodes (grey icon, no badge); a chain of plain folders with one child each is one node ("src/app"), as in VS Code's Explorer; folders come first, then files, each by name. An entry's label is its badge and name, its description is `says`; a click opens a file or shows a folder in the Explorer; an inline action "Explain" opens the Explain panel. The tooltip shows the badge and name, `says`, the notes (C8), the label and deep, whether an explanation exists and when it was written, and command links (Explain). Actions in the view's title filter to money, security or deep modules (only matching entries and the folders on their way) and back to all. Without a codemap file the view shows a short welcome text that explains the file and its path; with a filter that matches nothing, it says so and offers "Show All". It follows every change of the codemap file without a reload.
+- C7: A CodeLens above line 1 of every open file (any language) that is a codemap entry shows "<badge> <says>" and "Explain".
+- C8: An entry may have optional notes: `why` (why it matters, what breaks; one line, at most 300 characters), `watch` (a sharp edge to watch; one line, at most 200), `start` (where to start reading: a repo path, optionally with a line, like `src/x.py:120`; at most 200) and `mine` (the owner's own explanation in their own words; may span lines, at most 1500). An empty note, a note that is not text, one over its limit, a one-line note on several lines, or a `start` that leaves the workspace folder is a problem on its line (C2); a `start` whose path does not exist is reported and the entry is kept. The notes show in the Codemap view's tooltip and the Explain panel's header (`start` as a link to that line); the Explorer hover and the CodeLens show only `says`. The prompt that generates an explanation gets the notes too.
 
 Readability (manual check by the owner):
 - R1: The owner has read every source file and can explain each in their own words (see "Code style").
@@ -98,19 +101,26 @@ Readability (manual check by the owner):
 
 Reading pull requests is one way to own code; knowing the map of a repo is the other.
 The codemap is your own map: a personal, gitignored YAML file in the repo, `.codemap/codemap.yaml` (setting `reviewGuide.codemapFile`).
-It lists the important folders and files, each with one sentence and a label:
+It lists the important folders and files, each with one sentence and a label, and optional notes:
 
 ```yaml
 - path: shop/checkout/payment.py   # file or folder, relative to the repo root
   says: The only way to the payment provider. Reserves the amount first, then charges it.   # at most 160 characters
   label: money        # money | security | core | feature | util
   deep: true          # optional: a deep module (small interface, much hidden logic)
+  why: A wrong amount is charged to a real card.                  # optional, one line, at most 300
+  watch: The provider retries on timeout, so a charge must be idempotent.   # optional, one line, at most 200
+  start: shop/checkout/payment.py:42                              # optional: where to start reading
+  mine: |                                                         # optional: your own words, at most 1500
+    First reserve, then charge.
+    The receipt is written last.
 ```
 
 The label says why the path matters, calibrated by who gets hurt (see "Principles"):
 money decides or records what someone pays; security is login, tenant separation, secrets or a door to the outside; core is the main request path and product logic; feature is a product feature docked onto that path; util is plumbing.
 
-- While you browse the code, the Explorer shows each path's badge, and its sentence on hover.
+- The Codemap view in the Explorer is the main place to read it: the entries as a tree, each with its badge and sentence, the notes on hover, filters for money, security and deep modules.
+- While you browse the code, the Explorer shows each path's badge, and its sentence on hover; a file in the codemap shows its badge and sentence above its first line (CodeLens).
 - The codemap file is checked like code: every problem is in the Problems view on its line, so a path that moved is noticed at once.
 - "Explain" on a file or folder opens a panel with the entry and a generated visual explanation page, if there is one.
 - "Generate explanation" starts Claude Code in a terminal, which writes the page into `.codemap/explanations/<path>/` (index.html plus its images and scripts). The prompt shapes the page by the label: money shows where cost is decided and recorded and who loses money if it breaks; security shows where a secret or identity is born, lives and dies and which attack the code stops; deep shows the small interface against what it hides; core shows its place in the main request path; feature shows a real screenshot of where users see it plus 3 sentences; util is only 3 sentences.

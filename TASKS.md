@@ -36,6 +36,9 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] C3 "Explain" panel: entry, then the generated page with its links, images, GIFs and scripts; paths outside the codemap too
 - [x] C4 "Generate explanation" / "Regenerate" runs Claude Code in a terminal with the prompt from media/explainPrompt.md; the panel refreshes when the page is written
 - [x] C5 unit tests (parsing, badge, paths, panel HTML, prompt) and a codemap integration suite in a real VS Code
+- [x] C6 Codemap view in the Explorer: tree with plain folders and compacted chains, badge + name + says, click, inline Explain, tooltip, filters, welcome text
+- [x] C7 CodeLens on line 1 of a codemap file: badge + says, Explain
+- [x] C8 optional notes why / watch / start / mine, checked with limits, shown in the view's tooltip and the Explain header
 
 ## Manual (measured once, reported)
 
@@ -64,7 +67,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 
 - [x] Step 0: commit the 0.2.0 work (3 commits; the private codemap fixture was swapped for a made-up one before its first commit, so it never entered the history)
 - [x] Step 1: public-ready: no company content, no personal names, `reviewGuide.explanationLanguage`
-- [ ] Step 2: Codemap view in the Explorer, CodeLens on line 1, new entry fields why / watch / start / mine
+- [x] Step 2: Codemap view in the Explorer, CodeLens on line 1, new entry fields why / watch / start / mine
 - [ ] Step 3: change markers after a commit, "Still true" and "Explain again"
 - [ ] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots
 - [ ] Finish: all test suites, version 0.3.0, package, morning report, Telegram

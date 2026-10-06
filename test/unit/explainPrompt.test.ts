@@ -23,6 +23,12 @@ describe("C4: the prompt that generates an explanation", () => {
     assert.ok(!prompt.includes("{{"), "no placeholder is left");
   });
 
+  it("passes the owner's notes on as they stand in the codemap, mine as a block", () => {
+    const withNotes = { ...entry, why: "Real cards are charged.", start: "shop/checkout/payment.py:42", mine: "Reserve first.\nThen charge." };
+    const prompt = explainPrompt(template, { path: entry.path, kind: "file", entry: withNotes }, "English");
+    assert.ok(prompt.includes("deep: true\nwhy: Real cards are charged.\nstart: shop/checkout/payment.py:42\nmine: |\n  Reserve first.\n  Then charge.\n```"), prompt);
+  });
+
   it("says \"none\" for a path that is not in the codemap", () => {
     const prompt = explainPrompt(template, { path: "shop/cart", kind: "folder", entry: undefined }, "English");
     assert.ok(prompt.startsWith("Explain the folder `shop/cart`"));

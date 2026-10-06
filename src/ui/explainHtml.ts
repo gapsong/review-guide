@@ -31,6 +31,8 @@ export interface ExplanationPage {
 export type ExplainMessage =
   | { type: "generate" }
   | { type: "showIndex" }
+  // Opens the file that the entry's "start" points to.
+  | { type: "openStart" }
   // target: relative to the explanation folder.
   | { type: "openLink"; target: string };
 
@@ -83,13 +85,31 @@ function headerHtml(header: ExplainHeader): string {
   const badge = header.entry ? `<span class="badge">${badgeOf(header.entry)}</span>` : "";
   const about = header.entry
     ? `<p class="says">${escapeHtml(header.entry.says)}</p>
-<p class="muted">${labelLine(header.entry)}</p>`
+${notesHtml(header.entry)}<p class="muted">${labelLine(header.entry)}</p>`
     : `<p class="muted">Not in the codemap yet.</p>`;
   return `<header>
 <h2>${badge}<span class="path">${escapeHtml(header.path)}</span></h2>
 ${about}
 ${actions(header)}
 </header>`;
+}
+
+// The owner's optional notes; nothing at all when the entry has none.
+function notesHtml(entry: CodemapEntry): string {
+  const notes: string[] = [];
+  if (entry.why !== undefined) {
+    notes.push(`<dt>Why it matters</dt><dd>${escapeHtml(entry.why)}</dd>`);
+  }
+  if (entry.watch !== undefined) {
+    notes.push(`<dt>Watch</dt><dd>${escapeHtml(entry.watch)}</dd>`);
+  }
+  if (entry.start !== undefined) {
+    notes.push(`<dt>Start reading</dt><dd>${linkButton(entry.start, { type: "openStart" })}</dd>`);
+  }
+  if (entry.mine !== undefined) {
+    notes.push(`<dt>In your words</dt><dd><blockquote>${escapeHtml(entry.mine)}</blockquote></dd>`);
+  }
+  return notes.length === 0 ? "" : `<dl class="notes">${notes.join("")}</dl>\n`;
 }
 
 function labelLine(entry: CodemapEntry): string {
@@ -106,6 +126,10 @@ function actions(header: ExplainHeader): string {
     ? `${button("Back to index.html", { type: "showIndex" })} <span class="muted">Showing ${escapeHtml(header.otherPage)}</span> `
     : "";
   return `<p>${back}${button("Regenerate", { type: "generate" }, "secondary")}</p>`;
+}
+
+function linkButton(label: string, message: ExplainMessage): string {
+  return `<button class="link" data-review-guide="${escapeHtml(JSON.stringify(message))}">${escapeHtml(label)}</button>`;
 }
 
 function button(label: string, message: ExplainMessage, className = ""): string {
@@ -191,6 +215,12 @@ button { font-family: inherit; font-size: inherit; background: var(--vscode-butt
 button:hover { background: var(--vscode-button-hoverBackground); }
 button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
 button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button.link { background: none; color: var(--vscode-textLink-foreground); padding: 0; margin: 0; font-family: var(--vscode-editor-font-family); }
+button.link:hover { background: none; text-decoration: underline; }
+.notes { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0; }
+.notes dt { color: var(--vscode-descriptionForeground); }
+.notes dd { margin: 0; }
+.notes blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--vscode-textBlockQuote-border, var(--vscode-descriptionForeground)); white-space: pre-wrap; }
 `;
 
 // The bar brings its own background: Claude's page may be light while VS Code is dark.

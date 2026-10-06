@@ -153,3 +153,23 @@ Code, prompts and docs say "the reviewer" (the person reading a pull request) or
 Version 0.2.0 stored the reviewer's chat turns under the first user's name; the state store now reads every turn that is not Claude's as the reviewer's, so an old chat history still shows.
 The language of a generated explanation is the setting `reviewGuide.explanationLanguage` (default English), not a sentence in the prompt.
 
+## The Codemap view is the main surface, the Explorer badges stay
+
+Tested in the real VS Code on 2026-10-06: for a folder that holds changed files, VS Code merges the decorations of the folder with the git decoration bubbled up from its children, and shows only the git dot and the tooltip "Contains emphasized items"; the codemap's badge and sentence are gone.
+With many open changes, exactly the important folders showed nothing.
+VS Code offers no way around this merge rule, so the codemap got its own view in the Explorer, where the badge and the sentence are always shown; the Explorer badges stay for files and unchanged folders.
+
+## How the Codemap view is drawn
+
+- Entries carry no icon: the badge emoji in the label already marks them, and an icon next to it would show two symbols for one thing. Plain folders get a grey folder icon, so they read as "only on the way" next to the entries.
+- The tree does not use the entries' `resourceUri`: with it, VS Code would add the Explorer's decorations (the same badge again, and git colors) to every row.
+- Commands from the view, a tooltip link and a CodeLens all get the same plain-text target (workspace folder and repo path), because a tooltip's command link and a CodeLens's arguments are JSON, where a `vscode.Uri` does not survive.
+- The filter is shown in the view's description ("💰 money only"); the button of the active filter is hidden and "Show All" appears instead, since a view title cannot show a pressed button.
+
+## The notes and their limits
+
+`why` and `watch` are one line each (300 and 200 characters): they are read in passing, in a tooltip.
+`start` is a path, optionally with a line, and is checked like `path` (inside the workspace folder; a missing file is reported, the entry kept).
+`mine` is the owner's own explanation and may span lines, up to 1500 characters, about two short paragraphs; longer belongs in the explanation page.
+The Explorer hover and the CodeLens stay at the one sentence, so the code stays the main thing on screen.
+

@@ -42,6 +42,7 @@ async function runAllSuites() {
   const suites = [
     { name: "smoke" },
     { name: "codemap", withWorkspaceFolder: true },
+    { name: "codemap-view", withWorkspaceFolder: true },
     { name: "github-login" },
     { name: "open-pr", withWorkspaceFolder: true },
     { name: "restart-part1", userDataDir: sharedUserData },

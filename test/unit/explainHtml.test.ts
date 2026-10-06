@@ -38,6 +38,18 @@ describe("C3, C4: the Explain panel", () => {
     assert.ok(!html.includes("<img") && !html.includes("<amount>"));
   });
 
+  it("shows the owner's notes, escaped, with start as a button that opens it and mine with its lines", () => {
+    const withNotes = { ...entry, why: "Real <cards>.", watch: "Retries.", start: "src/payment.py:42", mine: "Reserve first.\nThen <charge>." };
+    const html = renderExplainPanel(header({ entry: withNotes }), "n0nce", cspSource);
+    assert.ok(html.includes("<dt>Why it matters</dt><dd>Real &lt;cards&gt;.</dd><dt>Watch</dt><dd>Retries.</dd>"), html);
+    assert.ok(html.includes("<dt>Start reading</dt><dd><button class=\"link\" data-review-guide=\"{&quot;type&quot;:&quot;openStart&quot;}\">src/payment.py:42</button></dd>"), html);
+    assert.ok(html.includes("<dt>In your words</dt><dd><blockquote>Reserve first.\nThen &lt;charge&gt;.</blockquote></dd>"), html);
+  });
+
+  it("shows no notes block for an entry without notes", () => {
+    assert.ok(!renderExplainPanel(header(), "n0nce", cspSource).includes("<dl"));
+  });
+
   it("says when a path is not in the codemap yet, and still offers to explain it", () => {
     const html = renderExplainPanel(header({ entry: undefined }), "n0nce", cspSource);
     assert.ok(html.includes("Not in the codemap yet."));
