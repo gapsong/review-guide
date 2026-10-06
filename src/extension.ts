@@ -3,6 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
 import { defaultExplanationLanguage, ExplainRequest, explainTerminal } from "./claude/explainPrompt";
+import { WorkspaceChangeMarkers } from "./codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "./codemap/workspaceCodemaps";
 import { gitAuthEnvironment } from "./git/gitAuth";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
@@ -19,7 +20,8 @@ import { CodemapCodeLenses } from "./ui/codemapCodeLens";
 import { CodemapDecorations } from "./ui/codemapDecorations";
 import { openCodemapPath, openStartOf } from "./ui/codemapNavigation";
 import { CodemapTarget, uriOfTarget } from "./ui/codemapTarget";
-import { CodemapView, codemapCommands } from "./ui/codemapView";
+import { codemapCommands } from "./ui/codemapCommands";
+import { CodemapView } from "./ui/codemapView";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
@@ -34,6 +36,7 @@ export interface ReviewGuideApi {
   guideView: GuideView;
   ownershipTree: OwnershipTree;
   codemaps: WorkspaceCodemaps;
+  changeMarkers: WorkspaceChangeMarkers;
   codemapDecorations: CodemapDecorations;
   codemapView: CodemapView;
   codemapCodeLenses: CodemapCodeLenses;
@@ -58,10 +61,12 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   );
   const ownershipTree = new OwnershipTree(reviewGuide, findConfiguredRepos);
   const codemaps = new WorkspaceCodemaps(codemapFile);
+  // Confirmations live in the extension's storage, never in the repo.
+  const changeMarkers = new WorkspaceChangeMarkers(codemaps, path.join(storagePath, "codemap-confirmations"));
   const codemapDecorations = new CodemapDecorations(codemaps);
-  const codemapView = new CodemapView(codemaps);
-  const codemapCodeLenses = new CodemapCodeLenses(codemaps);
-  const explainPanels = new ExplainPanels(codemaps, (folder, request) => startExplainTerminal(context, folder, request), showError);
+  const codemapView = new CodemapView(codemaps, changeMarkers);
+  const codemapCodeLenses = new CodemapCodeLenses(codemaps, changeMarkers);
+  const explainPanels = new ExplainPanels(codemaps, changeMarkers, (folder, request) => startExplainTerminal(context, folder, request), showError);
 
   const openPullRequest = async (pullRequest: PullRequest) => {
     await vscode.window.withProgress(
@@ -80,6 +85,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
 
   context.subscriptions.push(
     codemaps,
+    changeMarkers,
     codemapView,
     codemapCodeLenses,
     explainPanels,
@@ -124,6 +130,8 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     // The codemap commands get a CodemapTarget: from the Codemap view, a tooltip link or a CodeLens.
     vscode.commands.registerCommand(codemapCommands.open, reportErrors(openCodemapPath)),
     vscode.commands.registerCommand(codemapCommands.explain, reportErrors((target: CodemapTarget) => explainPanels.show(uriOfTarget(target)))),
+    vscode.commands.registerCommand(codemapCommands.stillTrue, reportErrors((target: CodemapTarget) => changeMarkers.confirm(uriOfTarget(target)))),
+    vscode.commands.registerCommand(codemapCommands.explainAgain, reportErrors((target: CodemapTarget) => explainPanels.explainAgain(uriOfTarget(target)))),
     vscode.commands.registerCommand(codemapCommands.openStart, reportErrors(async (target: CodemapTarget) => {
       const entry = codemaps.entryOf(uriOfTarget(target));
       if (entry) {
@@ -141,7 +149,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       }
     })),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
 }
 
 export function deactivate(): void {

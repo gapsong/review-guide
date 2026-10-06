@@ -1,14 +1,16 @@
-import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { badgeOf } from "../codemap/badge";
 import { CodemapEntry, startLocationOf } from "../codemap/codemap";
 import { buildCodemapTree, CodemapFilter, CodemapTreeNode } from "../codemap/codemapTree";
-import { explanationPageOf } from "../codemap/explanationFiles";
+import { changeText } from "../codemap/changeMarkers";
+import { WorkspaceChangeMarkers } from "../codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
+import { codemapCommands } from "./codemapCommands";
 import { isDirectory } from "./codemapNavigation";
 import { CodemapTarget, commandLink, targetOf } from "./codemapTarget";
-import { codemapTooltip, EntryStatus, TooltipLink } from "./codemapTooltip";
+import { codemapTooltip, TooltipLink } from "./codemapTooltip";
+import { entryStatusOf } from "./entryStatus";
 
 // The Codemap view in the Explorer: the codemap as a tree, with each entry's badge and sentence.
 // It is the main place to read the codemap: VS Code's Explorer hides a folder's badge while the
@@ -19,12 +21,6 @@ import { codemapTooltip, EntryStatus, TooltipLink } from "./codemapTooltip";
 export type CodemapViewNode =
   | { kind: "workspaceFolder"; folder: vscode.WorkspaceFolder }
   | ({ kind: "path"; node: CodemapTreeNode } & CodemapTarget);
-
-export const codemapCommands = {
-  open: "reviewGuide.codemap.open",
-  openStart: "reviewGuide.codemap.openStart",
-  explain: "reviewGuide.codemap.explain",
-} as const;
 
 const filterDescriptions: Record<CodemapFilter, string | undefined> = {
   all: undefined,
@@ -40,9 +36,10 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
   private readonly treeView: vscode.TreeView<CodemapViewNode>;
   private filter: CodemapFilter = "all";
 
-  constructor(private readonly codemaps: WorkspaceCodemaps) {
+  constructor(private readonly codemaps: WorkspaceCodemaps, private readonly markers: WorkspaceChangeMarkers) {
     this.treeView = vscode.window.createTreeView(CodemapView.viewId, { treeDataProvider: this, showCollapseAll: true });
     codemaps.onDidChange(() => this.refresh());
+    markers.onDidChange(() => this.refresh());
     void this.updateContext();
   }
 
@@ -88,10 +85,15 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
       return item;
     }
     const item = new vscode.TreeItem(`${badgeOf(node.entry)} ${node.name}`, collapsible);
-    item.description = node.entry.says;
-    item.contextValue = "codemapEntry";
+    const change = entryStatusOf(element, this.markers).change;
+    item.description = change ? `⚠ ${node.entry.says}` : node.entry.says;
+    item.contextValue = change ? "codemapEntryChanged" : "codemapEntry";
+    if (change) {
+      item.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
+    }
     item.command = { title: "Open", command: codemapCommands.open, arguments: [element] };
-    item.accessibilityInformation = { label: `${node.name}, ${node.entry.label}${node.entry.deep ? ", deep module" : ""}: ${node.entry.says}` };
+    const changed = change ? `, ${changeText(change)}` : "";
+    item.accessibilityInformation = { label: `${node.name}, ${node.entry.label}${node.entry.deep ? ", deep module" : ""}${changed}: ${node.entry.says}` };
     return item;
   }
 
@@ -116,22 +118,25 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
   }
 
   private tooltipOf(target: CodemapTarget, entry: CodemapEntry): vscode.MarkdownString {
-    const actions: TooltipLink[] = [{ title: "Explain", link: commandLink(codemapCommands.explain, target) }];
+    const status = entryStatusOf(target, this.markers);
+    const actions: TooltipLink[] = status.change
+      ? [
+        { title: "Still true", link: commandLink(codemapCommands.stillTrue, target) },
+        { title: "Explain again", link: commandLink(codemapCommands.explainAgain, target) },
+        { title: "Explain", link: commandLink(codemapCommands.explain, target) },
+      ]
+      : [{ title: "Explain", link: commandLink(codemapCommands.explain, target) }];
     const markdown = codemapTooltip({
       name: path.posix.basename(entry.path),
       entry,
-      status: this.statusOf(target),
+      status,
       startLink: entry.start !== undefined && startLocationOf(entry.start) ? commandLink(codemapCommands.openStart, target) : undefined,
       actions,
     });
-    const tooltip = new vscode.MarkdownString(markdown);
+    // Theme icons for the marker's $(warning); the owner's text has its "$" escaped.
+    const tooltip = new vscode.MarkdownString(markdown, true);
     tooltip.isTrusted = { enabledCommands: Object.values(codemapCommands) };
     return tooltip;
-  }
-
-  private statusOf(target: CodemapTarget): EntryStatus {
-    const page = vscode.Uri.joinPath(vscode.Uri.parse(target.folderUri), explanationPageOf(target.path)).fsPath;
-    return { explanationWritten: fs.existsSync(page) ? fs.statSync(page).mtime : undefined };
   }
 
   // The view's welcome text depends on these (package.json, viewsWelcome).

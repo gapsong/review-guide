@@ -121,6 +121,18 @@
         "category": "Review Guide"
       },
       {
+        "command": "reviewGuide.codemap.stillTrue",
+        "title": "Still True",
+        "category": "Review Guide",
+        "icon": "$(check)"
+      },
+      {
+        "command": "reviewGuide.codemap.explainAgain",
+        "title": "Explain Again",
+        "category": "Review Guide",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "reviewGuide.codemap.showAll",
         "title": "Show All",
         "category": "Review Guide",
@@ -206,7 +218,27 @@
         {
           "command": "reviewGuide.codemap.explain",
           "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
-          "group": "inline"
+          "group": "inline@2"
+        },
+        {
+          "command": "reviewGuide.codemap.stillTrue",
+          "when": "view == reviewGuide.codemap && viewItem == codemapEntryChanged",
+          "group": "inline@1"
+        },
+        {
+          "command": "reviewGuide.codemap.explain",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "1_codemap@1"
+        },
+        {
+          "command": "reviewGuide.codemap.stillTrue",
+          "when": "view == reviewGuide.codemap && viewItem == codemapEntryChanged",
+          "group": "1_codemap@2"
+        },
+        {
+          "command": "reviewGuide.codemap.explainAgain",
+          "when": "view == reviewGuide.codemap && viewItem == codemapEntryChanged",
+          "group": "1_codemap@3"
         }
       ],
       "commandPalette": [
@@ -273,6 +305,14 @@
         {
           "command": "reviewGuide.codemap.openFile",
           "when": "reviewGuide.hasCodemap"
+        },
+        {
+          "command": "reviewGuide.codemap.stillTrue",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.explainAgain",
+          "when": "false"
         }
       ],
       "explorer/context": [

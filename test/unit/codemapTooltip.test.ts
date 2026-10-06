@@ -13,7 +13,7 @@ function content(changes: Partial<TooltipContent> = {}): TooltipContent {
   return {
     name: "payment.py",
     entry: payment,
-    status: { explanationWritten: undefined },
+    status: { explanationWritten: undefined, explanationOlder: false, change: undefined },
     startLink: undefined,
     actions: [{ title: "Explain", link: "command:reviewGuide.codemap.explain?%5B%5D" }],
     ...changes,
@@ -49,8 +49,14 @@ describe("the Codemap view's tooltip", () => {
 
   it("says when the explanation was written", () => {
     const written = new Date(2026, 9, 7, 23, 59);
-    assert.ok(codemapTooltip(content({ status: { explanationWritten: written } })).includes("Explanation written 2026-10-07."));
+    assert.ok(codemapTooltip(content({ status: { explanationWritten: written, explanationOlder: false, change: undefined } })).includes("Explanation written 2026-10-07."));
+    assert.ok(codemapTooltip(content({ status: { explanationWritten: written, explanationOlder: true, change: undefined } })).includes("Explanation written 2026-10-07, older than the last change."));
     assert.strictEqual(dateOf(new Date(2026, 0, 5)), "2026-01-05");
+  });
+
+  it("puts the change marker right below the name", () => {
+    const tooltip = codemapTooltip(content({ status: { explanationWritten: undefined, explanationOlder: false, change: { commits: 2 } } }));
+    assert.ok(tooltip.startsWith("💰🧠 **payment\\.py**\n\n$(warning) **Changed since you confirmed it (2 commits)**\n\nReserves"), tooltip);
   });
 
   it("shows the owner's text as written: no Markdown, no links, no icons", () => {

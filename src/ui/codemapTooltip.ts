@@ -1,4 +1,5 @@
 import { badgeOf } from "../codemap/badge";
+import { ChangeMarker, changeText } from "../codemap/changeMarkers";
 import { CodemapEntry } from "../codemap/codemap";
 
 // The Codemap view's tooltip for one entry, as Markdown: the sentence, the owner's notes, the
@@ -8,6 +9,10 @@ import { CodemapEntry } from "../codemap/codemap";
 export interface EntryStatus {
   // When the explanation page was last written; undefined when there is none.
   explanationWritten: Date | undefined;
+  // A commit touched the path after the explanation was written.
+  explanationOlder: boolean;
+  // Set when commits changed the path since the owner confirmed the entry.
+  change: ChangeMarker | undefined;
 }
 
 export interface TooltipLink {
@@ -30,6 +35,7 @@ export function codemapTooltip(content: TooltipContent): string {
   const { entry } = content;
   const sections = [
     `${badgeOf(entry)} **${escapeMarkdown(content.name)}**`,
+    content.status.change ? `$(warning) **${capitalized(changeText(content.status.change))}**` : "",
     escapeMarkdown(entry.says),
     ...notesOf(content),
     labelLine(entry),
@@ -66,7 +72,12 @@ function explanationLine(status: EntryStatus): string {
   if (!status.explanationWritten) {
     return "No explanation yet.";
   }
-  return `Explanation written ${dateOf(status.explanationWritten)}.`;
+  const older = status.explanationOlder ? ", older than the last change" : "";
+  return `Explanation written ${dateOf(status.explanationWritten)}${older}.`;
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // Each line of the owner's text stays a line of its own, inside a quote.

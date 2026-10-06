@@ -173,3 +173,15 @@ VS Code offers no way around this merge rule, so the codemap got its own view in
 `mine` is the owner's own explanation and may span lines, up to 1500 characters, about two short paragraphs; longer belongs in the explanation page.
 The Explorer hover and the CodeLens stay at the one sentence, so the code stays the main thing on screen.
 
+## Change markers: what counts, and where confirmations live
+
+- Only commits count. An uncommitted edit is work in progress; marking it would mark every file the owner is typing in.
+- The check is `git log <confirmed>..HEAD -- <path>`, run by the extension itself, as the review runs do. `--literal-pathspecs` makes a path like `app/[id]/page.tsx` a file name, not a pattern. After a branch switch, `confirmed..HEAD` lists the commits on the new branch that the owner has not confirmed, which is what the marker should say.
+- When the confirmed commit no longer exists (the history was rewritten), the entry is marked without a number of commits: what changed cannot be known, so the owner looks again.
+- The first time an entry is seen, HEAD is its confirmation. A new codemap, or a new entry, therefore starts without a marker; the owner wrote it about the code as it is.
+- Confirmations are JSON files in the extension's global storage, one per workspace folder, named by a hash of its path (the path itself is inside the file). Like the read marks, they are files and not VS Code's Memento, so they are easy to inspect and survive a restart in tests too. Nothing is written into the repo.
+- The markers are checked again when git's `HEAD`, `logs/HEAD`, `packed-refs` or `refs/heads/**` change (a worktree keeps HEAD in its own git folder and the branches in the common one), when the codemap changes, and when the window gets the focus back, which catches a commit made in a terminal outside VS Code even if a file event was missed. VS Code's built-in git extension is not used: it can be turned off, and it is turned off in the tests.
+- A folder where git fails shows no markers instead of an error message after every commit; the rest of the codemap still works.
+- "Older than the last change" compares the commit time of the last commit that touched the path with the time `index.html` was written.
+- "Explain again" only starts a new explanation. The marker stays until "Still true": a new page does not mean the owner has read it.
+

@@ -39,6 +39,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] C6 Codemap view in the Explorer: tree with plain folders and compacted chains, badge + name + says, click, inline Explain, tooltip, filters, welcome text
 - [x] C7 CodeLens on line 1 of a codemap file: badge + says, Explain
 - [x] C8 optional notes why / watch / start / mine, checked with limits, shown in the view's tooltip and the Explain header
+- [x] C9 change markers after a commit (view, tooltip, CodeLens, Explain header), Still true, Explain again, explanation older than the last change
 
 ## Manual (measured once, reported)
 
@@ -68,6 +69,6 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] Step 0: commit the 0.2.0 work (3 commits; the private codemap fixture was swapped for a made-up one before its first commit, so it never entered the history)
 - [x] Step 1: public-ready: no company content, no personal names, `reviewGuide.explanationLanguage`
 - [x] Step 2: Codemap view in the Explorer, CodeLens on line 1, new entry fields why / watch / start / mine
-- [ ] Step 3: change markers after a commit, "Still true" and "Explain again"
+- [x] Step 3: change markers after a commit, "Still true" and "Explain again"
 - [ ] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots
 - [ ] Finish: all test suites, version 0.3.0, package, morning report, Telegram

@@ -3,7 +3,11 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import type { ReviewGuideApi } from "../../../src/extension";
+import { git } from "../../support/gitFixture";
 import type { CodemapViewNode } from "../../../src/ui/codemapView";
+
+const root = path.resolve(__dirname, "..", "..", "..", "..");
+const fakeClaudeExplainPath = path.join(root, "test", "fixtures", "fake-claude-explain.js");
 
 const codemap = `- path: shop
   says: The shop's HTTP API.
@@ -38,6 +42,11 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     for (const file of ["shop/checkout/payment.py", "shop/auth/session.py", "shop/util/money.py", "shop/app.py"]) {
       writeFile(file, "line 1\nline 2\nline 3\n");
     }
+    // The workspace is a git repo, as most are; the codemap stays out of it.
+    writeFile(".gitignore", "/.codemap/\n");
+    git(workspace, "init", "--quiet", "--initial-branch=main");
+    commitAll("Start the shop");
+    await vscode.workspace.getConfiguration("reviewGuide").update("claudePath", fakeClaudeExplainPath, vscode.ConfigurationTarget.Global);
     api = await vscode.extensions.getExtension<ReviewGuideApi>("gapsong.review-guide")!.activate();
     writeFile(".codemap/codemap.yaml", codemap);
     await waitFor(() => api.codemapView.getChildren().length > 0, "the view shows the codemap");
@@ -45,6 +54,12 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
 
   afterEach(async () => {
     await vscode.commands.executeCommand("reviewGuide.codemap.showAll");
+  });
+
+  after(() => {
+    for (const terminal of vscode.window.terminals) {
+      terminal.dispose();
+    }
   });
 
   it("shows the codemap as a tree: plain folders on the way, each entry with its badge, name and sentence", () => {
@@ -67,7 +82,7 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
       assert.ok(tooltip.value.includes(shown), `the tooltip shows ${shown}:\n${tooltip.value}`);
     }
     assert.match(tooltip.value, /\[Explain\]\(command:reviewGuide\.codemap\.explain\?/);
-    assert.deepStrictEqual(tooltip.isTrusted, { enabledCommands: ["reviewGuide.codemap.open", "reviewGuide.codemap.openStart", "reviewGuide.codemap.explain"] });
+    assert.deepStrictEqual(tooltip.isTrusted, { enabledCommands: ["reviewGuide.codemap.open", "reviewGuide.codemap.openStart", "reviewGuide.codemap.explain", "reviewGuide.codemap.stillTrue", "reviewGuide.codemap.explainAgain"] });
   });
 
   it("filters to money, security or deep modules, and back to all", async () => {
@@ -117,6 +132,75 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     await waitFor(() => api.codemapView.getChildren().length > 0, "the codemap is back");
   });
 
+  describe("change markers after a commit", () => {
+    const paymentFile = () => vscode.Uri.file(path.join(workspace, "shop", "checkout", "payment.py"));
+
+    it("marks nothing at first: the current commit is every entry's starting point", async () => {
+      await api.changeMarkers.check();
+      assert.ok(!outline().some((line) => line.includes("⚠")), outline().join("\n"));
+    });
+
+    it("does not count an edit that is not committed", async () => {
+      writeFile("shop/checkout/payment.py", "line 1\nline 2 edited\nline 3\n");
+      await api.changeMarkers.check();
+      assert.strictEqual(api.changeMarkers.statusOf(paymentFile())!.change, undefined);
+    });
+
+    it("marks the entry in the view, the tooltip, the CodeLens and the Explain panel once a commit changes it", async () => {
+      commitAll("Charge in cents");
+      // No call to check(): the commit alone must bring the marker, through the watch on git's HEAD.
+      await waitFor(() => outline().includes("    💰🧠 payment.py · ⚠ Reserves the amount first, then charges it."), "the view shows the marker", 15_000);
+
+      const payment = findNode("💰🧠 payment.py");
+      const item = api.codemapView.getTreeItem(payment);
+      assert.strictEqual(item.contextValue, "codemapEntryChanged");
+      assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, "warning");
+      const tooltip = (api.codemapView.resolveTreeItem(item, payment).tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("$(warning) **Changed since you confirmed it (1 commit)**"), tooltip);
+      assert.match(tooltip, /\[Still true\]\(command:reviewGuide\.codemap\.stillTrue\?.*\[Explain again\]\(command:reviewGuide\.codemap\.explainAgain\?/);
+      assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), [
+        "💰🧠 Reserves the amount first, then charges it.",
+        "Explain",
+        "$(warning) changed since you confirmed it (1 commit)",
+        "Still true",
+        "Explain again",
+      ]);
+      assert.ok(!outline().includes("    🔒 session.py · ⚠ Checks the session cookie."), "an entry the commit did not touch has no marker");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.explain", payment);
+      await waitFor(() => api.explainPanels.htmlOf(paymentFile())?.includes("Changed since you confirmed it (1 commit).") === true, "the panel shows the marker");
+      assert.ok(api.explainPanels.htmlOf(paymentFile())!.includes(">Still true</button>"));
+    });
+
+    it("says when an explanation is older than the last commit that changed the path", async () => {
+      writeFile(".codemap/explanations/shop/checkout/payment.py/index.html", "<html><body><h1>Payment</h1></body></html>");
+      const longAgo = new Date(2020, 0, 1);
+      fs.utimesSync(path.join(workspace, ".codemap", "explanations", "shop", "checkout", "payment.py", "index.html"), longAgo, longAgo);
+      const payment = findNode("💰🧠 payment.py");
+      const tooltip = (api.codemapView.resolveTreeItem(api.codemapView.getTreeItem(payment), payment).tooltip as vscode.MarkdownString).value;
+      assert.ok(tooltip.includes("Explanation written 2020-01-01, older than the last change."), tooltip);
+    });
+
+    it("Explain again opens the panel and runs Claude Code in a terminal for the path", async () => {
+      fs.rmSync(path.join(workspace, ".codemap", "explanations"), { recursive: true, force: true });
+      await vscode.commands.executeCommand("reviewGuide.codemap.explainAgain", findNode("💰🧠 payment.py"));
+      assert.ok(vscode.window.terminals.some((terminal) => terminal.name === "Explain: shop/checkout/payment.py"), "a terminal named after the path is open");
+      await waitFor(() => api.explainPanels.htmlOf(paymentFile())?.includes("<h1>Fake explanation</h1>") === true, "the panel shows the page Claude wrote", 30_000);
+    });
+
+    it("Still true clears the marker everywhere, until the next commit that changes the path", async () => {
+      await vscode.commands.executeCommand("reviewGuide.codemap.stillTrue", findNode("💰🧠 payment.py"));
+      assert.ok(outline().includes("    💰🧠 payment.py · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain"]);
+      assert.ok(!api.explainPanels.htmlOf(paymentFile())!.includes("Changed since you confirmed it"));
+      assert.strictEqual(git(workspace, "status", "--porcelain"), "", "the confirmation is not stored in the repo");
+
+      writeFile("shop/checkout/payment.py", "line 1\nline 2 edited again\nline 3\n");
+      commitAll("Charge once");
+      await waitFor(() => outline().includes("    💰🧠 payment.py · ⚠ Reserves the amount first, then charges it."), "the next commit marks it again", 15_000);
+    });
+  });
+
   // One line per node, indented by depth: the label, then " · " and the description when there is one.
   function outline(nodes: CodemapViewNode[] = api.codemapView.getChildren(), depth = 0): string[] {
     return nodes.flatMap((node) => {
@@ -143,6 +227,11 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     await vscode.window.showTextDocument(uri);
     const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>("vscode.executeCodeLensProvider", uri);
     return lenses.map((lens) => lens.command?.title ?? "");
+  }
+
+  function commitAll(message: string): void {
+    git(workspace, "add", "--all");
+    git(workspace, "commit", "--quiet", "-m", message);
   }
 
   function writeFile(repoPath: string, text: string): void {

@@ -1,4 +1,5 @@
 import { badgeOf } from "../codemap/badge";
+import { ChangeMarker, changeText } from "../codemap/changeMarkers";
 import { CodemapEntry } from "../codemap/codemap";
 import { explanationFolderOf } from "../codemap/explanationFiles";
 import { escapeHtml } from "./markdown";
@@ -14,6 +15,10 @@ export interface ExplainHeader {
   // Missing when the path is not in the codemap yet.
   entry: CodemapEntry | undefined;
   hasExplanation: boolean;
+  // A commit touched the path after the explanation was written.
+  explanationOlder: boolean;
+  // Set when commits changed the path since the owner confirmed the entry.
+  change: ChangeMarker | undefined;
   // The page shown, relative to the explanation folder, when it is not index.html.
   otherPage: string | undefined;
 }
@@ -30,6 +35,8 @@ export interface ExplanationPage {
 // Messages the panel's buttons and links send back to the extension.
 export type ExplainMessage =
   | { type: "generate" }
+  // "Still true": confirms the entry at the current commit, which clears its change marker.
+  | { type: "confirm" }
   | { type: "showIndex" }
   // Opens the file that the entry's "start" points to.
   | { type: "openStart" }
@@ -89,7 +96,7 @@ ${notesHtml(header.entry)}<p class="muted">${labelLine(header.entry)}</p>`
     : `<p class="muted">Not in the codemap yet.</p>`;
   return `<header>
 <h2>${badge}<span class="path">${escapeHtml(header.path)}</span></h2>
-${about}
+${changeLine(header)}${about}
 ${actions(header)}
 </header>`;
 }
@@ -116,16 +123,29 @@ function labelLine(entry: CodemapEntry): string {
   return entry.deep ? `${entry.label} · deep module: a small interface that hides much logic` : entry.label;
 }
 
+function changeLine(header: ExplainHeader): string {
+  if (!header.change) {
+    return "";
+  }
+  const text = changeText(header.change);
+  return `<p class="change">⚠ ${escapeHtml(text.charAt(0).toUpperCase() + text.slice(1))}. Read it again, then say whether the entry is still true.</p>\n`;
+}
+
+// After a change, "Still true" and "Explain again" come first: they are what the marker asks for.
 function actions(header: ExplainHeader): string {
+  const stillTrue = header.change ? `${button("Still true", { type: "confirm" })}` : "";
   if (!header.hasExplanation) {
     const folder = escapeHtml(`${explanationFolderOf(header.path)}/`);
+    const generate = button("Generate explanation", { type: "generate" }, header.change ? "secondary" : "");
     return `<p class="muted">No explanation yet. The button starts Claude Code in a terminal, where you see what it does; it writes the page into <code>${folder}</code>.</p>
-<p>${button("Generate explanation", { type: "generate" })}</p>`;
+<p>${stillTrue}${generate}</p>`;
   }
   const back = header.otherPage
     ? `${button("Back to index.html", { type: "showIndex" })} <span class="muted">Showing ${escapeHtml(header.otherPage)}</span> `
     : "";
-  return `<p>${back}${button("Regenerate", { type: "generate" }, "secondary")}</p>`;
+  const older = header.explanationOlder ? `<p class="muted">This explanation is older than the last commit that changed the code.</p>\n` : "";
+  const regenerate = header.change ? button("Explain again", { type: "generate" }, "secondary") : button("Regenerate", { type: "generate" }, "secondary");
+  return `${older}<p>${back}${stillTrue}${regenerate}</p>`;
 }
 
 function linkButton(label: string, message: ExplainMessage): string {
@@ -210,6 +230,7 @@ h2 { font-size: 1.15em; font-weight: 600; margin: 14px 0 4px; }
 p { margin: 6px 0; }
 .says { font-size: 1.05em; }
 .muted { color: var(--vscode-descriptionForeground); }
+.change { color: var(--vscode-editorWarning-foreground); font-weight: 600; }
 code { font-family: var(--vscode-editor-font-family); font-size: 0.92em; background: var(--vscode-textCodeBlock-background); padding: 1px 4px; border-radius: 3px; }
 button { font-family: inherit; font-size: inherit; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; padding: 4px 10px; margin-right: 6px; cursor: pointer; }
 button:hover { background: var(--vscode-button-hoverBackground); }

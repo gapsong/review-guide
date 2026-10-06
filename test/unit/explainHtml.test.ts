@@ -13,7 +13,7 @@ const entry: CodemapEntry = {
 };
 
 function header(changes: Partial<ExplainHeader> = {}): ExplainHeader {
-  return { path: "src/payment.py", entry, hasExplanation: false, otherPage: undefined, ...changes };
+  return { path: "src/payment.py", entry, hasExplanation: false, explanationOlder: false, change: undefined, otherPage: undefined, ...changes };
 }
 
 function page(html: string) {
@@ -44,6 +44,23 @@ describe("C3, C4: the Explain panel", () => {
     assert.ok(html.includes("<dt>Why it matters</dt><dd>Real &lt;cards&gt;.</dd><dt>Watch</dt><dd>Retries.</dd>"), html);
     assert.ok(html.includes("<dt>Start reading</dt><dd><button class=\"link\" data-review-guide=\"{&quot;type&quot;:&quot;openStart&quot;}\">src/payment.py:42</button></dd>"), html);
     assert.ok(html.includes("<dt>In your words</dt><dd><blockquote>Reserve first.\nThen &lt;charge&gt;.</blockquote></dd>"), html);
+  });
+
+  it("after a commit changed the path: says so first, and offers Still true, then Explain again", () => {
+    const html = renderExplainPanel(header({ change: { commits: 2 }, hasExplanation: true, explanationOlder: true }), "n0nce", cspSource);
+    assert.ok(html.includes("<p class=\"change\">⚠ Changed since you confirmed it (2 commits). Read it again, then say whether the entry is still true.</p>"), html);
+    assert.ok(html.indexOf("class=\"change\"") < html.indexOf("class=\"says\""), "the marker comes before the sentence");
+    assert.ok(html.includes("This explanation is older than the last commit that changed the code."));
+    assert.match(html, /data-review-guide="\{&quot;type&quot;:&quot;confirm&quot;\}">Still true<\/button><button class="secondary" data-review-guide="\{&quot;type&quot;:&quot;generate&quot;\}">Explain again<\/button>/);
+    assert.ok(!html.includes("Regenerate"));
+  });
+
+  it("without a change: no marker, no Still true, and Regenerate for an existing explanation", () => {
+    const html = renderExplainPanel(header({ hasExplanation: true }), "n0nce", cspSource);
+    for (const absent of ["class=\"change\"", "Still true", "Explain again", "older than"]) {
+      assert.ok(!html.includes(absent), absent);
+    }
+    assert.ok(html.includes(">Regenerate</button>"));
   });
 
   it("shows no notes block for an entry without notes", () => {

@@ -5,9 +5,11 @@ import * as vscode from "vscode";
 import { ExplainRequest } from "../claude/explainPrompt";
 import { explanationFolderOf, explanationPageName, explanationsFolder } from "../codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../codemap/repoPath";
+import { WorkspaceChangeMarkers } from "../codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
 import { openStartOf } from "./codemapNavigation";
 import { targetOf } from "./codemapTarget";
+import { entryStatusOf } from "./entryStatus";
 import { ExplainHeader, ExplainMessage, renderExplainPanel, renderExplanationPage } from "./explainHtml";
 
 interface OpenExplanation {
@@ -30,10 +32,12 @@ export class ExplainPanels implements vscode.Disposable {
 
   constructor(
     private readonly codemaps: WorkspaceCodemaps,
+    private readonly markers: WorkspaceChangeMarkers,
     private readonly startGeneration: StartGeneration,
     private readonly showError: (error: unknown) => void,
   ) {
     codemaps.onDidChange(() => this.renderAll());
+    markers.onDidChange(() => this.renderAll());
     const pageChanged = (uri: vscode.Uri) => this.renderShowing(uri);
     this.watcher.onDidCreate(pageChanged);
     this.watcher.onDidChange(pageChanged);
@@ -64,6 +68,12 @@ export class ExplainPanels implements vscode.Disposable {
     this.render(explanation);
   }
 
+  // "Explain again" from the Codemap view or a CodeLens: the panel, and the terminal that writes the page.
+  async explainAgain(uri: vscode.Uri): Promise<void> {
+    await this.show(uri);
+    await this.receive(uri, { type: "generate" });
+  }
+
   // What the panel's buttons and links send. Public so tests can press them.
   async receive(uri: vscode.Uri, message: ExplainMessage): Promise<void> {
     const explanation = this.openFor(uri);
@@ -91,6 +101,9 @@ export class ExplainPanels implements vscode.Disposable {
           kind: explanation.kind,
           entry: this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath)),
         });
+        return;
+      case "confirm":
+        await this.markers.confirm(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath));
         return;
       case "showIndex":
         explanation.page = explanationPageName;
@@ -145,10 +158,13 @@ export class ExplainPanels implements vscode.Disposable {
     }
     const pageFile = this.fileOf(explanation, explanation.page);
     const { webview } = explanation.panel;
+    const status = entryStatusOf(targetOf(explanation.folder, explanation.repoPath), this.markers);
     const header: ExplainHeader = {
       path: explanation.repoPath,
       entry: this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath)),
       hasExplanation: fs.existsSync(pageFile),
+      explanationOlder: status.explanationOlder,
+      change: status.change,
       otherPage: explanation.page === explanationPageName ? undefined : explanation.page,
     };
     if (!header.hasExplanation) {
