@@ -84,7 +84,7 @@ export const ownershipCheckSchema = {
     verdict: { type: "string", enum: ["understood", "almost", "not yet"] },
     feedback: {
       type: "string",
-      description: "The reply to the reviewer: the answer to his question, and for the verdict what is right, missing or wrong. ASCII diagrams go in ``` blocks.",
+      description: "The reply to the reviewer: the answer to their question, and for the verdict what is right, missing or wrong. ASCII diagrams go in ``` blocks.",
     },
     line: { type: "integer", description: "For 'not yet': the line of the new code the mistake is about." },
   },

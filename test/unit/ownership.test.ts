@@ -32,7 +32,7 @@ describe("ownership check (F11), ownership overview (F12) and the 3am check (F14
     return { remote, fakeClaude, guide, review, packCodes };
   }
 
-  describe("F11: The reviewer explains a critical unit; Claude answers understood, almost or not yet", () => {
+  describe("F11: the reviewer explains a critical unit; Claude answers understood, almost or not yet", () => {
     it("'not yet' names what is wrong and the line, and does not mark the unit understood", async () => {
       const { guide, review, packCodes } = await openPackingPullRequest();
       const result = await guide.sendOwnershipMessage(review, packCodes.id, "It shifts each code by the word size, which is wrong I guess.");
@@ -97,18 +97,18 @@ describe("ownership check (F11), ownership overview (F12) and the 3am check (F14
       assert.strictEqual(record.state, "understood");
     });
 
-    it("tells Claude not to explain before the reviewer's first try, and to answer his questions after it", () => {
+    it("tells Claude not to explain before the reviewer's first try, and to answer their questions after it", () => {
       const first = ownershipPrompt(packCodesUnit(), [], "It packs codes.");
       assert.match(first, /first try/);
-      assert.match(first, /Do not explain the code to him yet/);
+      assert.match(first, /Do not explain the code to them yet/);
       const later = ownershipPrompt(packCodesUnit(), [
         { speaker: "reviewer", text: "It packs codes." },
         { speaker: "claude", result: { verdict: "almost", feedback: "What about the word boundary?" } },
       ], "Why 32?");
-      assert.match(later, /\*\*the reviewer:\*\* It packs codes\./);
+      assert.match(later, /\*\*Reviewer:\*\* It packs codes\./);
       assert.match(later, /\*\*Claude \(almost\):\*\* What about the word boundary\?/);
       assert.match(later, /ask you back/);
-      assert.match(later, /Your own explanations do not count as his understanding/);
+      assert.match(later, /Your own explanations do not count as their understanding/);
     });
   });
 

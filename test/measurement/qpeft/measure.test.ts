@@ -43,7 +43,7 @@ describe("Q1-Q3 measurement on gapsong/qpeft PR #8", function () {
   });
 });
 
-// qpeft has no .review-guide.md yet. To measure what the profile the reviewer would write changes, the
+// qpeft has no .review-guide.md yet. To measure what the owner's profile would change, the
 // measurement can give one from a file instead of the one on the base branch.
 function useProfileFromFile(profilePath: string | undefined): void {
   if (profilePath) {

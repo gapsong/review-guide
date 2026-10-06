@@ -3,17 +3,17 @@ import { CodemapEntry } from "../../src/codemap/codemap";
 import { ExplainHeader, explanationPolicy, renderExplainPanel, renderExplanationPage } from "../../src/ui/explainHtml";
 
 const cspSource = "https://csp.example";
-const folderUrl = "https://file%2B.vscode-resource.example/work/.codemap/explanations/src/dispatcher.py/";
+const folderUrl = "https://file%2B.vscode-resource.example/work/.codemap/explanations/src/payment.py/";
 
 const entry: CodemapEntry = {
-  path: "src/dispatcher.py",
-  says: "Opens the <ledger> row \"first\" & then calls the adapter.",
+  path: "src/payment.py",
+  says: "Reserves the <amount> \"first\" & then charges it.",
   label: "money",
   deep: true,
 };
 
 function header(changes: Partial<ExplainHeader> = {}): ExplainHeader {
-  return { path: "src/dispatcher.py", entry, hasExplanation: false, otherPage: undefined, ...changes };
+  return { path: "src/payment.py", entry, hasExplanation: false, otherPage: undefined, ...changes };
 }
 
 function page(html: string) {
@@ -23,19 +23,19 @@ function page(html: string) {
 describe("C3, C4: the Explain panel", () => {
   it("shows the badge, the path, the sentence, the label and deep, and offers to generate an explanation", () => {
     const html = renderExplainPanel(header(), "n0nce", cspSource);
-    assert.ok(html.includes("<span class=\"badge\">💰🧠</span><span class=\"path\">src/dispatcher.py</span>"), html);
+    assert.ok(html.includes("<span class=\"badge\">💰🧠</span><span class=\"path\">src/payment.py</span>"), html);
     assert.ok(html.includes("money · deep module"));
     assert.ok(html.includes("No explanation yet."));
     assert.ok(html.includes(">Generate explanation</button>"));
-    assert.ok(html.includes("<code>.codemap/explanations/src/dispatcher.py/</code>"), "says where the page will be written");
+    assert.ok(html.includes("<code>.codemap/explanations/src/payment.py/</code>"), "says where the page will be written");
     assert.ok(!html.includes("Regenerate"));
   });
 
   it("escapes the sentence and the path", () => {
     const html = renderExplainPanel(header({ path: "src/<img src=x onerror=alert(1)>.py" }), "n0nce", cspSource);
-    assert.ok(html.includes("Opens the &lt;ledger&gt; row &quot;first&quot; &amp; then calls the adapter."), html);
+    assert.ok(html.includes("Reserves the &lt;amount&gt; &quot;first&quot; &amp; then charges it."), html);
     assert.ok(html.includes("src/&lt;img src=x onerror=alert(1)&gt;.py"));
-    assert.ok(!html.includes("<img") && !html.includes("<ledger>"));
+    assert.ok(!html.includes("<img") && !html.includes("<amount>"));
   });
 
   it("says when a path is not in the codemap yet, and still offers to explain it", () => {
@@ -53,7 +53,7 @@ describe("C3, C4: the Explain panel", () => {
   });
 
   it("shows the explanation page itself, with its base folder, the policy and the header on top", () => {
-    const explanation = "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n<title>Dispatcher</title>\n</head>\n<body class=\"page\">\n<h1>Der Dispatcher</h1>\n<img src=\"flow.gif\">\n</body>\n</html>\n";
+    const explanation = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<title>Payment</title>\n</head>\n<body class=\"page\">\n<h1>The payment</h1>\n<img src=\"flow.gif\">\n</body>\n</html>\n";
     const html = renderExplanationPage(page(explanation), header({ hasExplanation: true }), cspSource);
     const headStart = html.indexOf("<head>") + "<head>".length;
     assert.ok(html.startsWith(`<base href="${folderUrl}">`, headStart), "the base comes first, so relative links, images and scripts resolve in the page's folder");
@@ -63,7 +63,7 @@ describe("C3, C4: the Explain panel", () => {
     assert.ok(html.startsWith("<review-guide-bar><template shadowrootmode=\"open\">", bodyStart), "the header is the first thing in the body");
     assert.ok(html.includes(">Regenerate</button>"));
     assert.ok(!html.includes("Generate explanation"));
-    assert.ok(html.includes("<h1>Der Dispatcher</h1>\n<img src=\"flow.gif\">"), "the page itself is unchanged");
+    assert.ok(html.includes("<h1>The payment</h1>\n<img src=\"flow.gif\">"), "the page itself is unchanged");
     assert.ok(!html.includes("<iframe"));
   });
 

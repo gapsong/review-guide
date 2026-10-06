@@ -10,10 +10,10 @@ describe("F1: sign in with the VS Code GitHub login and list open PRs", () => {
   let api: ReviewGuideApi;
 
   before(async () => {
-    github.addPull("reviewer/qpeft", pull(8, "Block-AP trainer"));
-    github.addPull("reviewer/qpeft", pull(9, "Packing fix"));
-    github.addPull("reviewer/other", pull(3, "Docs"));
-    api = await startExtension(github, token, ["reviewer/qpeft", "reviewer/other"]);
+    github.addPull("example/qpeft", pull(8, "Block-AP trainer"));
+    github.addPull("example/qpeft", pull(9, "Packing fix"));
+    github.addPull("example/other", pull(3, "Docs"));
+    api = await startExtension(github, token, ["example/qpeft", "example/other"]);
   });
 
   after(() => github.stop());
@@ -21,7 +21,7 @@ describe("F1: sign in with the VS Code GitHub login and list open PRs", () => {
   it("lists the open PRs of every configured repo, using the token of the VS Code login", async () => {
     const tree = api.pullRequestTree;
     const repos = await tree.getChildren();
-    assert.deepStrictEqual(repos.map((node) => tree.getTreeItem(node).label), ["reviewer/qpeft", "reviewer/other"]);
+    assert.deepStrictEqual(repos.map((node) => tree.getTreeItem(node).label), ["example/qpeft", "example/other"]);
 
     const qpeftPulls = await tree.getChildren(repos[0]);
     assert.deepStrictEqual(qpeftPulls.map((node) => tree.getTreeItem(node).label), [

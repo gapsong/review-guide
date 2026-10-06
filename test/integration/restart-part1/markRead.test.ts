@@ -17,9 +17,9 @@ describe("F6 (before the restart): mark a unit as read", () => {
   before(async () => {
     const remote = restartFixture();
     useFakeClaude(path.join(process.env.REVIEW_GUIDE_TEST_SCRATCH!, "restart-fixture"), { "packCodes()": "critical" });
-    github.addPull("reviewer/packing", remote.pull);
-    api = await startExtension(github, "token", ["reviewer/packing"]);
-    const review = await api.reviewGuide.open(pullRequestOf(remote.pull, { owner: "reviewer", name: "packing" }));
+    github.addPull("example/packing", remote.pull);
+    api = await startExtension(github, "token", ["example/packing"]);
+    const review = await api.reviewGuide.open(pullRequestOf(remote.pull, { owner: "example", name: "packing" }));
     await api.reviewGuide.waitForDeepCheck(review);
   });
 

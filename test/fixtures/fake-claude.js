@@ -108,11 +108,11 @@ function questionFor(unit) {
   return { text: `Check: what happens at line ${start}?`, startLine: start, endLine: end };
 }
 
-// the reviewer's message decides the verdict, so tests can choose it: it contains "wrong", "partly", a
+// The reviewer's message decides the verdict, so tests can choose it: it contains "wrong", "partly", a
 // question mark (Claude answers with a diagram), or none of these.
 function ownershipCheck(prompt) {
-  const message = /## the reviewer's new message\n([\s\S]*?)\n## End of message/.exec(prompt)[1].toLowerCase();
-  const earlierTurns = (prompt.match(/^\*\*the reviewer:\*\*/gm) || []).length;
+  const message = /## The reviewer's new message\n([\s\S]*?)\n## End of message/.exec(prompt)[1].toLowerCase();
+  const earlierTurns = (prompt.match(/^\*\*Reviewer:\*\*/gm) || []).length;
   const unitIds = [`turns-before:${earlierTurns}`];
   if (message.includes("wrong")) {
     return { verdict: "not yet", feedback: "Line 5 shifts by bits, not by the word size.", line: 5, unitIds };

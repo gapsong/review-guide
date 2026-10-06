@@ -1,5 +1,5 @@
 // How Claude explains code to the reviewer (SPEC.md, F16): shared by pass 2 and the ownership chat.
-export const explanationStyle = `How to explain (the reviewer learns best this way):
+export const explanationStyle = `How to explain (the reader learns best this way):
 - Whenever it helps, draw a small ASCII diagram inside a fenced code block (\`\`\`): data flow, tensor shapes, a bit layout, or before/after. Plain ASCII only, at most about 12 lines.
 - Explain WHY with an everyday analogy, then map the analogy back to the code, name by name.
 - Plain words and short sentences; say what the code does before judging it.

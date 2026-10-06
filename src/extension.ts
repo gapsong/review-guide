@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
-import { ExplainRequest, explainTerminal } from "./claude/explainPrompt";
+import { defaultExplanationLanguage, ExplainRequest, explainTerminal } from "./claude/explainPrompt";
 import { WorkspaceCodemaps } from "./codemap/workspaceCodemaps";
 import { gitAuthEnvironment } from "./git/gitAuth";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
@@ -149,16 +149,16 @@ async function askToStartDeepCheck(criticalUnitCount: number): Promise<boolean> 
 }
 
 // Unlike the read-only review runs, this run may run the app and write files, so it runs visibly in a
-// terminal, under Claude Code's normal permission prompts, and only after the reviewer pressed the button
+// terminal, under Claude Code's normal permission prompts, and only after the owner pressed the button
 // (DECISIONS.md). Claude Code is the terminal's process, not a shell, so no file name can become a command.
 function startExplainTerminal(context: vscode.ExtensionContext, folder: vscode.WorkspaceFolder, request: ExplainRequest): void {
   const template = fs.readFileSync(path.join(context.extensionPath, "media", "explainPrompt.md"), "utf8");
-  const command = explainTerminal(claudeSettings().executable, template, request);
+  const command = explainTerminal({ claudePath: claudeSettings().executable, language: explanationLanguage() }, template, request);
   const terminal = vscode.window.createTerminal({ name: command.name, cwd: folder.uri, shellPath: command.executable, shellArgs: command.args });
   terminal.show();
 }
 
-// The extension never writes into a repo; the reviewer saves the profile there himself.
+// The extension never writes into a repo; the reviewer saves the profile there themselves.
 function draftProfileText(draft: string): string {
   return `<!-- Draft of .review-guide.md written by Claude. Edit it, then save it as .review-guide.md in the repo root. -->\n\n${draft}\n`;
 }
@@ -169,6 +169,10 @@ function claudeSettings(): ClaudeSettings {
     executable: settings.get<string>("claudePath", "claude"),
     model: settings.get<string>("model", "claude-opus-5-5"),
   };
+}
+
+function explanationLanguage(): string {
+  return vscode.workspace.getConfiguration("reviewGuide").get<string>("explanationLanguage", defaultExplanationLanguage);
 }
 
 function codemapFile(): string {

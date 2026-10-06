@@ -35,7 +35,7 @@ describe("C1, C2: reading the codemap", () => {
   });
 
   it("reports an unknown key on its line and skips the entry", () => {
-    const text = "- path: src/a.py\n  says: A.\n  label: core\n  owner: reviewer\n";
+    const text = "- path: src/a.py\n  says: A.\n  label: core\n  owner: me\n";
     assert.deepStrictEqual(problemsOf(text), [[4, "unknown key \"owner\" (allowed: path, says, label, deep)"]]);
     assert.deepStrictEqual(parseCodemap(text, everyPathExists).entries, []);
   });
@@ -109,7 +109,7 @@ describe("C1, C2: reading the codemap", () => {
 });
 
 describe("C1: badge and tooltip in the Explorer", () => {
-  const entry = (label: CodemapEntry["label"], deep: boolean): CodemapEntry => ({ path: "src/a.py", says: "Opens a ledger row first.", label, deep });
+  const entry = (label: CodemapEntry["label"], deep: boolean): CodemapEntry => ({ path: "src/a.py", says: "Reserves the amount first.", label, deep });
 
   it("shows the label's emoji, and a brain as the second character for a deep module", () => {
     assert.strictEqual(badgeOf(entry("money", false)), "💰");
@@ -129,8 +129,8 @@ describe("C1: badge and tooltip in the Explorer", () => {
   });
 
   it("shows the sentence, then the label, then deep module", () => {
-    assert.strictEqual(tooltipOf(entry("money", false)), "Opens a ledger row first. · money");
-    assert.strictEqual(tooltipOf(entry("money", true)), "Opens a ledger row first. · money · deep module");
+    assert.strictEqual(tooltipOf(entry("money", false)), "Reserves the amount first. · money");
+    assert.strictEqual(tooltipOf(entry("money", true)), "Reserves the amount first. · money · deep module");
   });
 });
 

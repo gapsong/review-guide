@@ -18,7 +18,7 @@ export interface GuideModel {
   changedSinceReview: boolean;
   // Pass 2's result, for critical units once it is there.
   deepCheck: DeepCheck | undefined;
-  // the reviewer's own explanation and Claude's verdict on it (critical units).
+  // The reviewer's own explanation and Claude's verdict on it (critical units).
   explanation: string | undefined;
   // What the reviewer has typed but not sent yet; it must survive the panel being redrawn.
   draft: string | undefined;
@@ -50,7 +50,7 @@ ${body}
 </html>`;
 }
 
-// What needs the reviewer comes first: the tier, then his questions, then blocking problems.
+// What needs the reviewer comes first: the tier, then their questions, then blocking problems.
 function unitSections(model: GuideModel): string {
   return [
     heading(model),
@@ -110,7 +110,7 @@ function listSection(title: string, items: string[]): string {
   return `<h3>${escapeHtml(title)}</h3>\n<ul>${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 }
 
-// The ownership chat: The reviewer's first try, then as many replies and questions as he needs.
+// The ownership chat: the reviewer's first try, then as many replies and questions as they need.
 function ownershipSection(model: GuideModel): string {
   if (model.tier !== "critical") {
     return "";
@@ -144,7 +144,7 @@ function verdictLine(check: OwnershipCheckResult): string {
   return ` <a href="#" data-message="${message}">line ${check.line}</a>`;
 }
 
-// Claude's own summary stays hidden until the reviewer has written his: it must not give him the answer first.
+// Claude's own summary stays hidden until the reviewer has written theirs: it must not give them the answer first.
 function plainWordsSection(model: GuideModel): string {
   const plainWords = model.deepCheck?.plainWords;
   if (model.tier !== "critical" || !plainWords) {

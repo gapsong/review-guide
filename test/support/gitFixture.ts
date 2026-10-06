@@ -106,6 +106,6 @@ function listFiles(folder: string, prefix = ""): string[] {
   return files;
 }
 
-export function pullRequestOf(pull: FakePull, repo = { owner: "reviewer", name: "fixture" }): PullRequest {
-  return { ...pull, repo, body: pull.body ?? "", author: "reviewer", url: "" };
+export function pullRequestOf(pull: FakePull, repo = { owner: "example", name: "fixture" }): PullRequest {
+  return { ...pull, repo, body: pull.body ?? "", author: "tester", url: "" };
 }

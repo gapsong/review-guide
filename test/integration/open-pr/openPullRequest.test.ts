@@ -26,9 +26,9 @@ describe("opening a PR in VS Code", () => {
     workingCopy = vscode.workspace.workspaceFolders![0].uri.fsPath;
     git(workingCopy, "clone", "--quiet", remote.remotePath, ".");
     fs.writeFileSync(path.join(workingCopy, "src", "packing.ts"), "// unsaved local work\n");
-    github.addPull("reviewer/packing", remote.pull);
-    api = await startExtension(github, "token", ["reviewer/packing"]);
-    pullRequest = pullRequestOf(remote.pull, { owner: "reviewer", name: "packing" });
+    github.addPull("example/packing", remote.pull);
+    api = await startExtension(github, "token", ["example/packing"]);
+    pullRequest = pullRequestOf(remote.pull, { owner: "example", name: "packing" });
   });
 
   after(async () => {
@@ -103,11 +103,11 @@ describe("opening a PR in VS Code", () => {
     assert.strictEqual(unitItem.description, "Fake reason for src/packing.ts  packCodes().");
   });
 
-  it("F11 and F15 in VS Code: The reviewer explains the unit, asks back in the chat, and the verdict changes", async () => {
+  it("F11 and F15 in VS Code: the reviewer explains the unit, asks back in the chat, and the verdict changes", async () => {
     const unitNode = await findUnitNode(api, "unpackCodes()");
     const click = api.pullRequestTree.getTreeItem(unitNode).command!;
     await vscode.commands.executeCommand(click.command, ...click.arguments!);
-    assert.ok(!api.guideView.html!.includes("Fake plain words"), "Claude's summary stays hidden before the reviewer has written his");
+    assert.ok(!api.guideView.html!.includes("Fake plain words"), "Claude's summary stays hidden before the reviewer has written theirs");
 
     await api.guideView.receive({ type: "draft", text: "It masks the low" });
     const review = api.reviewGuide.reviewOf(pullRequest)!;
@@ -117,7 +117,7 @@ describe("opening a PR in VS Code", () => {
     await api.guideView.receive({ type: "explain", text: "It masks the low bits, partly." });
     assert.strictEqual(lastVerdict(api), "almost");
     assert.ok(api.guideView.html!.includes("What happens at a 3-bit word boundary?"));
-    assert.ok(api.guideView.html!.includes("Fake plain words for src/packing.ts  unpackCodes()."), "shown once the reviewer has written his");
+    assert.ok(api.guideView.html!.includes("Fake plain words for src/packing.ts  unpackCodes()."), "shown once the reviewer has written theirs");
     assert.strictEqual(api.guideView.model!.readState, "read");
 
     await api.guideView.receive({ type: "explain", text: "Why is the shift unsigned?" });

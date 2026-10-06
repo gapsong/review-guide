@@ -34,7 +34,7 @@ Its goal is ownership: understanding what your code does again, even when an age
 
 Agents write code faster than anyone can read it.
 The pressure moved from writing to reviewing, and the easy failure is to believe you reviewed carefully while you only skimmed.
-Addy Osmani describes the loop that sorts his pull requests like this: "The loop doesn't merge anything. It sorts my attention, and the merge stays mine." ([Agentic Engineering](https://www.oreilly.com/library/view/agentic-engineering/0642572392291/), chapter 1)
+Addy Osmani describes a loop that sorts pull requests like this: "The loop doesn't merge anything. It sorts my attention, and the merge stays mine." ([Agentic Engineering](https://www.oreilly.com/library/view/agentic-engineering/0642572392291/), chapter 1)
 
 GitHub shows a pull request as a flat list of files.
 Review Guide turns it into a reading order:
@@ -102,6 +102,7 @@ If VS Code cannot find `claude` (common when VS Code is started from the Dock), 
 | `reviewGuide.model` | `claude-opus-5-5` | Model for both passes and the ownership check. |
 | `reviewGuide.githubApiUrl` | `https://api.github.com` | GitHub REST API address. |
 | `reviewGuide.codemapFile` | `.codemap/codemap.yaml` | Your codemap, relative to each workspace folder. |
+| `reviewGuide.explanationLanguage` | `English` | The language generated codemap explanations are written in. |
 
 ## Repo profile: `.review-guide.md`
 

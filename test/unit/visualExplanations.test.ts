@@ -17,7 +17,7 @@ const unit: ReviewUnit = {
 };
 
 const pullRequest = {
-  repo: { owner: "reviewer", name: "qpeft" }, number: 8, title: "STE fix", body: "", author: "reviewer", url: "",
+  repo: { owner: "example", name: "qpeft" }, number: 8, title: "STE fix", body: "", author: "tester", url: "",
   cloneUrl: "", baseRef: "main", baseSha: "a", headRef: "develop", headSha: "b",
 };
 

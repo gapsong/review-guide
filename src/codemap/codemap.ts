@@ -1,7 +1,7 @@
 import { isMap, isNode, isScalar, isSeq, LineCounter, parseDocument } from "yaml";
 import { cleanRelativePath } from "./repoPath";
 
-// the reviewer's codemap: one sentence and a label per important folder or file of a repo, in a personal,
+// The owner's codemap: one sentence and a label per important folder or file of a repo, in a personal,
 // gitignored YAML file. This file reads and checks it. Pure, so it can be tested without VS Code.
 
 export const codemapLabels = ["money", "security", "core", "feature", "util"] as const;
@@ -43,14 +43,14 @@ interface ReadEntry {
 }
 
 // An entry with a problem is left out, so the Explorer never shows a half-right badge.
-// A path that does not exist is only reported: the entry is still the reviewer's knowledge, and he decides
+// A path that does not exist is only reported: the entry is still the owner's knowledge, and they decide
 // whether the code moved or is gone.
 export function parseCodemap(text: string, pathExists: (repoPath: string) => boolean): Codemap {
   const lineCounter = new LineCounter();
   const document = parseDocument(text, { lineCounter });
   const lineAt = (offset: number) => lineCounter.linePos(offset).line;
 
-  // A broken YAML file is not guessed at: The reviewer fixes the reported line first.
+  // A broken YAML file is not guessed at: the owner fixes the reported line first.
   if (document.errors.length > 0) {
     return {
       entries: [],

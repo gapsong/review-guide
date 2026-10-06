@@ -12,7 +12,7 @@ export function repoPathOf(workspaceFolderPath: string, filePath: string): strin
   return relative.split(path.sep).join("/");
 }
 
-// Tidies a relative path as the reviewer or a page writes it ("./apps/api/" becomes "apps/api").
+// Tidies a relative path as the owner or a page writes it ("./apps/api/" becomes "apps/api").
 // A path that could point outside its folder (absolute, or with "..") is refused with undefined:
 // a repo path also names a folder that Claude writes into, and a page's link must stay in its folder.
 export function cleanRelativePath(written: string): string | undefined {

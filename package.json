@@ -194,6 +194,11 @@
           "default": "claude-opus-5-5",
           "description": "Claude model for both passes and the ownership check."
         },
+        "reviewGuide.explanationLanguage": {
+          "type": "string",
+          "default": "English",
+          "description": "The language Claude Code writes generated codemap explanations in, for example English or German."
+        },
         "reviewGuide.codemapFile": {
           "type": "string",
           "default": ".codemap/codemap.yaml",

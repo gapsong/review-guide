@@ -63,7 +63,7 @@ function toGitHubPull(pull: FakePull): unknown {
     title: pull.title,
     body: pull.body ?? "",
     html_url: `https://github.com/fake/pull/${pull.number}`,
-    user: { login: "reviewer" },
+    user: { login: "tester" },
     base: { ref: pull.baseRef, sha: pull.baseSha, repo: { clone_url: pull.cloneUrl } },
     head: { ref: pull.headRef, sha: pull.headSha },
   };

@@ -1,6 +1,6 @@
 # Decisions
 
-Where SPEC.md left room, this is the reading chosen and why. The guiding question each time: what best serves the reviewer owning his code again.
+Where SPEC.md left room, this is the reading chosen and why. The guiding question each time: what best serves you owning your code again.
 
 ## Claude CLI is hardened beyond the spec's flags
 
@@ -9,7 +9,7 @@ The spec's call is kept as it is, plus four flags:
 
 - `--restricted` ignores user, project and local settings files. Without it, a PR could ship its own `.claude/settings.json` with hooks or allow rules, and hooks run shell commands: PR code would run on the reviewer's machine. It also keeps the file tools inside the worktree (and the context folder added with `--add-dir`).
 - `--tools "Read,Grep,Glob"` removes every other built-in tool, so nothing depends on the deny list being complete.
-- `--strict-mcp-config` loads no MCP servers (the reviewer's MCP servers include ones that run code).
+- `--strict-mcp-config` loads no MCP servers (a reviewer's MCP servers may include ones that run code).
 - `--no-session-persistence` keeps review runs out of the reviewer's Claude session history.
 - `--bare` was tried and not used: it does not read the subscription login, so every run failed.
 
@@ -27,7 +27,7 @@ During test runs VS Code keeps `globalState` in memory, so a restart test could 
 
 ## The worktree comes from the extension's own clone
 
-The spec wants the PR head in "a git worktree in the extension's global storage". A worktree needs a parent repo. Using the reviewer's working copy as the parent would write into his `.git` (worktree metadata, fetched refs). Instead the extension keeps its own partial clone (`--filter=blob:none`, so a large repo is fast) per repo in global storage and adds the worktrees there. The reviewer's working copy and its `.git` are never touched, and a configured repo does not need to be cloned locally at all. The GitHub token reaches git through environment variables (`GIT_CONFIG_*`), never through the command line.
+The spec wants the PR head in "a git worktree in the extension's global storage". A worktree needs a parent repo. Using the reviewer's working copy as the parent would write into its `.git` (worktree metadata, fetched refs). Instead the extension keeps its own partial clone (`--filter=blob:none`, so a large repo is fast) per repo in global storage and adds the worktrees there. The working copy and its `.git` are never touched, and a configured repo does not need to be cloned locally at all. The GitHub token reaches git through environment variables (`GIT_CONFIG_*`), never through the command line.
 
 ## What counts as a function
 
@@ -71,9 +71,9 @@ Read marks live in one JSON file per repo, keyed by PR number and unit id, with 
 
 ## The latest explanation decides "understood"
 
-A unit is "understood" exactly when Claude's verdict on the reviewer's latest explanation is "understood". A later explanation that is "almost" or "not yet" takes it back to "read": the state should say what he can explain now. Writing an explanation counts as having read the unit.
+A unit is "understood" exactly when Claude's verdict on the reviewer's latest explanation is "understood". A later explanation that is "almost" or "not yet" takes it back to "read": the state should say what the reviewer can explain now. Writing an explanation counts as having read the unit.
 
-## Claude's summary is hidden, not just folded, until the reviewer has written his
+## Claude's summary is hidden, not just folded, until the reviewer has written theirs
 
 "Folded" in the spec could mean a collapsed section one click away. That would make it too easy to peek, which defeats the check. The guide does not show Claude's plain-words summary at all until the reviewer has sent an explanation; after that it is shown open.
 
@@ -95,21 +95,21 @@ Pass 1's output tokens were most of its time. Reasons are one sentence of at mos
 
 ## Q1 over Q2: no critical budget in the prompt
 
-Measured on qpeft (measurements/README.md): telling Claude that critical is "well under a tenth of the units" brought the extra critical units from about 25 to 12, but it also moved 3 to 4 of the reviewer's gold units (clamp_scale, freeze_codes, QATTrainer.__init__, the QA-LoRA mean pooling) to "check", and it overrode the repo profile. Without it, all 15 gold units are critical in both runs. A missed critical change is the failure that costs ownership; an extra critical unit costs a few minutes. So the prompt has no budget, and Q2 is not met (25 extra). Most extras are persistence and public defaults, which the spec's own general rules and the qpeft example profile both call critical.
+Measured on qpeft (measurements/README.md): telling Claude that critical is "well under a tenth of the units" brought the extra critical units from about 25 to 12, but it also moved 3 to 4 of the owner's gold units (clamp_scale, freeze_codes, QATTrainer.__init__, the QA-LoRA mean pooling) to "check", and it overrode the repo profile. Without it, all 15 gold units are critical in both runs. A missed critical change is the failure that costs ownership; an extra critical unit costs a few minutes. So the prompt has no budget, and Q2 is not met (25 extra). Most extras are persistence and public defaults, which the spec's own general rules and the qpeft example profile both call critical.
 
 ## Generating an explanation is not a read-only run
 
 The review runs (both passes and the ownership chat) stay read-only, and S1 is unchanged.
 Generating an explanation (C4) cannot be read-only: to show real screenshots, recordings and GIFs, Claude must run the app and render images, and it must write the page.
-So it is a different kind of run, with three guards instead of the tool lists: it starts only when the reviewer presses the button; it runs visibly in a terminal, where the reviewer sees every step; and it runs under Claude Code's normal permission prompts, with the reviewer's own settings, not with `--permission-mode dontAsk`.
-It writes into `.codemap/explanations/`, the reviewer's personal, gitignored folder; the extension itself still never writes into a repo.
+So it is a different kind of run, with three guards instead of the tool lists: it starts only when the owner presses the button; it runs visibly in a terminal, where the owner sees every step; and it runs under Claude Code's normal permission prompts, with the owner's own settings, not with `--permission-mode dontAsk`.
+It writes into `.codemap/explanations/`, the owner's personal, gitignored folder; the extension itself still never writes into a repo.
 
 ## Claude Code is the terminal's process, not a command typed into a shell
 
 The task asked to quote the prompt for the shell.
 Instead, the terminal runs `claude` directly (`shellPath` and `shellArgs`), with the prompt as its one argument, so there is no shell to quote for: a file name like `it's $(touch x).py` reaches Claude byte for byte and never runs.
 This is safer than quoting, which depends on the shell (zsh, bash, fish and PowerShell quote differently), and it keeps a long, many-line prompt out of the shell's history.
-When Claude Code ends, the terminal says so and stays open until the reviewer closes it.
+When Claude Code ends, the terminal says so and stays open until the owner closes it.
 
 ## The explanation is the panel's own page, not an iframe
 
@@ -130,7 +130,7 @@ VS Code would send a link to one of the page's own files to the web browser, whe
 
 When the YAML itself is broken, the codemap shows no badges at all and the Problems view names the line: guessing what a broken file meant could show a wrong sentence next to a file.
 An entry with a problem (unknown key, bad label, `deep` that is not a boolean, a `says` that is empty or over 160 characters, a path listed twice or one that could leave the workspace folder) is left out; all its problems are reported at once.
-An entry whose path does not exist is reported and kept: it is still the reviewer's knowledge, and he decides whether the code moved or is gone.
+An entry whose path does not exist is reported and kept: it is still the owner's knowledge, and they decide whether the code moved or is gone.
 All problems are warnings: the codemap is notes, not code that fails a build.
 
 ## Activation for the codemap
@@ -145,3 +145,11 @@ Because the extension now starts before anyone opens its views, the GitHub API a
 The README said the VS Code integration tests do not start on macOS.
 On 2026-10-05 three other causes were found and fixed, and all suites now pass on macOS: the test runner looked for the test VS Code's `product.json` next to the executable, which on macOS is in `Contents/Resources` instead; a terminal inside VS Code passes `ELECTRON_RUN_AS_NODE` on, which makes the test VS Code start as plain Node; and macOS allows socket paths of at most 103 characters, which the long user data folder names went over.
 A patched `product.json` does not stop the test copy of VS Code 1.140 from starting.
+
+## Written for anyone, not for one person
+
+The repo is meant to go public, so it names no person and no company.
+Code, prompts and docs say "the reviewer" (the person reading a pull request) or "the owner" (the person whose codemap it is); test data uses `example/...` repos and a made-up shop codemap.
+Version 0.2.0 stored the reviewer's chat turns under the first user's name; the state store now reads every turn that is not Claude's as the reviewer's, so an old chat history still shows.
+The language of a generated explanation is the setting `reviewGuide.explanationLanguage` (default English), not a sentence in the prompt.
+

@@ -101,7 +101,7 @@ export class ReviewGuide {
     }
   }
 
-  // The ownership chat: The reviewer explains a unit in his own words, then may answer or ask back.
+  // The ownership chat: the reviewer explains a unit in their own words, then may answer or ask back.
   // Every reply carries a verdict; only Claude's "understood" marks the unit as understood.
   async sendOwnershipMessage(review: PullRequestReview, unitId: string, message: string): Promise<OwnershipCheckResult> {
     const unit = findUnit(review, unitId);

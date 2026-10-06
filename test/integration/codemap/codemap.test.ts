@@ -12,9 +12,9 @@ const template = fs.readFileSync(path.join(root, "media", "explainPrompt.md"), "
 // A file name that would run a command if it ever reached a shell unquoted.
 const oddFile = "src/it's \"odd\" $(touch pwned).py";
 
-const codemap = `# the reviewer's notes
-- path: src/dispatcher.py
-  says: Opens a ledger row first & then calls the adapter.
+const codemap = `# The owner's notes
+- path: src/payment.py
+  says: Reserves the amount first & then charges it.
   label: money
   deep: true
 
@@ -41,7 +41,7 @@ describe("the codemap in a real VS Code", () => {
 
   before(async () => {
     workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;
-    for (const file of ["src/dispatcher.py", "src/auth.py", "src/billing/plans.py", oddFile]) {
+    for (const file of ["src/payment.py", "src/auth.py", "src/billing/plans.py", oddFile]) {
       writeFile(file, "pass\n");
     }
     await vscode.workspace.getConfiguration("reviewGuide").update("claudePath", fakeClaudeExplainPath, vscode.ConfigurationTarget.Global);
@@ -57,11 +57,11 @@ describe("the codemap in a real VS Code", () => {
   });
 
   it("C1: gives every codemap path its badge and its sentence on hover, without a reload", async () => {
-    const dispatcher = uriOf("src/dispatcher.py");
-    await waitFor(() => api.codemapDecorations.provideFileDecoration(dispatcher) !== undefined, "the codemap is read");
-    const decoration = api.codemapDecorations.provideFileDecoration(dispatcher)!;
+    const payment = uriOf("src/payment.py");
+    await waitFor(() => api.codemapDecorations.provideFileDecoration(payment) !== undefined, "the codemap is read");
+    const decoration = api.codemapDecorations.provideFileDecoration(payment)!;
     assert.strictEqual(decoration.badge, "💰🧠");
-    assert.strictEqual(decoration.tooltip, "Opens a ledger row first & then calls the adapter. · money · deep module");
+    assert.strictEqual(decoration.tooltip, "Reserves the amount first & then charges it. · money · deep module");
     assert.strictEqual(decoration.propagate, false);
     assert.strictEqual(decoration.color, undefined);
     assert.strictEqual(api.codemapDecorations.provideFileDecoration(uriOf("src/billing"))!.badge, "🧰");
@@ -86,21 +86,21 @@ describe("the codemap in a real VS Code", () => {
   });
 
   it("C3: Explain opens a panel with the entry, and shows the explanation as soon as it is written", async () => {
-    const dispatcher = uriOf("src/dispatcher.py");
-    await vscode.commands.executeCommand("reviewGuide.explainPath", dispatcher);
-    await waitFor(() => activeTabLabel() === "Explain: dispatcher.py", "the panel is the active tab");
-    const before = api.explainPanels.htmlOf(dispatcher)!;
-    for (const shown of ["💰🧠", "src/dispatcher.py", "Opens a ledger row first &amp; then calls the adapter.", "money · deep module", ">Generate explanation</button>"]) {
+    const payment = uriOf("src/payment.py");
+    await vscode.commands.executeCommand("reviewGuide.explainPath", payment);
+    await waitFor(() => activeTabLabel() === "Explain: payment.py", "the panel is the active tab");
+    const before = api.explainPanels.htmlOf(payment)!;
+    for (const shown of ["💰🧠", "src/payment.py", "Reserves the amount first &amp; then charges it.", "money · deep module", ">Generate explanation</button>"]) {
       assert.ok(before.includes(shown), `the panel shows "${shown}"`);
     }
 
-    fs.mkdirSync(path.join(workspace, ".codemap", "explanations", "src", "dispatcher.py"), { recursive: true });
-    fs.copyFileSync(path.join(root, "test", "fixtures", "pixel.gif"), path.join(workspace, ".codemap", "explanations", "src", "dispatcher.py", "flow.gif"));
-    writeFile(".codemap/explanations/src/dispatcher.py/index.html", "<html><head></head><body><h1>Der Dispatcher</h1><img src=\"flow.gif\"></body></html>");
-    await waitFor(() => api.explainPanels.htmlOf(dispatcher)!.includes("<h1>Der Dispatcher</h1>"), "the panel shows the written page");
-    const after = api.explainPanels.htmlOf(dispatcher)!;
+    fs.mkdirSync(path.join(workspace, ".codemap", "explanations", "src", "payment.py"), { recursive: true });
+    fs.copyFileSync(path.join(root, "test", "fixtures", "pixel.gif"), path.join(workspace, ".codemap", "explanations", "src", "payment.py", "flow.gif"));
+    writeFile(".codemap/explanations/src/payment.py/index.html", "<html><head></head><body><h1>The payment</h1><img src=\"flow.gif\"></body></html>");
+    await waitFor(() => api.explainPanels.htmlOf(payment)!.includes("<h1>The payment</h1>"), "the panel shows the written page");
+    const after = api.explainPanels.htmlOf(payment)!;
     assert.ok(after.includes(">Regenerate</button>"));
-    assert.match(after, /<base href="https:\/\/[^"]*vscode-resource[^"]*\/\.codemap\/explanations\/src\/dispatcher\.py\/">/);
+    assert.match(after, /<base href="https:\/\/[^"]*vscode-resource[^"]*\/\.codemap\/explanations\/src\/payment\.py\/">/);
   });
 
   it("C3: explains a path that is not in the codemap yet", async () => {
@@ -119,7 +119,7 @@ describe("the codemap in a real VS Code", () => {
     await waitFor(() => api.explainPanels.htmlOf(odd)!.includes("<h1>Fake explanation</h1>"), "the panel shows the page Claude wrote", 30_000);
     assert.ok(api.explainPanels.htmlOf(odd)!.includes("<p>1 argument(s)</p>"));
     const prompt = fs.readFileSync(path.join(workspace, ".codemap", "explanations", oddFile, "prompt.txt"), "utf8");
-    assert.strictEqual(prompt, explainPrompt(template, { path: oddFile, kind: "file", entry: undefined }));
+    assert.strictEqual(prompt, explainPrompt(template, { path: oddFile, kind: "file", entry: undefined }, "English"));
     assert.ok(!fs.existsSync(path.join(workspace, "pwned")), "no part of the file name ran as a command");
   });
 

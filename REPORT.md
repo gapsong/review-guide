@@ -14,15 +14,15 @@ Date: 2026-09-26. Everything below is pushed to gapsong/review-guide, branch mai
 
 | Step | What | Commits |
 |---|---|---|
-| 0 | Test harness: TypeScript strict, ESLint, Mocha, real VS Code under xvfb, MIT license | b5be666 |
-| 1 | GitHub login, list of open PRs in the side bar (F1) | a611a59 |
-| 2 | Open a PR: own partial clone + worktree in global storage, review units from document symbols, diff on click, Guide view (F2, F5) | 2dce755, dc50b52, 74f32b1 |
-| 3 | Read-only Claude CLI + S1, pass 1 with cache, weakened-test rule (F3, F7, F13, S1) | e9f6304, b993cd7 |
-| 4 | Pass 2 (questions per critical unit), read marks, limit of 25 (F4, F6, F8) | 3c4907a |
-| 5 | Ownership check, ownership overview, 3am check; .vsix package test, README (F9, F11, F12, F14) | d12b844, 15ac96c |
-| After | Skip rule fix (from the real run), pass 1 in parallel parts, Q measurements | dc6f1e1, 1672a05 |
-| After | 9 fixes from an independent code review, and tests for the last two | e0618e8, affea59, e8539a5, bfd91fe |
-| New | the reviewer's new requirements: F15 ownership chat, F16 visual explanations (spec, code, tests); S1 check made robust | c1b0f39, de7e3e9, a1da174 |
+| 0 | Test harness: TypeScript strict, ESLint, Mocha, real VS Code under xvfb, MIT license | 42e855a |
+| 1 | GitHub login, list of open PRs in the side bar (F1) | 5e6c0f4 |
+| 2 | Open a PR: own partial clone + worktree in global storage, review units from document symbols, diff on click, Guide view (F2, F5) | 122408b, f04a4ce, 9945c7a |
+| 3 | Read-only Claude CLI + S1, pass 1 with cache, weakened-test rule (F3, F7, F13, S1) | 1371804, f8902e0 |
+| 4 | Pass 2 (questions per critical unit), read marks, limit of 25 (F4, F6, F8) | 7f662ae |
+| 5 | Ownership check, ownership overview, 3am check; .vsix package test, README (F9, F11, F12, F14) | 9008722, 9c49adf |
+| After | Skip rule fix (from the real run), pass 1 in parallel parts, Q measurements | 0e047b4, 6239d9f |
+| After | 9 fixes from an independent code review, and tests for the last two | 9d7b9c9, 386a155, 84e3a56, 1b22c86 |
+| New | The owner's new requirements: F15 ownership chat, F16 visual explanations (spec, code, tests); S1 check made robust | 483ee3e, f845e14, 8a99a25 |
 
 ## Verified, criterion by criterion
 
@@ -54,7 +54,7 @@ Notes:
 - **F1 does not click the real login.** A headless run cannot click it. The test disables VS Code's built-in GitHub login and registers a stand-in under the same id `github`. The extension still calls the real `vscode.authentication.getSession("github")`, and a local fake GitHub API checks the token. VS Code keeps all storage in memory during tests, so your one "Allow" click could not be stored ahead. Instead, the test copy of VS Code gets the extension on its `trustedExtensionAuthAccess` list.
 - The fake `claude` in unit and integration tests refuses to run unless it gets the read-only flags, so a change to those flags breaks the tests.
 - `npm test` takes about 45 s. S1 costs one small haiku call.
-- **Fresh clone:** `git clone`, `npm ci`, `npm test` in `/tmp` at commit 99d3b50 (all code of this report): exit 0; 63 unit tests, S1, 12 integration tests in 5 VS Code sessions, the package test.
+- **Fresh clone:** `git clone`, `npm ci`, `npm test` in `/tmp` at commit 5fabd61 (all code of this report; the hash changed when the history was rewritten): exit 0; 63 unit tests, S1, 12 integration tests in 5 VS Code sessions, the package test.
 - S1 failed once tonight, and not on safety: haiku put all its attempts into one entry, and the check "Claude ran and reported at least 3 attempts" failed. That check now accepts any report. The safety checks (no byte changed, no request reached the server) are unchanged.
 
 ## Q1 to Q3: measured on qpeft PR #8

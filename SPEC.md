@@ -1,17 +1,17 @@
 # Review Guide - VS Code extension
 
 Status: draft v1, 2026-09-26.
-Owner: The reviewer.
+Owner: the repo owner (gapsong).
 
 ## Goal
 
-A VS Code extension, "Review Guide", that helps the reviewer own his code: know what each important part of a repo does and where it can hurt.
+A VS Code extension, "Review Guide", that helps you own your code: know what each important part of a repo does and where it can hurt.
 It has two parts.
-The codemap (see "Codemap") shows the reviewer's own one-line notes about the important folders and files of a repo while he browses the code, and a generated visual explanation per path.
-The pull request review, one part of owning code, pre-sorts a GitHub pull request with Claude, so the reviewer reviews the critical changes first and knows what to check at each one.
+The codemap (see "Codemap") shows your own one-line notes about the important folders and files of a repo while you browse the code, and a generated visual explanation per path.
+The pull request review, one part of owning code, pre-sorts a GitHub pull request with Claude, so you review the critical changes first and know what to check at each one.
 
-The main purpose is ownership: The reviewer wants to understand what his code does again, even when an agent wrote it.
-The extension takes the routine work off him, so his own attention goes to the few places where a human must look.
+The main purpose is ownership: you want to understand what your code does again, even when an agent wrote it.
+The extension takes the routine work off you, so your own attention goes to the few places where a human must look.
 
 The extension does not review for you.
 It pre-sorts the work, explains the code in plain words and writes questions, so your attention goes to the changes that matter.
@@ -25,12 +25,12 @@ From Addy Osmani, "Getting the most out of Opus 5.5" (https://claude.dev/blog/ge
 - Keep your own check before anything risky or hard to undo.
 
 From Addy Osmani, "Agentic Engineering" (O'Reilly, early release), chapter 1:
-- About his PR triage loop: "The loop doesn't merge anything. It sorts my attention, and the merge stays mine." This is what Review Guide is.
+- About Osmani's PR triage loop: "The loop doesn't merge anything. It sorts my attention, and the merge stays mine." This is what Review Guide is.
 - Calibrate by who gets hurt, not by technical difficulty: documentation and test-coverage chores are delegated freely, complex problems are watched, anything touching auth, security or money is watched closely.
 - Tests: "Write or review them yourself, so the agent can't game its own scoreboard." The agent that did the work never decides the work is good.
 - "Delegate the task, never the judgment. Green checks can't tell you a feature shouldn't exist."
 - The dangerous failure is believing you review carefully (zone 4) while you only skim (zone 3). The defense is structure, not willpower.
-- His check per change: did a spec exist, did you read every diff well enough to explain it, did tests exist before the change, could you debug it at 3am?
+- Osmani's check per change: did a spec exist, did you read every diff well enough to explain it, did tests exist before the change, could you debug it at 3am?
 
 What this means here:
 - Claude sorts and explains; the human reads the critical places.
@@ -57,22 +57,22 @@ Function (automated tests):
 - F8: With more than 25 critical units, pass 2 does not start before the user agrees.
 - F9: One command (`npm run package`) builds a `.vsix` file that installs in VS Code.
 - F10: Lint, type check and all tests pass in one command (`npm test`).
-- F11: For a critical unit, the reviewer can type an explanation in his own words; Claude compares it with the code and answers "understood", "almost" (with what is missing) or "not yet" (with what is wrong). Only "understood" marks the unit as understood.
+- F11: For a critical unit, the reviewer can type an explanation in their own words; Claude compares it with the code and answers "understood", "almost" (with what is missing) or "not yet" (with what is wrong). Only "understood" marks the unit as understood.
 - F12: An ownership overview lists, per file of the repo, how many of its critical units the reviewer has understood (e.g. `packing.py 3/3`, `trainer.py 1/4`), across all PRs reviewed in that repo.
 - F13: A test file change that removes an assertion, loosens a tolerance or adds a skip is tiered critical (checked with a fixture PR).
 - F14: The PR header shows the 3am check: how many critical units are understood / read / unread, and "owned" only when all are understood.
-- F15: The ownership check is a chat: after Claude's verdict, the reviewer can reply and ask back and forth in the guide panel until he understands. Every turn keeps the unit, his earlier messages and the code as context and stays read-only; the history is stored locally with the unit. Claude does not reveal its own summary before the reviewer's first try. The verdict can change during the chat; only "understood" counts.
+- F15: The ownership check is a chat: after Claude's verdict, the reviewer can reply and ask back and forth in the guide panel until they understand. Every turn keeps the unit, their earlier messages and the code as context and stays read-only; the history is stored locally with the unit. Claude does not reveal its own summary before the reviewer's first try. The verdict can change during the chat; only "understood" counts.
 - F16: Explanations are visual and use analogies: the prompts of pass 2 and the ownership chat ask for a small ASCII diagram (data flow, shapes, bit layout, before/after) whenever it helps, and for WHY explained with an everyday analogy that is mapped back to the code; the guide panel shows ASCII diagrams as preformatted (monospace) blocks.
 
 Safety (automated test):
 - S1: In a run, Claude cannot change a file, start a shell or reach the web; the test tries each and checks that the worktree is unchanged.
 
 Quality (manual check on a fixed test PR):
-- Q1: On the test PR, every unit on the reviewer's gold list is tiered critical.
+- Q1: On the test PR, every unit on the owner's gold list is tiered critical.
 - Q2: At most 10 units outside the gold list are tiered critical.
 
 Test PR: gapsong/qpeft, main...develop at develop commit `4369298` (fixed, so results are comparable).
-Gold list (the reviewer, 2026-09-26), every changed function in:
+Gold list (the owner's, 2026-09-26), every changed function in:
 - Quantization formula and STE: `quant_schemes/reference.py` (codes with STE), `quant_schemes/base.py` (`_ste`, `clamp_scale`, `round_zero_point`).
 - Packing and merge fold: `packing.py` (`pack_codes`, `unpack_codes`), `quant_schemes/base.py` (`merge`), `tuners/tuners_utils.py` (`QuantLinear.merge`).
 - tinygemm and code freezing: `kernels/tinygemm.py` (`tinygemm_zero`, the `scales_and_zeros` layout), `tuners/tuners_utils.py` (`freeze_codes`).
@@ -83,11 +83,11 @@ Codemap (automated tests; see "Codemap"):
 - C1: Explorer hover: every path in the codemap gets a badge (the label's emoji: money 💰, security 🔒, core ⚙️, feature 🧩, util 🧰; plus 🧠 as a second character for a deep module) and a tooltip (the `says` sentence, then " · " and the label, plus " · deep module"). The badge is not passed on to a folder's files and has no color. Badges follow every change of the codemap file without a reload.
 - C2: Every problem in the codemap file shows in the Problems view on its line (unknown key, bad label, `deep` that is not true or false, empty `says` or one over 160 characters, a path listed twice, a path that does not exist, broken YAML), and follows every change. An entry with a problem gets no badge, except one whose path does not exist. Without a codemap file there are no badges and no problem.
 - C3: "Explain" (Explorer context menu for files and folders; command palette for the active editor's file) opens a panel "Explain: <name>" with the badge, the path, `says`, the label and deep. When `.codemap/explanations/<path>/index.html` exists, the panel shows that page, with its relative links, images, GIFs and scripts working, under a content security policy that lets it load nothing from outside the explanations folder. A path that is not in the codemap can be explained too ("Not in the codemap yet").
-- C4: Without an explanation the panel says so and shows "Generate explanation" ("Regenerate" when one exists). The button opens a terminal "Explain: <path>" in the workspace folder that runs `claude` (setting `reviewGuide.claudePath`) interactively with one prompt, built from the template `media/explainPrompt.md` with the path, the codemap entry (or "none") and the output folder. No file name can become a shell command. When the page appears or changes, an open panel for that path shows it by itself.
+- C4: Without an explanation the panel says so and shows "Generate explanation" ("Regenerate" when one exists). The button opens a terminal "Explain: <path>" in the workspace folder that runs `claude` (setting `reviewGuide.claudePath`) interactively with one prompt, built from the template `media/explainPrompt.md` with the path, the codemap entry (or "none"), the output folder and the page's language (setting `reviewGuide.explanationLanguage`, default English). No file name can become a shell command. When the page appears or changes, an open panel for that path shows it by itself.
 - C5: Unit tests cover reading and checking the codemap (each problem, on the right line), badge and tooltip, the explanation folder of a path, the panel's HTML (escaping, the page only when it exists, the content security policy) and the prompt (values filled in, safe as one argument). An integration test in a real VS Code checks badges, problems, the Explain command and the button's terminal run.
 
-Readability (manual check by the reviewer):
-- R1: The reviewer has read every source file and can explain each in his own words (see "Code style").
+Readability (manual check by the owner):
+- R1: The owner has read every source file and can explain each in their own words (see "Code style").
 
 ### Not done
 
@@ -97,7 +97,7 @@ Readability (manual check by the reviewer):
 ## Codemap
 
 Reading pull requests is one way to own code; knowing the map of a repo is the other.
-The codemap is the reviewer's own map: a personal, gitignored YAML file in the repo, `.codemap/codemap.yaml` (setting `reviewGuide.codemapFile`).
+The codemap is your own map: a personal, gitignored YAML file in the repo, `.codemap/codemap.yaml` (setting `reviewGuide.codemapFile`).
 It lists the important folders and files, each with one sentence and a label:
 
 ```yaml
@@ -110,11 +110,11 @@ It lists the important folders and files, each with one sentence and a label:
 The label says why the path matters, calibrated by who gets hurt (see "Principles"):
 money decides or records what someone pays; security is login, tenant separation, secrets or a door to the outside; core is the main request path and product logic; feature is a product feature docked onto that path; util is plumbing.
 
-- While the reviewer browses the code, the Explorer shows each path's badge, and its sentence on hover.
+- While you browse the code, the Explorer shows each path's badge, and its sentence on hover.
 - The codemap file is checked like code: every problem is in the Problems view on its line, so a path that moved is noticed at once.
 - "Explain" on a file or folder opens a panel with the entry and a generated visual explanation page, if there is one.
 - "Generate explanation" starts Claude Code in a terminal, which writes the page into `.codemap/explanations/<path>/` (index.html plus its images and scripts). The prompt shapes the page by the label: money shows where cost is decided and recorded and who loses money if it breaks; security shows where a secret or identity is born, lives and dies and which attack the code stops; deep shows the small interface against what it hides; core shows its place in the main request path; feature shows a real screenshot of where users see it plus 3 sentences; util is only 3 sentences.
-- Unlike the review runs, the explanation run is not read-only: it may run the app and render images. So it runs visibly in a terminal, under Claude Code's normal permission prompts, and only after the reviewer pressed the button. The review runs stay read-only (S1).
+- Unlike the review runs, the explanation run is not read-only: it may run the app and render images. So it runs visibly in a terminal, under Claude Code's normal permission prompts, and only after you pressed the button. The review runs stay read-only (S1).
 - The extension itself only reads the codemap and the explanations; the pages are written by Claude Code, into the personal `.codemap` folder.
 
 ## Non-goals (MVP)
@@ -176,7 +176,7 @@ It gathers the context it needs itself (read files, grep for callers, find tests
 
 ### Why the CLI and not the Agent SDK
 
-The extension is a personal tool.
+The extension runs on your own machine.
 It starts the `claude` you already use, logged in with your Claude subscription, so no API key is needed.
 The Agent SDK would need an API key: Anthropic does not allow third-party products built on the SDK to offer the claude.ai login.
 If the extension is ever shared with others, it has to move to the SDK with an API key.
@@ -274,7 +274,7 @@ Without a profile, Claude uses general rules:
 - check: complex logic without those risks, new tests, new dependencies;
 - skim: documentation, comments, renames, formatting.
 On the first PR of a repo without a profile, Claude also writes a draft profile from the code.
-The extension shows the draft; the reviewer edits it and saves it into the repo himself (the extension never writes into the repo).
+The extension shows the draft; you edit it and save it into the repo yourself (the extension never writes into the repo).
 
 ## Data and state
 
@@ -295,7 +295,7 @@ The extension shows the draft; the reviewer edits it and saves it into the repo 
 
 - Built without stops until every automated criterion (F, S) is met.
 - Small commits, pushed to the private repo gapsong/review-guide as they are made.
-- The reviewer reviews commit by commit afterwards and runs the manual checks (Q, R) at the end.
+- The owner reviews commit by commit afterwards and runs the manual checks (Q, R) at the end.
 - Build order:
   1. Skeleton: GitHub login, list of PRs in the side bar.
   2. Open a PR: worktree, review units, diff on click, guide panel.

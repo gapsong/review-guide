@@ -55,7 +55,16 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [ ] Not fixed: the "not yet" line of an old ownership check does not move with its unit after a push
 - [ ] Not fixed: after a small push the summary is rewritten from the changed units only
 - [ ] Not fixed: PR list shows at most 100 open PRs (no pagination)
-- [x] New requirements from the reviewer during the run: F15 and F16 added to SPEC.md, built and tested; one real Opus chat turn on the _ste example (measurements/ste-chat-example.md)
+- [x] New requirements from the owner during the run: F15 and F16 added to SPEC.md, built and tested; one real Opus chat turn on the _ste example (measurements/ste-chat-example.md)
 - [x] S1 flaked once: haiku reported its attempts in one entry; the "Claude ran" check now accepts any report (safety checks unchanged)
 - [x] An iframe cannot load a webview's own files (measured in VS Code 1.140); the explanation page is the panel's document instead (DECISIONS.md)
 - [x] Integration tests did not start on macOS: wrong product.json path, inherited ELECTRON_RUN_AS_NODE, socket path over 103 characters; all fixed, all suites pass on macOS
+
+## Night run 0.3.0 (2026-10-07)
+
+- [x] Step 0: commit the 0.2.0 work (3 commits; the private codemap fixture was swapped for a made-up one before its first commit, so it never entered the history)
+- [x] Step 1: public-ready: no company content, no personal names, `reviewGuide.explanationLanguage`
+- [ ] Step 2: Codemap view in the Explorer, CodeLens on line 1, new entry fields why / watch / start / mine
+- [ ] Step 3: change markers after a commit, "Still true" and "Explain again"
+- [ ] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots
+- [ ] Finish: all test suites, version 0.3.0, package, morning report, Telegram

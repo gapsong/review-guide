@@ -5,8 +5,8 @@ import { fakeClaudePath } from "../support/testReviewGuide";
 
 // The real GitHub login cannot be clicked in a headless run. Every suite starts VS Code with the
 // built-in vscode.github-authentication disabled and registers this stand-in under the same id
-// "github", already signed in as "reviewer". The test runner puts the extension on the test VS Code's
-// trusted list, which stands in for the reviewer's one "Allow" click.
+// "github", already signed in as "tester". The test runner puts the extension on the test VS Code's
+// trusted list, which stands in for the user's one "Allow" click.
 export class StandInGitHubLogin implements vscode.AuthenticationProvider {
   private readonly changed = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
   readonly onDidChangeSessions = this.changed.event;
@@ -32,7 +32,7 @@ export class StandInGitHubLogin implements vscode.AuthenticationProvider {
   }
 
   private sessionFor(scopes: readonly string[]): vscode.AuthenticationSession {
-    return { id: "1", accessToken: this.token, account: { id: "reviewer", label: "reviewer" }, scopes };
+    return { id: "1", accessToken: this.token, account: { id: "tester", label: "tester" }, scopes };
   }
 }
 

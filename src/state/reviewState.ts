@@ -4,8 +4,8 @@ import { RepoId } from "../github/pullRequest";
 import { ReviewUnit } from "../review/reviewUnit";
 import { readJsonFile, writeJsonFile } from "./jsonFile";
 
-// Reading a unit does not prove understanding it: "understood" needs Claude to confirm the reviewer's
-// own explanation (see the ownership check).
+// Reading a unit does not prove understanding it: "understood" needs Claude to confirm the
+// reviewer's own explanation (see the ownership check).
 export type ReadState = "unread" | "read" | "understood";
 
 export type Verdict = "understood" | "almost" | "not yet";
@@ -23,7 +23,7 @@ export type ChatTurn =
   | { speaker: "reviewer"; text: string }
   | { speaker: "claude"; result: OwnershipCheckResult };
 
-// the reviewer's state of one unit of one PR. Stored locally and never sent anywhere except to his local Claude.
+// The reviewer's state of one unit of one PR. Stored locally and never sent anywhere except to their local Claude.
 export interface UnitRecord {
   pullRequestNumber: number;
   unitId: string;
@@ -33,7 +33,7 @@ export interface UnitRecord {
   tier: Tier | undefined;
   state: ReadState;
   changedSinceReview: boolean;
-  // the reviewer's first explanation: until there is one, Claude's own summary stays hidden.
+  // The reviewer's first explanation: until there is one, Claude's own summary stays hidden.
   explanation?: string;
   lastCheck?: OwnershipCheckResult;
   conversation?: ChatTurn[];
@@ -56,7 +56,7 @@ export class ReviewStateStore {
   }
 
   // Brings the stored state up to date with the units of a (re)opened PR. A unit whose code
-  // changed since the reviewer's review goes one step back (understood -> read, read -> unread) and is
+  // changed since the review goes one step back (understood -> read, read -> unread) and is
   // flagged. A unit that is no longer in the PR (after a force-push) is dropped, so the ownership
   // overview does not count it. An unknown tier (pass 1 failed) keeps the one stored before.
   updateUnits(repo: RepoId, pullRequestNumber: number, units: { unit: ReviewUnit; tier: Tier | undefined }[]): void {
@@ -88,7 +88,7 @@ export class ReviewStateStore {
     });
   }
 
-  // Adds one exchange of the ownership chat: The reviewer's message and Claude's reply.
+  // Adds one exchange of the ownership chat: the reviewer's message and Claude's reply.
   saveOwnershipTurn(repo: RepoId, pullRequestNumber: number, unit: ReviewUnit, message: string, result: OwnershipCheckResult): void {
     this.change(repo, pullRequestNumber, unit, (record) => {
       record.explanation ??= message;
@@ -110,7 +110,9 @@ export class ReviewStateStore {
   }
 
   private read(repo: RepoId): RepoState {
-    return readJsonFile<RepoState>(this.fileOf(repo), { units: {} });
+    const state = readJsonFile<RepoState>(this.fileOf(repo), { units: {} });
+    nameReviewerTurns(state);
+    return state;
   }
 
   private write(repo: RepoId, state: RepoState): void {
@@ -136,6 +138,18 @@ function newRecord(pullRequestNumber: number, unit: ReviewUnit): UnitRecord {
     state: "unread",
     changedSinceReview: false,
   };
+}
+
+// Version 0.2.0 and older stored the reviewer's chat turns under another speaker name.
+// Every turn that is not Claude's is the reviewer's.
+function nameReviewerTurns(state: RepoState): void {
+  for (const record of Object.values(state.units)) {
+    for (const turn of record.conversation ?? []) {
+      if (turn.speaker !== "claude") {
+        turn.speaker = "reviewer";
+      }
+    }
+  }
 }
 
 function stepBack(state: ReadState): ReadState {

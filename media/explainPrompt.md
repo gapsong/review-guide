@@ -17,7 +17,7 @@ Output folder: {{outputFolder}}
 - Do not delete or change anything else in that folder: its subfolders hold the explanations of other paths.
 - The page is shown inside VS Code without network access. Use no web URLs (no CDN): if a tool writes `<script src="https://...">` or similar, download that file into the output folder and point to it with a relative path. Embedded `data:` images and fonts are fine.
 - Links between your own pages and files must be relative. Keep the explanation on one page if you can.
-- Write in the reader's language. For this owner that is German.
+- Write the page in {{language}}.
 - Back every claim about the code with `file:line`, and mark what you could not confirm as unconfirmed.
 - Never use the em dash character; use a plain "-" instead.
 - If the `explain-visually` skill is available, use it for recordings of the running system, click-through steppers and GIFs.

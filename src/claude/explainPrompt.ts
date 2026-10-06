@@ -18,22 +18,31 @@ export interface ExplainTerminal {
   args: string[];
 }
 
-export function explainTerminal(claudePath: string, template: string, request: ExplainRequest): ExplainTerminal {
+export interface ExplainSettings {
+  claudePath: string;
+  // The language the page is written in (setting reviewGuide.explanationLanguage).
+  language: string;
+}
+
+export function explainTerminal(settings: ExplainSettings, template: string, request: ExplainRequest): ExplainTerminal {
   return {
     name: `Explain: ${request.path}`,
-    executable: claudePath,
-    args: [explainPrompt(template, request)],
+    executable: settings.claudePath,
+    args: [explainPrompt(template, request, settings.language)],
   };
 }
 
+export const defaultExplanationLanguage = "English";
+
 // Fills every {{name}} of the template in one pass, so a value that itself contains "{{...}}"
-// (a file name, the reviewer's sentence) is never filled a second time.
-export function explainPrompt(template: string, request: ExplainRequest): string {
+// (a file name, the owner's sentence) is never filled a second time.
+export function explainPrompt(template: string, request: ExplainRequest, language: string): string {
   const values = new Map([
     ["path", request.path],
     ["kind", request.kind],
     ["entry", request.entry ? entryText(request.entry) : "none"],
     ["outputFolder", `${explanationFolderOf(request.path)}/`],
+    ["language", language.trim() || defaultExplanationLanguage],
   ]);
   return template.replace(/\{\{(\w+)\}\}/g, (placeholder, name: string) => {
     const value = values.get(name);
@@ -44,7 +53,7 @@ export function explainPrompt(template: string, request: ExplainRequest): string
   });
 }
 
-// The entry as it stands in the codemap file, so Claude reads it the way the reviewer wrote it.
+// The entry as it stands in the codemap file, so Claude reads it the way the owner wrote it.
 function entryText(entry: CodemapEntry): string {
   return [`path: ${entry.path}`, `says: ${entry.says}`, `label: ${entry.label}`, `deep: ${entry.deep}`].join("\n");
 }

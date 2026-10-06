@@ -20,8 +20,8 @@ describe("F6 (after the restart): read marks survive a restart of VS Code", () =
     const logFolder = path.join(process.env.REVIEW_GUIDE_TEST_SCRATCH!, "restart-fixture", "after-restart");
     fs.mkdirSync(logFolder, { recursive: true });
     fakeClaude = useFakeClaude(logFolder, { "packCodes()": "critical" });
-    github.addPull("reviewer/packing", remote.pull);
-    api = await startExtension(github, "token", ["reviewer/packing"]);
+    github.addPull("example/packing", remote.pull);
+    api = await startExtension(github, "token", ["example/packing"]);
   });
 
   after(() => github.stop());

@@ -5,7 +5,7 @@ import { ReviewUnit } from "../../src/review/reviewUnit";
 import { ReviewStateStore } from "../../src/state/reviewState";
 import { makeTempDir } from "../support/gitFixture";
 
-const repo = { owner: "reviewer", name: "qpeft" };
+const repo = { owner: "example", name: "qpeft" };
 
 function unit(hash: string): ReviewUnit {
   return {
@@ -35,7 +35,20 @@ describe("read marks and ownership state", () => {
   it("keeps read marks in a file, so a new store (after a restart) sees them", () => {
     new ReviewStateStore(folder).setReadState(repo, 8, unit("h1"), "read");
     assert.strictEqual(new ReviewStateStore(folder).recordOf(repo, 8, unit("h1").id)!.state, "read");
-    assert.ok(fs.existsSync(path.join(folder, "reviewer", "qpeft.json")));
+    assert.ok(fs.existsSync(path.join(folder, "example", "qpeft.json")));
+  });
+
+  it("reads a chat stored by version 0.2.0, which named the reviewer's turns differently", () => {
+    const oldTurns = [
+      { speaker: "owner-name", text: "It packs codes." },
+      { speaker: "claude", result: { verdict: "almost", feedback: "And the word boundary?" } },
+    ];
+    const oldRecord = { pullRequestNumber: 8, unitId: unit("h1").id, file: "qpeft/packing.py", hash: "h1", state: "read", changedSinceReview: false, conversation: oldTurns };
+    fs.mkdirSync(path.join(folder, "example"), { recursive: true });
+    fs.writeFileSync(path.join(folder, "example", "qpeft.json"), JSON.stringify({ units: { [`8:${unit("h1").id}`]: oldRecord } }));
+
+    const conversation = new ReviewStateStore(folder).recordOf(repo, 8, unit("h1").id)!.conversation!;
+    assert.deepStrictEqual(conversation.map((turn) => turn.speaker), ["reviewer", "claude"]);
   });
 
   it("keeps the state of a unit whose code did not change after a new push", () => {

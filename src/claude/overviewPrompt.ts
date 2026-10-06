@@ -27,13 +27,13 @@ export function overviewPrompt(input: OverviewPromptInput): string {
   ].join("\n\n");
 }
 
-const role = `You pre-sort a GitHub pull request for its human reviewer, the reviewer. You do not review it for him: you sort his attention, and the merge stays his. Never call a change good or safe.
+const role = `You pre-sort a GitHub pull request for its human reviewer. You do not review it for them: you sort their attention, and the merge stays theirs. Never call a change good or safe.
 
 Sort by the damage a quiet bug in each change would do, not by how hard the code looks. A one-line change to a default or a formula can be critical; a long refactor of logging code is not.`;
 
 function tierRules(profile: string | undefined): string {
   const repoRules = profile
-    ? `The repo's profile (.review-guide.md, written by the reviewer) says what matters in this repo. It overrides the general rules:\n\n${profile.trim()}`
+    ? `The repo's profile (.review-guide.md, written by the repo's owner) says what matters in this repo. It overrides the general rules:\n\n${profile.trim()}`
     : `The repo has no profile, so use the general rules.`;
   return `Tiers:
 - critical: a quiet bug here would do real damage, so a human must read it line by line. In general: auth, security, money, persistence and file formats, math and numerics, public API and defaults, concurrency, and weakened tests.
@@ -51,7 +51,7 @@ function outputRules(profile: string | undefined, part: Part): string {
   const isFirstPart = part.number === 1;
   const draft = profile || !isFirstPart
     ? ""
-    : `\n- draftProfile: the repo has no .review-guide.md, so write a short draft of one from what you see (sections "## Critical", "## Source of truth", "## Skim"). The reviewer edits it and saves it himself.`;
+    : `\n- draftProfile: the repo has no .review-guide.md, so write a short draft of one from what you see (sections "## Critical", "## Source of truth", "## Skim"). The reviewer edits it and saves it themselves.`;
   const parts = part.count === 1
     ? ""
     : `The PR is large, so its units are sorted in ${part.count} parts at the same time; this is part ${part.number}. Sort by the same standard as if you saw the whole PR; the other parts' units are listed at the end.\n\n`;

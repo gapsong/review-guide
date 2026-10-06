@@ -1,9 +1,9 @@
-// Scores a qpeft measurement (from scripts/measure-qpeft.js) against the reviewer's gold list (SPEC.md,
+// Scores a qpeft measurement (from scripts/measure-qpeft.js) against the owner's gold list (SPEC.md,
 // Q1-Q3) and writes a Markdown report.
 //   node scripts/report-qpeft-measurement.js <measurement.json> <report.md>
 const fs = require("fs");
 
-// the reviewer's gold list (2026-09-26), as file + function names. "strict" is the narrow reading of each
+// The owner's gold list (2026-09-26), as file + function names. "strict" is the narrow reading of each
 // entry; "generous" adds the helpers that implement the named behavior.
 const goldList = [
   { area: "Quantization formula and STE", file: "qpeft/quant_schemes/reference.py", strict: ["_codes_ste"], generous: ["fake_quant", "quantize"] },

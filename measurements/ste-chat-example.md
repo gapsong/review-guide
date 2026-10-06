@@ -1,10 +1,10 @@
-# Ownership chat with Claude Opus 5.5: The reviewer's _ste example
+# Ownership chat with Claude Opus 5.5: the owner's _ste example
 
 One real chat turn (F15, F16), run on qpeft at 4369298, unit `qpeft/quant_schemes/base.py _ste()`, with the read-only call of the extension. It took 15 s; the qpeft checkout was unchanged afterwards.
 
 Conversation so far:
 
-- **The reviewer:** _ste returns the rounded value but lets the gradient through.
+- **Reviewer:** _ste returns the rounded value but lets the gradient through.
 - **Claude (almost):** Right idea. What does x - x.detach() evaluate to in the forward pass, and why is it written that way instead of x + (value - x).detach()?
 
 **The reviewer's new message:** I don't get it. Why value.detach() + (x - x.detach()) and not just value? Isn't x - x.detach() just zero?
