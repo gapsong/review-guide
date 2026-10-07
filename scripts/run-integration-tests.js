@@ -50,7 +50,9 @@ async function runAllSuites() {
   ].filter((suite) => fs.existsSync(path.join(suitesRoot, suite.name)))
     .filter((suite) => !onlySuite || suite.name.startsWith(onlySuite));
 
-  const vscodeExecutablePath = await downloadAndUnzipVSCode("stable");
+  // extractSync: on macOS 27 the default streaming unzip of VS Code 1.141 left an empty folder
+  // behind, marked complete, and every later run failed.
+  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version: "stable", extractSync: true });
   for (const suite of suites) {
     console.log(`\n=== integration suite: ${suite.name} ===`);
     await runSuite(suite, scratch, vscodeExecutablePath);
@@ -66,6 +68,11 @@ function runSuite(suite, scratch, vscodeExecutablePath) {
     "--skip-welcome",
     "--skip-release-notes",
     "--disable-workspace-trust",
+    // The test copy is signed again on macOS (scripts/trust-github-login.js), so the keychain no
+    // longer knows it and would ask the person at the screen. The tests need no stored secrets:
+    // VS Code keeps them in memory, and Chromium uses a stand-in keychain.
+    "--use-inmemory-secretstorage",
+    "--use-mock-keychain",
     // VS Code's own git support refreshes .git/index in the background, which would blur the
     // "working copy unchanged" checks. The extension does not use it.
     "--disable-extension", "vscode.git",

@@ -63,6 +63,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] S1 flaked once: haiku reported its attempts in one entry; the "Claude ran" check now accepts any report (safety checks unchanged)
 - [x] An iframe cannot load a webview's own files (measured in VS Code 1.140); the explanation page is the panel's document instead (DECISIONS.md)
 - [x] Integration tests did not start on macOS: wrong product.json path, inherited ELECTRON_RUN_AS_NODE, socket path over 103 characters; all fixed, all suites pass on macOS
+- [x] VS Code 1.141 on macOS 27: empty download folder, patched test copy killed at start, keychain prompts; all three fixed (DECISIONS.md)
 
 ## Night run 0.3.0 (2026-10-07)
 

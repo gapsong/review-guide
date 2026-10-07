@@ -1,3 +1,4 @@
+const { execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -15,8 +16,32 @@ function trustExtensionForGitHubLogin(vscodeExecutablePath) {
   if (!githubTrusted.includes(extensionId)) {
     trusted.github = [...githubTrusted, extensionId];
     product.trustedExtensionAuthAccess = trusted;
-    fs.writeFileSync(productPath, JSON.stringify(product, null, "\t"));
+    writeProductJson(productPath, product);
+    if (process.platform === "darwin") {
+      signAgain(vscodeExecutablePath);
+    }
   }
+}
+
+// macOS blocks changes inside an app bundle once the app has run; the copy is then only usable
+// if it was patched before its first start.
+function writeProductJson(productPath, product) {
+  try {
+    fs.writeFileSync(productPath, JSON.stringify(product, null, "\t"));
+  } catch (error) {
+    if (error.code !== "EPERM") {
+      throw error;
+    }
+    const copyFolder = path.resolve(productPath, "..", "..", "..", "..", "..");
+    throw new Error(`macOS does not allow changing the test copy of VS Code after it has run. Delete ${copyFolder} and run the tests again.`, { cause: error });
+  }
+}
+
+// product.json is part of the app's signature. On macOS 27 a copy with a broken signature is
+// killed at start (seen with VS Code 1.141), so the changed copy is signed again, ad hoc.
+function signAgain(vscodeExecutablePath) {
+  const appPath = path.resolve(path.dirname(vscodeExecutablePath), "..", "..");
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", appPath], { stdio: "pipe" });
 }
 
 // On macOS the executable sits in Code.app/Contents/MacOS and the app files in Contents/Resources;

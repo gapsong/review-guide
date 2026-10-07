@@ -145,6 +145,7 @@ Because the extension now starts before anyone opens its views, the GitHub API a
 The README said the VS Code integration tests do not start on macOS.
 On 2026-10-05 three other causes were found and fixed, and all suites now pass on macOS: the test runner looked for the test VS Code's `product.json` next to the executable, which on macOS is in `Contents/Resources` instead; a terminal inside VS Code passes `ELECTRON_RUN_AS_NODE` on, which makes the test VS Code start as plain Node; and macOS allows socket paths of at most 103 characters, which the long user data folder names went over.
 A patched `product.json` does not stop the test copy of VS Code 1.140 from starting.
+On 2026-10-07 VS Code 1.141 came out and three more things broke on macOS 27: the default streaming unzip of the download left an empty folder that was marked complete (now `extractSync`); the patched copy was killed at start because `product.json` is part of its signature (the test runner now signs the patched copy again, ad hoc, right after patching it, before its first start, since macOS blocks changes to an app that has run); and the re-signed copy was no longer known to the keychain, which would ask the person at the screen (the tests now start VS Code with `--use-inmemory-secretstorage --use-mock-keychain`).
 
 ## Written for anyone, not for one person
 

@@ -20,7 +20,9 @@ async function main() {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "review-guide-measure-"));
   // Kept between runs (next to the downloaded VS Code): the Marketplace is not always reachable.
   const extensionsDir = path.join(root, ".vscode-test", "measure-extensions");
-  const vscodeExecutablePath = await downloadAndUnzipVSCode("stable");
+  // extractSync: on macOS 27 the default streaming unzip of VS Code 1.141 left an empty folder
+  // behind, marked complete, and every later run failed.
+  const vscodeExecutablePath = await downloadAndUnzipVSCode({ version: "stable", extractSync: true });
   installPythonExtension(vscodeExecutablePath, extensionsDir, scratch);
   trustExtensionForGitHubLogin(vscodeExecutablePath);
   await runTests({

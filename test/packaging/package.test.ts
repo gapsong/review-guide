@@ -47,6 +47,8 @@ describe("F9: `npm run package` builds a .vsix that installs in VS Code", functi
 
 // The test's own --extensions-dir and --user-data-dir replace the defaults of the test VS Code.
 async function vscodeCli(): Promise<{ command: string; args: string[] }> {
-  const [command, ...args] = resolveCliArgsFromVSCodeExecutablePath(await downloadAndUnzipVSCode("stable"));
+  // extractSync: on macOS 27 the default streaming unzip of VS Code 1.141 left an empty folder
+  // behind, marked complete, and every later run failed.
+  const [command, ...args] = resolveCliArgsFromVSCodeExecutablePath(await downloadAndUnzipVSCode({ version: "stable", extractSync: true }));
   return { command, args: args.filter((arg) => !arg.startsWith("--extensions-dir") && !arg.startsWith("--user-data-dir")) };
 }
