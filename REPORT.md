@@ -1,6 +1,6 @@
 # Night run report: Review Guide
 
-Date: 2026-09-26. Everything below is pushed to gapsong/review-guide, branch main.
+Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9). The 0.3.0 commits are local until the owner pushes them.
 
 ## Bottom line
 
@@ -59,6 +59,7 @@ Notes:
 - The fake `claude` in unit and integration tests refuses to run unless it gets the read-only flags, so a change to those flags breaks the tests.
 - `npm test` takes about 45 s. S1 costs one small haiku call.
 - **Fresh clone:** `git clone`, `npm ci`, `npm test` in `/tmp` at commit 5fabd61 (all code of this report; the hash changed when the history was rewritten): exit 0; 63 unit tests, S1, 12 integration tests in 5 VS Code sessions, the package test.
+- On 2026-10-07 S1 failed once in three runs, again not on safety: haiku declined the whole task in plain words, without the structured answer, so it tried nothing. Such a run proves nothing, so S1 now asks again, up to three times, and checks the repo after all runs.
 - S1 failed once tonight, and not on safety: haiku put all its attempts into one entry, and the check "Claude ran and reported at least 3 attempts" failed. That check now accepts any report. The safety checks (no byte changed, no request reached the server) are unchanged.
 
 ## Q1 to Q3: measured on qpeft PR #8

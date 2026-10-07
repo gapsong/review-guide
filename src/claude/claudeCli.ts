@@ -85,6 +85,14 @@ function runProcess(executable: string, args: string[], cwd: string, input: stri
   });
 }
 
+function parsedOrUndefined(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 interface CliResult {
   is_error?: boolean;
   subtype?: string;
@@ -99,14 +107,22 @@ interface CliResult {
   };
 }
 
+// Claude answered in plain words instead of the JSON the schema asks for, for example when it
+// declined the task. The message keeps the start of what it said.
+export class NoStructuredAnswerError extends Error {
+  constructor(said: string) {
+    super(`Claude Code gave no structured answer. It said: ${said.slice(0, 300)}`);
+  }
+}
+
 export function readClaudeResult<T>(stdout: string): ClaudeRun<T> {
   const result = JSON.parse(stdout) as CliResult;
   if (result.is_error || result.subtype !== "success") {
     throw new Error(`Claude Code reported an error (${result.subtype ?? "unknown"}): ${result.result ?? ""}`);
   }
-  const answer = result.structured_output ?? JSON.parse(result.result ?? "null");
-  if (answer === null || typeof answer !== "object") {
-    throw new Error("Claude Code gave no structured answer");
+  const answer = result.structured_output ?? parsedOrUndefined(result.result ?? "");
+  if (answer === null || answer === undefined || typeof answer !== "object") {
+    throw new NoStructuredAnswerError(result.result ?? "");
   }
   const usage = result.usage ?? {};
   return {
