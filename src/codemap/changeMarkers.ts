@@ -9,7 +9,7 @@ import { readJsonFile, writeJsonFile } from "../state/jsonFile";
 //
 //   confirmed ──── commit ──── commit ──── HEAD        git log confirmed..HEAD -- path
 //                    │                      │          → 2 commits touched the path:
-//                    └─ touches path ───────┘            "changed since you confirmed it (2 commits)"
+//                    └─ touches path ───────┘            "Changed since you confirmed it (2 commits)"
 //
 // The first time an entry is seen, the current HEAD is its confirmation, so a new codemap does not
 // start with every entry marked.
@@ -102,12 +102,12 @@ export function isExplanationOlder(explanationWritten: Date, lastCommitTime: Dat
   return lastCommitTime !== undefined && lastCommitTime.getTime() > explanationWritten.getTime();
 }
 
-// "changed since you confirmed it (2 commits)"
+// "Changed since you confirmed it (2 commits)": the marker's text wherever it is shown.
 export function changeText(change: ChangeMarker): string {
   if (change.commits === undefined) {
-    return "changed since you confirmed it (the confirmed commit is gone)";
+    return "Changed since you confirmed it (the confirmed commit is gone)";
   }
-  return `changed since you confirmed it (${change.commits} ${change.commits === 1 ? "commit" : "commits"})`;
+  return `Changed since you confirmed it (${change.commits} ${change.commits === 1 ? "commit" : "commits"})`;
 }
 
 async function headOf(repoFolder: string): Promise<string | undefined> {

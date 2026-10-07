@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { badgeOf } from "../codemap/badge";
+import { withBadge } from "../codemap/badge";
 import { CodemapEntry, startLocationOf } from "../codemap/codemap";
 import { buildCodemapTree, CodemapFilter, CodemapTreeNode } from "../codemap/codemapTree";
 import { changeText } from "../codemap/changeMarkers";
@@ -84,15 +84,14 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
       item.tooltip = node.path;
       return item;
     }
-    const item = new vscode.TreeItem(`${badgeOf(node.entry)} ${node.name}`, collapsible);
+    const item = new vscode.TreeItem(withBadge(node.entry, node.name), collapsible);
     const change = entryStatusOf(element, this.markers).change;
-    item.description = change ? `⚠ ${node.entry.says}` : node.entry.says;
+    // The marker leads the description: an icon in front would push the row out of line with the
+    // others, and the emoji keeps its color in the grey description text.
+    item.description = change ? `⚠️\u2002changed · ${node.entry.says}` : node.entry.says;
     item.contextValue = change ? "codemapEntryChanged" : "codemapEntry";
-    if (change) {
-      item.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
-    }
     item.command = { title: "Open", command: codemapCommands.open, arguments: [element] };
-    const changed = change ? `, ${changeText(change)}` : "";
+    const changed = change ? `, ${changeText(change).toLowerCase()}` : "";
     item.accessibilityInformation = { label: `${node.name}, ${node.entry.label}${node.entry.deep ? ", deep module" : ""}${changed}: ${node.entry.says}` };
     return item;
   }

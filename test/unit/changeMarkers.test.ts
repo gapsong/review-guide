@@ -114,8 +114,8 @@ describe("change markers on codemap entries", () => {
   });
 
   it("says how many commits changed the path", () => {
-    assert.strictEqual(changeText({ commits: 1 }), "changed since you confirmed it (1 commit)");
-    assert.strictEqual(changeText({ commits: 3 }), "changed since you confirmed it (3 commits)");
-    assert.strictEqual(changeText({ commits: undefined }), "changed since you confirmed it (the confirmed commit is gone)");
+    assert.strictEqual(changeText({ commits: 1 }), "Changed since you confirmed it (1 commit)");
+    assert.strictEqual(changeText({ commits: 3 }), "Changed since you confirmed it (3 commits)");
+    assert.strictEqual(changeText({ commits: undefined }), "Changed since you confirmed it (the confirmed commit is gone)");
   });
 });

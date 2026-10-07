@@ -23,7 +23,7 @@ function content(changes: Partial<TooltipContent> = {}): TooltipContent {
 describe("the Codemap view's tooltip", () => {
   it("shows the badge and name, the sentence, the label, the explanation status and the actions", () => {
     assert.strictEqual(codemapTooltip(content()), [
-      "💰🧠 **payment\\.py**",
+      "💰\u2009🧠\u2002**payment\\.py**",
       "Reserves the amount first\\, then charges it\\.",
       "*money · deep module*",
       "No explanation yet.",
@@ -56,7 +56,7 @@ describe("the Codemap view's tooltip", () => {
 
   it("puts the change marker right below the name", () => {
     const tooltip = codemapTooltip(content({ status: { explanationWritten: undefined, explanationOlder: false, change: { commits: 2 } } }));
-    assert.ok(tooltip.startsWith("💰🧠 **payment\\.py**\n\n$(warning) **Changed since you confirmed it (2 commits)**\n\nReserves"), tooltip);
+    assert.ok(tooltip.startsWith("💰\u2009🧠\u2002**payment\\.py**\n\n$(warning) **Changed since you confirmed it (2 commits)**\n\nReserves"), tooltip);
   });
 
   it("shows the owner's text as written: no Markdown, no links, no icons", () => {

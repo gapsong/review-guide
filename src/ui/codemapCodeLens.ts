@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { badgeOf } from "../codemap/badge";
+import { withBadge } from "../codemap/badge";
 import { changeText } from "../codemap/changeMarkers";
 import { repoPathOf } from "../codemap/repoPath";
 import { WorkspaceChangeMarkers } from "../codemap/workspaceChangeMarkers";
@@ -30,7 +30,7 @@ export class CodemapCodeLenses implements vscode.CodeLensProvider {
     const firstLine = new vscode.Range(0, 0, 0, 0);
     // A CodeLens without a command is shown as plain text.
     const lenses = [
-      new vscode.CodeLens(firstLine, { title: `${badgeOf(entry)} ${entry.says}`, command: "" }),
+      new vscode.CodeLens(firstLine, { title: withBadge(entry, entry.says), command: "" }),
       new vscode.CodeLens(firstLine, { title: "Explain", command: codemapCommands.explain, arguments: [target] }),
     ];
     const change = this.markers.statusOf(document.uri)?.change;

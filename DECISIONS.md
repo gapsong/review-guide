@@ -165,6 +165,8 @@ VS Code offers no way around this merge rule, so the codemap got its own view in
 - Entries carry no icon: the badge emoji in the label already marks them, and an icon next to it would show two symbols for one thing. Plain folders get a grey folder icon, so they read as "only on the way" next to the entries.
 - The tree does not use the entries' `resourceUri`: with it, VS Code would add the Explorer's decorations (the same badge again, and git colors) to every row.
 - Commands from the view, a tooltip link and a CodeLens all get the same plain-text target (workspace folder and repo path), because a tooltip's command link and a CodeLens's arguments are JSON, where a `vscode.Uri` does not survive.
+- A changed entry starts its description with "⚠️ changed · " (with an en space after the emoji, see below). A warning icon in front of the row pushed it out of line with the others (seen in the real VS Code), and a color needs the row's `resourceUri`, which brings back a file icon in front; the emoji keeps its color in the grey description.
+- At the usual 13 px VS Code draws emoji wider than the room the font gives them, so the badge's emoji touched each other and the name. In running text (the view's labels, its tooltip, the CodeLens, the panel's heading) they are set apart with a thin space and an en space; the Explorer badge cannot have them, it allows two characters.
 - The filter is shown in the view's description ("💰 money only"); the button of the active filter is hidden and "Show All" appears instead, since a view title cannot show a pressed button.
 
 ## The notes and their limits

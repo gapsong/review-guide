@@ -1,4 +1,4 @@
-import { badgeOf } from "../codemap/badge";
+import { withBadge } from "../codemap/badge";
 import { ChangeMarker, changeText } from "../codemap/changeMarkers";
 import { CodemapEntry } from "../codemap/codemap";
 
@@ -34,8 +34,8 @@ export interface TooltipContent {
 export function codemapTooltip(content: TooltipContent): string {
   const { entry } = content;
   const sections = [
-    `${badgeOf(entry)} **${escapeMarkdown(content.name)}**`,
-    content.status.change ? `$(warning) **${capitalized(changeText(content.status.change))}**` : "",
+    withBadge(entry, `**${escapeMarkdown(content.name)}**`),
+    content.status.change ? `$(warning) **${changeText(content.status.change)}**` : "",
     escapeMarkdown(entry.says),
     ...notesOf(content),
     labelLine(entry),
@@ -74,10 +74,6 @@ function explanationLine(status: EntryStatus): string {
   }
   const older = status.explanationOlder ? ", older than the last change" : "";
   return `Explanation written ${dateOf(status.explanationWritten)}${older}.`;
-}
-
-function capitalized(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // Each line of the owner's text stays a line of its own, inside a quote.

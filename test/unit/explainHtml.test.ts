@@ -23,7 +23,7 @@ function page(html: string) {
 describe("C3, C4: the Explain panel", () => {
   it("shows the badge, the path, the sentence, the label and deep, and offers to generate an explanation", () => {
     const html = renderExplainPanel(header(), "n0nce", cspSource);
-    assert.ok(html.includes("<span class=\"badge\">💰🧠</span><span class=\"path\">src/payment.py</span>"), html);
+    assert.ok(html.includes("<span class=\"badge\">💰\u2009🧠</span><span class=\"path\">src/payment.py</span>"), html);
     assert.ok(html.includes("money · deep module"));
     assert.ok(html.includes("No explanation yet."));
     assert.ok(html.includes(">Generate explanation</button>"));

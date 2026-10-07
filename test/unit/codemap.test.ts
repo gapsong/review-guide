@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
-import { badgeOf, tooltipOf } from "../../src/codemap/badge";
+import { badgeOf, tooltipOf, withBadge } from "../../src/codemap/badge";
 import { CodemapEntry, parseCodemap, startLocationOf } from "../../src/codemap/codemap";
 import { explanationFolderOf, explanationPageOf } from "../../src/codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../../src/codemap/repoPath";
@@ -182,6 +182,11 @@ describe("C1: badge and tooltip in the Explorer", () => {
       const badge = badgeOf(entry(label, true));
       assert.strictEqual([...segmenter.segment(badge)].length, 2, badge);
     }
+  });
+
+  it("sets the emoji apart from each other and from the text in running text", () => {
+    assert.strictEqual(withBadge(entry("money", true), "payment.py"), "💰\u2009🧠\u2002payment.py");
+    assert.strictEqual(withBadge(entry("util", false), "money.py"), "🧰\u2002money.py");
   });
 
   it("shows the sentence, then the label, then deep module", () => {

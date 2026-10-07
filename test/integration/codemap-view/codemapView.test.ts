@@ -63,6 +63,7 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
   });
 
   it("shows the codemap as a tree: plain folders on the way, each entry with its badge, name and sentence", () => {
+    assert.strictEqual(api.codemapView.getTreeItem(findNode("💰🧠 payment.py")).label, "💰\u2009🧠\u2002payment.py", "the emoji are set apart");
     assert.deepStrictEqual(outline(), [
       "⚙️ shop · The shop's HTTP API.",
       "  auth",
@@ -149,23 +150,24 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     it("marks the entry in the view, the tooltip, the CodeLens and the Explain panel once a commit changes it", async () => {
       commitAll("Charge in cents");
       // No call to check(): the commit alone must bring the marker, through the watch on git's HEAD.
-      await waitFor(() => outline().includes("    💰🧠 payment.py · ⚠ Reserves the amount first, then charges it."), "the view shows the marker", 15_000);
+      await waitFor(() => isMarked("💰🧠 payment.py"), "the view shows the marker", 15_000);
 
       const payment = findNode("💰🧠 payment.py");
       const item = api.codemapView.getTreeItem(payment);
       assert.strictEqual(item.contextValue, "codemapEntryChanged");
-      assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, "warning");
+      assert.strictEqual(item.iconPath, undefined, "no icon pushes the changed row out of line");
+      assert.strictEqual(item.description, "⚠️\u2002changed · Reserves the amount first, then charges it.");
       const tooltip = (api.codemapView.resolveTreeItem(item, payment).tooltip as vscode.MarkdownString).value;
       assert.ok(tooltip.includes("$(warning) **Changed since you confirmed it (1 commit)**"), tooltip);
       assert.match(tooltip, /\[Still true\]\(command:reviewGuide\.codemap\.stillTrue\?.*\[Explain again\]\(command:reviewGuide\.codemap\.explainAgain\?/);
       assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), [
         "💰🧠 Reserves the amount first, then charges it.",
         "Explain",
-        "$(warning) changed since you confirmed it (1 commit)",
+        "$(warning) Changed since you confirmed it (1 commit)",
         "Still true",
         "Explain again",
       ]);
-      assert.ok(!outline().includes("    🔒 session.py · ⚠ Checks the session cookie."), "an entry the commit did not touch has no marker");
+      assert.ok(!isMarked("🔒 session.py"), "an entry the commit did not touch has no marker");
 
       await vscode.commands.executeCommand("reviewGuide.codemap.explain", payment);
       await waitFor(() => api.explainPanels.htmlOf(paymentFile())?.includes("Changed since you confirmed it (1 commit).") === true, "the panel shows the marker");
@@ -190,14 +192,14 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
 
     it("Still true clears the marker everywhere, until the next commit that changes the path", async () => {
       await vscode.commands.executeCommand("reviewGuide.codemap.stillTrue", findNode("💰🧠 payment.py"));
-      assert.ok(outline().includes("    💰🧠 payment.py · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.ok(!isMarked("💰🧠 payment.py"));
       assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain"]);
       assert.ok(!api.explainPanels.htmlOf(paymentFile())!.includes("Changed since you confirmed it"));
       assert.strictEqual(git(workspace, "status", "--porcelain"), "", "the confirmation is not stored in the repo");
 
       writeFile("shop/checkout/payment.py", "line 1\nline 2 edited again\nline 3\n");
       commitAll("Charge once");
-      await waitFor(() => outline().includes("    💰🧠 payment.py · ⚠ Reserves the amount first, then charges it."), "the next commit marks it again", 15_000);
+      await waitFor(() => isMarked("💰🧠 payment.py"), "the next commit marks it again", 15_000);
     });
   });
 
@@ -206,16 +208,21 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     return nodes.flatMap((node) => {
       const item = api.codemapView.getTreeItem(node);
       const description = item.description ? ` · ${String(item.description)}` : "";
-      return [`${"  ".repeat(depth)}${String(item.label)}${description}`, ...outline(api.codemapView.getChildren(node), depth + 1)];
+      return [`${"  ".repeat(depth)}${plainSpaces(String(item.label))}${description}`, ...outline(api.codemapView.getChildren(node), depth + 1)];
     });
   }
 
   function findNode(label: string): CodemapViewNode {
-    const node = allNodes().find((candidate) => api.codemapView.getTreeItem(candidate).label === label);
+    const node = allNodes().find((candidate) => plainSpaces(String(api.codemapView.getTreeItem(candidate).label)) === label);
     if (!node) {
       throw new Error(`No node ${label} in the Codemap view`);
     }
     return node;
+  }
+
+  function isMarked(label: string): boolean {
+    const item = api.codemapView.getTreeItem(findNode(label));
+    return item.contextValue === "codemapEntryChanged" && String(item.description).startsWith("⚠️\u2002changed · ");
   }
 
   function allNodes(nodes: CodemapViewNode[] = api.codemapView.getChildren()): CodemapViewNode[] {
@@ -226,7 +233,7 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     const uri = vscode.Uri.file(path.join(workspace, repoPath));
     await vscode.window.showTextDocument(uri);
     const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>("vscode.executeCodeLensProvider", uri);
-    return lenses.map((lens) => lens.command?.title ?? "");
+    return lenses.map((lens) => plainSpaces(lens.command?.title ?? ""));
   }
 
   function commitAll(message: string): void {
@@ -240,6 +247,12 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     fs.writeFileSync(file, text);
   }
 });
+
+// The badge is set apart from the text with a thin space and an en space (see withBadge); the
+// tests compare with plain spaces, so they read like the screen.
+function plainSpaces(text: string): string {
+  return text.replace(/\u2009/g, "").replace(/\u2002/g, " ");
+}
 
 async function waitFor(condition: () => boolean, what: string, timeoutMilliseconds = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMilliseconds;

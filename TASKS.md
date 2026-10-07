@@ -63,6 +63,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] S1 flaked once: haiku reported its attempts in one entry; the "Claude ran" check now accepts any report (safety checks unchanged)
 - [x] An iframe cannot load a webview's own files (measured in VS Code 1.140); the explanation page is the panel's document instead (DECISIONS.md)
 - [x] Integration tests did not start on macOS: wrong product.json path, inherited ELECTRON_RUN_AS_NODE, socket path over 103 characters; all fixed, all suites pass on macOS
+- [x] In the real VS Code the badge's emoji touched each other and the name, and a warning icon pushed a changed row out of line; both fixed (DECISIONS.md)
 - [x] VS Code 1.141 on macOS 27: empty download folder, patched test copy killed at start, keychain prompts; all three fixed (DECISIONS.md)
 
 ## Night run 0.3.0 (2026-10-07)
@@ -71,5 +72,5 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] Step 1: public-ready: no company content, no personal names, `reviewGuide.explanationLanguage`
 - [x] Step 2: Codemap view in the Explorer, CodeLens on line 1, new entry fields why / watch / start / mine
 - [x] Step 3: change markers after a commit, "Still true" and "Explain again"
-- [ ] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots
+- [x] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots (emoji spacing and the changed row fixed)
 - [ ] Finish: all test suites, version 0.3.0, package, morning report, Telegram

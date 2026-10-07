@@ -90,7 +90,7 @@ describe("the codemap in a real VS Code", () => {
     await vscode.commands.executeCommand("reviewGuide.explainPath", payment);
     await waitFor(() => activeTabLabel() === "Explain: payment.py", "the panel is the active tab");
     const before = api.explainPanels.htmlOf(payment)!;
-    for (const shown of ["💰🧠", "src/payment.py", "Reserves the amount first &amp; then charges it.", "money · deep module", ">Generate explanation</button>"]) {
+    for (const shown of ["💰\u2009🧠", "src/payment.py", "Reserves the amount first &amp; then charges it.", "money · deep module", ">Generate explanation</button>"]) {
       assert.ok(before.includes(shown), `the panel shows "${shown}"`);
     }
 

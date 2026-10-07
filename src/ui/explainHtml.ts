@@ -1,4 +1,4 @@
-import { badgeOf } from "../codemap/badge";
+import { spacedBadgeOf } from "../codemap/badge";
 import { ChangeMarker, changeText } from "../codemap/changeMarkers";
 import { CodemapEntry } from "../codemap/codemap";
 import { explanationFolderOf } from "../codemap/explanationFiles";
@@ -89,7 +89,7 @@ export function explanationPolicy(cspSource: string): string {
 }
 
 function headerHtml(header: ExplainHeader): string {
-  const badge = header.entry ? `<span class="badge">${badgeOf(header.entry)}</span>` : "";
+  const badge = header.entry ? `<span class="badge">${spacedBadgeOf(header.entry)}</span>` : "";
   const about = header.entry
     ? `<p class="says">${escapeHtml(header.entry.says)}</p>
 ${notesHtml(header.entry)}<p class="muted">${labelLine(header.entry)}</p>`
@@ -127,8 +127,7 @@ function changeLine(header: ExplainHeader): string {
   if (!header.change) {
     return "";
   }
-  const text = changeText(header.change);
-  return `<p class="change">⚠ ${escapeHtml(text.charAt(0).toUpperCase() + text.slice(1))}. Read it again, then say whether the entry is still true.</p>\n`;
+  return `<p class="change">⚠ ${escapeHtml(changeText(header.change))}. Read it again, then say whether the entry is still true.</p>\n`;
 }
 
 // After a change, "Still true" and "Explain again" come first: they are what the marker asks for.
