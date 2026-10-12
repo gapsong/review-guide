@@ -2,7 +2,7 @@
   "name": "review-guide",
   "displayName": "Review Guide",
   "description": "Helps you own your code with Claude: a codemap in the Explorer, a visual explanation per path, and pull requests pre-sorted so you review the critical changes first.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "gapsong",
   "icon": "media/icon.png",
   "license": "MIT",

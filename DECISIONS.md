@@ -198,7 +198,7 @@ The Explorer hover and the CodeLens stay at the one sentence, so the code stays 
 
 ## Only a check of the owner's words counts (D1)
 
-- The owner decided D1 on 2026-10-09: (b). An entry is understood only after a fresh check of `mine`. The check sees the entry and `mine`, never the chat and never the explanation page; `entryCheckPrompt` has no parameter for a conversation, so this holds by construction, and a test (D1) fails when the chat reaches the check's prompt.
+- The owner decided D1 on 2026-10-12: (b). An entry is understood only after a fresh check of `mine`. The check sees the entry and `mine`, never the chat and never the explanation page; `entryCheckPrompt` has no parameter for a conversation, so this holds by construction, and a test (D1) fails when the chat reaches the check's prompt.
 - The chat is a tutor: its verdict is shown as "would be …" and changes no state. In the same call that explains, a "yes, as you say" can become "understood"; a grader that only sees the owner's own words cannot be talked into it.
 - The price: good words from the chat must go into `mine` by hand. "Use my last message as mine" puts them on the clipboard as a `mine` block and opens the codemap at the entry; the extension never writes the codemap.
 - Switching to (a) (the chat's latest verdict counts, as for PR units, F15) is one line: `chatVerdictCounts` in `src/codemap/entryOwnership.ts`. With it set, each chat turn is also stored as a check (and an understood one confirms the change marker), and the panel drops "would be".
