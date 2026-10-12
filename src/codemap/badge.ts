@@ -2,7 +2,7 @@ import { CodemapEntry, CodemapLabel } from "./codemap";
 
 // What a codemap entry looks like in the Explorer: a badge next to the name and a tooltip on hover.
 
-const labelEmoji: Record<CodemapLabel, string> = {
+export const labelEmoji: Record<CodemapLabel, string> = {
   money: "💰",
   security: "🔒",
   core: "⚙️",

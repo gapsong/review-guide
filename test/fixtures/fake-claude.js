@@ -10,6 +10,7 @@
 //   FAKE_CLAUDE_OMIT            text in a unit's heading: pass 1 leaves that unit out of its answer
 //   FAKE_CLAUDE_NO_QUESTIONS_FOR text in a unit's heading: that unit's deep check comes without questions
 //   FAKE_CLAUDE_FAIL_SINGLE     "1": a deep check call for exactly one unit fails, like a crashed CLI
+//   FAKE_CLAUDE_WATCH           a text: the log says whether the prompt contained it ("saw": true/false)
 //
 // It refuses to run unless it gets the read-only flags, so a change to them fails the tests.
 const fs = require("fs");
@@ -32,7 +33,8 @@ function main() {
   const prompt = fs.readFileSync(0, "utf8");
   const pass = /^Review Guide pass: (.*)$/m.exec(prompt)[1].trim();
   const answer = answerFor(pass, prompt);
-  log({ pass, unitIds: answer.unitIds, cwd: process.cwd() });
+  const watched = process.env.FAKE_CLAUDE_WATCH;
+  log({ pass, unitIds: answer.unitIds, cwd: process.cwd(), readableFolders: readableFolders(args), ...(watched ? { saw: prompt.includes(watched) } : {}) });
   delete answer.unitIds;
   process.stdout.write(JSON.stringify({
     type: "result",
@@ -54,6 +56,12 @@ function answerFor(pass, prompt) {
   }
   if (pass === "ownership check") {
     return ownershipCheck(prompt);
+  }
+  if (pass === "entry check") {
+    return entryCheck(prompt);
+  }
+  if (pass === "entry chat") {
+    return entryChat(prompt);
   }
   throw new Error(`fake-claude: unknown pass ${pass}`);
 }
@@ -124,6 +132,34 @@ function ownershipCheck(prompt) {
     return { verdict: "almost", feedback: "What happens at a 3-bit word boundary?", unitIds };
   }
   return { verdict: "understood", feedback: "Right, and it covers the word boundary.", unitIds };
+}
+
+// The owner's words decide the verdict, as in ownershipCheck: "wrong", "partly", or neither.
+function entryCheck(prompt) {
+  const mine = /## The owner's words \(mine\)\n([\s\S]*?)\n## End of words/.exec(prompt)[1].toLowerCase();
+  const path = /^path: (.*)$/m.exec(prompt)[1];
+  const unitIds = [path];
+  if (mine.includes("wrong")) {
+    return { verdict: "not yet", feedback: "The row is resolved at once, not by a cleanup.", file: path, line: 2, unitIds };
+  }
+  if (mine.includes("partly")) {
+    return { verdict: "almost", feedback: "What happens when the provider fails before the first token?", unitIds };
+  }
+  return { verdict: "understood", feedback: "Right, and it says why the order matters.", unitIds };
+}
+
+function entryChat(prompt) {
+  const message = /## The owner's new message\n([\s\S]*?)\n## End of message/.exec(prompt)[1].toLowerCase();
+  const earlierTurns = (prompt.match(/^\*\*Owner:\*\*/gm) || []).length;
+  const unitIds = [`turns-before:${earlierTurns}`];
+  if (message.includes("?")) {
+    return { verdict: "almost", feedback: "No: it is resolved at once.\n```\nopen ─► fail ─► resolve\n```", unitIds };
+  }
+  return { verdict: "understood", feedback: "Yes, that is it.", unitIds };
+}
+
+function readableFolders(args) {
+  return args.flatMap((arg, index) => (args[index - 1] === "--add-dir" ? [arg] : []));
 }
 
 function log(entry) {

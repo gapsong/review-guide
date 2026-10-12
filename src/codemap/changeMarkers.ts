@@ -82,6 +82,12 @@ export class ChangeMarkers {
     }
   }
 
+  // An "understood" check of the owner's words confirms the entry at the commit it was checked at,
+  // which may be older than HEAD by the time the check comes back.
+  confirmAt(repoFolder: string, repoPath: string, commit: string): void {
+    this.store.confirm(repoFolder, repoPath, commit);
+  }
+
   private async statusOf(repoFolder: string, repoPath: string, head: string): Promise<PathStatus> {
     const lastCommitTime = await lastCommitTimeOf(repoFolder, repoPath);
     const confirmed = this.store.confirmedCommit(repoFolder, repoPath);
@@ -110,7 +116,7 @@ export function changeText(change: ChangeMarker): string {
   return `Changed since you confirmed it (${change.commits} ${change.commits === 1 ? "commit" : "commits"})`;
 }
 
-async function headOf(repoFolder: string): Promise<string | undefined> {
+export async function headOf(repoFolder: string): Promise<string | undefined> {
   try {
     return (await runGit(["rev-parse", "--verify", "--quiet", "HEAD"], { cwd: repoFolder })).trim();
   } catch {
@@ -118,7 +124,7 @@ async function headOf(repoFolder: string): Promise<string | undefined> {
   }
 }
 
-async function commitExists(repoFolder: string, commit: string): Promise<boolean> {
+export async function commitExists(repoFolder: string, commit: string): Promise<boolean> {
   try {
     await runGit(["cat-file", "-e", `${commit}^{commit}`], { cwd: repoFolder });
     return true;
@@ -128,7 +134,7 @@ async function commitExists(repoFolder: string, commit: string): Promise<boolean
 }
 
 // --literal-pathspecs: a path like "app/[id]/page.tsx" is a file name, not a pattern.
-async function commitsTouching(repoFolder: string, range: string, repoPath: string): Promise<number> {
+export async function commitsTouching(repoFolder: string, range: string, repoPath: string): Promise<number> {
   const output = await runGit(["--literal-pathspecs", "log", "--format=%H", range, "--", repoPath], { cwd: repoFolder });
   return output.split("\n").filter((line) => line.trim() !== "").length;
 }

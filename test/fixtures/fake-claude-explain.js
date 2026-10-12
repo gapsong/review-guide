@@ -5,11 +5,20 @@
 const fs = require("fs");
 const path = require("path");
 
-const prompt = process.argv[2] ?? "";
-const outputFolder = prompt.match(/^Output folder: (.+)$/m)[1];
-fs.mkdirSync(outputFolder, { recursive: true });
-fs.writeFileSync(path.join(outputFolder, "prompt.txt"), prompt);
-fs.writeFileSync(
-  path.join(outputFolder, "index.html"),
-  `<!DOCTYPE html>\n<html>\n<head><title>Fake</title></head>\n<body>\n<h1>Fake explanation</h1>\n<p>${process.argv.length - 2} argument(s)</p>\n</body>\n</html>\n`,
-);
+// The read-only runs (`claude -p`, like the check of the owner's words) go to the other stand-in.
+if (process.argv.includes("-p")) {
+  require("./fake-claude.js");
+} else {
+  writePage();
+}
+
+function writePage() {
+  const prompt = process.argv[2] ?? "";
+  const outputFolder = prompt.match(/^Output folder: (.+)$/m)[1];
+  fs.mkdirSync(outputFolder, { recursive: true });
+  fs.writeFileSync(path.join(outputFolder, "prompt.txt"), prompt);
+  fs.writeFileSync(
+    path.join(outputFolder, "index.html"),
+    `<!DOCTYPE html>\n<html>\n<head><title>Fake</title></head>\n<body>\n<h1>Fake explanation</h1>\n<p>${process.argv.length - 2} argument(s)</p>\n</body>\n</html>\n`,
+  );
+}

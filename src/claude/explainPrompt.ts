@@ -54,7 +54,7 @@ export function explainPrompt(template: string, request: ExplainRequest, languag
 }
 
 // The entry as it stands in the codemap file, so Claude reads it the way the owner wrote it.
-function entryText(entry: CodemapEntry): string {
+export function entryText(entry: CodemapEntry): string {
   const lines = [`path: ${entry.path}`, `says: ${entry.says}`, `label: ${entry.label}`, `deep: ${entry.deep}`];
   for (const key of ["why", "watch", "start"] as const) {
     if (entry[key] !== undefined) {

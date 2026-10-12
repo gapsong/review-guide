@@ -90,3 +90,18 @@ export const ownershipCheckSchema = {
   },
   required: ["verdict", "feedback"],
 };
+
+// The check of the owner's words about a codemap entry, and each turn of its tutor chat.
+export const entryCheckSchema = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["understood", "almost", "not yet"] },
+    feedback: {
+      type: "string",
+      description: "For the check: what is missing (as one question) or wrong, without explaining the code. For the chat: the answer to the owner, then what is right, missing or wrong. ASCII diagrams go in ``` blocks.",
+    },
+    file: { type: "string", description: "For 'not yet': the repo path of the code the mistake is about." },
+    line: { type: "integer", description: "For 'not yet': the line in that file." },
+  },
+  required: ["verdict", "feedback"],
+};

@@ -13,6 +13,10 @@ export interface FakeClaudeCall {
   pass: string;
   unitIds: string[];
   cwd: string;
+  // The folders given with --add-dir.
+  readableFolders: string[];
+  // Whether the prompt contained FAKE_CLAUDE_WATCH, when it is set.
+  saw?: boolean;
 }
 
 // Points the fake `claude` at a fresh log and the given tier rules (see test/fixtures/fake-claude.js).
