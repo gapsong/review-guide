@@ -40,6 +40,11 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] C7 CodeLens on line 1 of a codemap file: badge + says, Explain
 - [x] C8 optional notes why / watch / start / mine, checked with limits, shown in the view's tooltip and the Explain header
 - [x] C9 change markers after a commit (view, tooltip, CodeLens, Explain header), Still true, Explain again, explanation older than the last change
+- [x] C10 "Check my words": one read-only call on a clean HEAD copy, sees the entry and mine only; verdict stored with commit and hash of mine; partial clone refused
+- [x] C11 "Own it" view in the Explain panel: mine, last check, tutor chat (verdicts only "would be"), stored, its own document
+- [x] C12 a commit takes "understood" away (N commits, or gone); an understood check confirms the change marker; Still true alone does not restore it; Show changes
+- [x] C13 ✅ owned in the view, state in tooltip and CodeLens, filter "not owned yet", 3am line of money and security, Own Next
+- [x] S1 extended: the HEAD copy next to an ignored .env and .codemap (real claude, haiku)
 
 ## Manual (measured once, reported)
 
@@ -75,3 +80,12 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] Step 3: change markers after a commit, "Still true" and "Explain again"
 - [x] Step 4: generic check on a clone of gapsong/qpeft in the real VS Code, screenshots (emoji spacing and the changed row fixed)
 - [x] Finish: all test suites, version 0.3.0, package, morning report, Telegram
+
+## WP1 "Own it" (2026-10-09)
+
+- [x] HEAD copy for Claude (git archive, no .codemap, no link that leaves the copy, partial clone refused)
+- [x] Check my words and the tutor chat, stored per folder and path in the extension's storage (D1 assumed as (b), one switch in entryOwnership.ts)
+- [x] Codemap view, tooltip, CodeLens, Explain panel ("Own it" view), filter, 3am line, Own Next, Show changes
+- [x] S1 extended and run with real haiku; control by hand: in the repo itself as working directory, haiku does return the .env
+- [x] Mutation check: giving the check the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red
+- [ ] Not fixed, found on Linux (also at 0298a33): VS Code's inotify watcher misses a file created together with its folder, so a codemap written into a new `.codemap/` folder, or an explanation page in a new folder, is only seen after the next change; C1, C2, C4 and "Explain again" fail on such a Linux host and pass on macOS

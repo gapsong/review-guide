@@ -188,3 +188,28 @@ The Explorer hover and the CodeLens stay at the one sentence, so the code stays 
 - "Older than the last change" compares the commit time of the last commit that touched the path with the time `index.html` was written.
 - "Explain again" only starts a new explanation. The marker stays until "Still true": a new page does not mean the owner has read it.
 
+## Claude reads a clean copy of HEAD for the codemap
+
+- "Check my words" and the tutor chat run in a copy of the workspace folder's HEAD (`git archive HEAD | tar -x`, no shell in between) in the extension's storage (`head-copies/<folder hash>/<commit>/`), not in the workspace folder. The copy is reused while HEAD stays; the copies of the two newest commits are kept.
+- Why: a verdict belongs to exactly the commit that "commits since your check" counts from; ignored files (a `.env`) and untracked or half-done files never reach Claude (`--restricted` keeps the tools inside the working directory, and the working directory would otherwise be the repo, where Claude can read `.env`: checked by hand on 2026-10-09 with haiku, which returned the secret); parallel sessions that edit the folder do not disturb a run.
+- The copy never holds the `.codemap` folder, even when it is committed, so the check cannot read an explanation page (D1). A committed symbolic link that points outside the copy, or nowhere, is removed from it.
+- A partial clone is refused: `git archive` would fetch the missing blobs and so write into the repo's `.git`. `export-ignore` paths and submodules are not in the copy.
+- The path's git history (`history.txt`, the last 20 commits) is written into `entry-context/<folder hash>/<path hash>/`, the one extra folder Claude may read. The design named the folder after the path; a hash keeps the context of a folder entry from holding the contexts of the entries below it.
+
+## Only a check of the owner's words counts (D1, assumed, reversible)
+
+- The owner has not decided D1 yet; WP1 assumes (b): an entry is understood only after a fresh check of `mine`. The check sees the entry and `mine`, never the chat and never the explanation page; `entryCheckPrompt` has no parameter for a conversation, so this holds by construction, and a test (D1) fails when the chat reaches the check's prompt.
+- The chat is a tutor: its verdict is shown as "would be …" and changes no state. In the same call that explains, a "yes, as you say" can become "understood"; a grader that only sees the owner's own words cannot be talked into it.
+- The price: good words from the chat must go into `mine` by hand. "Use my last message as mine" puts them on the clipboard as a `mine` block and opens the codemap at the entry; the extension never writes the codemap.
+- Switching to (a) (the chat's latest verdict counts, as for PR units, F15) is one line: `chatVerdictCounts` in `src/codemap/entryOwnership.ts`. With it set, each chat turn is also stored as a check (and an understood one confirms the change marker), and the panel drops "would be".
+- Until WP2 brings the quiz (D2), "owned" means understood words at a commit after which no commit touched the path.
+
+## Own it in the codemap: where WP1 differs from its design
+
+- The Codemap view's `contextValue` keeps its two values (`codemapEntry`, `codemapEntryChanged`) instead of getting a state suffix: no menu needs the state yet, and the C9 menus and tests stay as they were. "Own it" (inline) and "Check my words", "Show changes" (context menu) are offered on every entry; each explains itself when there is nothing to do (no words, no check, no change).
+- The CodeLens has one lens more at the end for every entry: "✅ owned <date>", "🎯 Check your words again" after a commit, otherwise "🎯 Own it". The design showed only the first two; without the third, an entry that is not owned had no way into "Own it" from the code.
+- `parseCodemap` and its result stay as they are; the line of an entry for "Edit in codemap" comes from a small second reader, `entryLineOf`, that runs only on a click. Adding the lines to the result would have changed every C2 test that compares a parsed codemap.
+- "Show changes" takes both sides from git (`git show <commit>:<path>`, into `entry-sides/`), not the HEAD side from the HEAD copy: the text is the same, and the diff does not need a copy first.
+- The 3am line names the next entry from money, then security (C13). "Own Next" goes on from there to deep modules and then to any entry not owned yet, so it always has a next step.
+- The design's integration test for C10-C13 runs in the existing `codemap-view` suite, with the fake `claude` of that suite: `fake-claude-explain.js` hands every `claude -p` run to `fake-claude.js`, which has the passes "entry check" and "entry chat".
+

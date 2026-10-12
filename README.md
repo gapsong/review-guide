@@ -144,6 +144,7 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
 - **The Codemap view** (in the Explorer, below the files): your codemap as a tree, each entry with its badge and sentence. Hover for the notes, click to open, press "Explain" for the panel. Filter to money, security or deep modules in the view's title.
 - **CodeLens**: a file in the codemap shows its badge and sentence above its first line, with "Explain".
 - **Change markers**: when a commit changes a path after you last confirmed its entry, the view, the CodeLens and the Explain panel mark it "Changed since you confirmed it (2 commits)". Press **Still true** when the sentence still holds, or **Explain again** for a new explanation. Nothing refreshes by itself, and only commits count, not unsaved or uncommitted edits.
+- **Own it**: do you own an entry? Write how it works in your own words (`mine`), then press **Check my words** (in the Explain panel's "🎯 Own it" view, from the CodeLens or the view's context menu). One read-only Claude call on a clean copy of your last commit answers understood, almost (with a question) or not yet (with file:line). It sees your entry and your words, never the chat or the explanation page. Next to it, a chat with Claude as your tutor: ask back as often as you like; its verdicts are only hints, so put what you learned into `mine` ("Use my last message as mine" copies it as a block) and check again. An understood entry shows "✅ owned" in the view; a commit that touches its path takes that away until you check again, and **Show changes** shows what changed since your check. The view's first line is your 3am check: "3am 💰🔒: 2 of 9 owned · … · next: payment.py", and **Own Next** opens that entry.
 - **Badges in the Explorer**: every listed path shows its label's emoji (and 🧠 for a deep module); hover for the sentence. VS Code hides a folder's badge while the folder holds changed files; the Codemap view always shows it.
 - **Problems view**: a moved or deleted path, a typo in a label, a sentence over 160 characters (notes have their own limits), a path listed twice: each shows on its line as soon as you save.
 - **Explain** (right-click a file or folder, or "Review Guide: Explain" for the open file): a panel with the entry and the visual explanation from `.codemap/explanations/<path>/index.html`.
@@ -165,6 +166,7 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
   The GitHub token stays in VS Code's secret storage.
 - Everything Claude writes is escaped before it is shown; the panel renders Markdown without passing any HTML through.
 - Your read marks and explanations are stored locally and are only sent to your local Claude.
+- "Check my words" and the codemap chat are read-only too, and run in a copy of your last commit in the extension's storage, not in your folder: an ignored `.env`, untracked files and the `.codemap` folder never reach Claude (S1 tests this with a real `.env`). Your `mine` and the chat are only sent to your local Claude.
 
 ## Development
 
@@ -177,7 +179,7 @@ npm run package   # builds review-guide.vsix
 Integration tests run in a real VS Code downloaded into `.vscode-test/`, under `xvfb-run` when there is no display.
 They run on Linux and macOS.
 
-[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, C1-C9, S1, Q1-Q3, R1) and the code style.
+[SPEC.md](SPEC.md) is the contract: the goal, every done criterion (F1-F16, C1-C13, S1, Q1-Q3, R1) and the code style.
 [REPORT.md](REPORT.md) says which test proves which criterion, and [DECISIONS.md](DECISIONS.md) records the choices the spec left open.
 
 ## Status

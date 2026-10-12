@@ -1,6 +1,14 @@
 # Night run report: Review Guide
 
-Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9). The 0.3.0 commits are local until the owner pushes them.
+Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9) and 2026-10-09 for WP1 "Own it" (C10-C13, S1 extended).
+
+## WP1 "Own it" (2026-10-09)
+
+- **Built:** "Check my words" (one read-only call on a clean HEAD copy; sees the entry and `mine` only), the "Own it" view in the Explain panel with the tutor chat, ✅ owned / ⚠️ changed in the Codemap view, the state in tooltip and CodeLens, the filter "not owned yet", the 3am line of money and security entries, Own Next and Show changes. C10-C13 are in SPEC.md.
+- **Assumed, reversible:** D1 = (b), only a check of `mine` counts; the chat's verdicts are hints ("would be …"). Switching to (a) is one line (`chatVerdictCounts`, DECISIONS.md).
+- **S1 extended** and run with the real claude (haiku): in the HEAD copy, next to an ignored `.env` and `.codemap`, nothing changed and neither the `.env` nor the explanation page reached the answer. Control by hand: with the repo itself as working directory, haiku read and returned the `.env`, so the copy is what protects it.
+- **Mutation check:** giving the check call the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red. Both reverted.
+- **Integration tests on Linux:** the new C10-C13 tests pass in a real VS Code 1.141. Four older codemap tests (C1, C2, C4, "Explain again") fail on that Linux host at 0298a33 too: VS Code's inotify watcher misses a file created together with its folder. They need a run on macOS (see TASKS.md).
 
 ## Bottom line
 
@@ -54,6 +62,11 @@ Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9). The 0.3
 | C7 | pass | `test/integration/codemap-view`: "puts the badge, the sentence and Explain above the first line ..." (real CodeLens provider call) |
 | C8 | pass | `test/unit/codemap.test.ts`: the three note tests (read, each problem on its line, start); `test/unit/explainHtml.test.ts`: the notes in the header; `test/unit/explainPrompt.test.ts`: the notes in the prompt; `test/integration/codemap-view`: tooltip and panel |
 | C9 | pass | `test/unit/changeMarkers.test.ts` (a real temporary git repo: first sight, commits counted, folders, uncommitted edits ignored, Still true, storage outside the repo, `[id]` paths, a commit that is gone, older explanations); `test/unit/explainHtml.test.ts`: the marker in the header; `test/integration/codemap-view`: "change markers after a commit" (a real commit brings the marker by itself, Still true clears it, the next commit brings it back) |
+| C10 | pass | Added 2026-10-09 (WP1). `test/unit/headCopy.test.ts`: "C10: the HEAD copy holds every tracked file at HEAD and nothing else, and the repo stays byte for byte the same", "C10: refuses a partial clone"; `test/unit/entryOwnership.test.ts`: "C10: grades mine in one read-only call on the HEAD copy and stores the verdict with the commit and the hash of mine", "C10: answers almost with a question and not yet with a file and line", "C10: an entry without mine cannot be checked, and a changed mine is not checked any more", "D1: the check of mine sees neither the chat nor the explanation page" |
+| C11 | pass | `test/unit/ownItHtml.test.ts`: "C11: shows mine, the check, the chat and a reply box, all escaped, under a nonce-only policy"; `test/unit/entryOwnership.test.ts`: "C11: a chat turn sends the conversation so far, its verdict is only a hint, and the history survives a new store"; `test/unit/visualExplanations.test.ts`: F16 for the entry chat; `test/integration/codemap-view`: "C11 in VS Code" |
+| C12 | pass | `test/unit/entryOwnership.test.ts`: the four "C12" tests (stale with its number of commits, uncommitted edits ignored, a new check restores; a gone commit; the understood check confirms the marker and Still true alone does not restore; commits and files since the check); `test/integration/codemap-view`: "C12 in VS Code: Show changes opens the diff of the file from the checked commit to HEAD" |
+| C13 | pass | `test/unit/codemapTree.test.ts`: "C13: filters to entries that are not owned yet, keeping the folders on their way"; `test/unit/entryOwnership.test.ts`: "C13: counts the 3am check of money and security entries and names the next one to own in codemap order"; `test/unit/codemapTooltip.test.ts`: "C13: shows the state with its date and commit, and Own it"; `test/integration/codemap-view`: "C10-C13 in VS Code: check mine, see ✅ in the view and the CodeLens, a real commit takes it away, a new check brings it back" |
+| S1+ | pass | `test/safety/readOnlyClaude.test.ts`: "S1: in the HEAD copy of a repo with a codemap and an ignored .env, Claude changes nothing, starts no shell, reaches no web and never sees the .env" (real claude, haiku) |
 Notes:
 - **F1 does not click the real login.** A headless run cannot click it. The test disables VS Code's built-in GitHub login and registers a stand-in under the same id `github`. The extension still calls the real `vscode.authentication.getSession("github")`, and a local fake GitHub API checks the token. VS Code keeps all storage in memory during tests, so your one "Allow" click could not be stored ahead. Instead, the test copy of VS Code gets the extension on its `trustedExtensionAuthAccess` list.
 - The fake `claude` in unit and integration tests refuses to run unless it gets the read-only flags, so a change to those flags breaks the tests.
@@ -85,6 +98,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 3. `src/claude/claudeCli.ts`: the read-only Claude call and why each flag is there.
 4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2. Then `ownershipPrompt.ts` and `explanationStyle.ts` for the chat (F15, F16).
 5. `src/state/reviewState.ts` and `src/state/ownership.ts`: read / understood, the step back after a push, the 3am check.
+6. For "Own it" (WP1): `src/codemap/entryOwnership.ts` (the state of an entry, the D1 switch, the 3am line), `src/analysis/entryCheck.ts` (one check, one chat turn), `src/claude/entryCheckPrompt.ts`, `src/git/headCopy.ts`, then `src/ui/ownItHtml.ts`.
 
 `DECISIONS.md` lists every place where I read the spec one way and why (22 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
 
