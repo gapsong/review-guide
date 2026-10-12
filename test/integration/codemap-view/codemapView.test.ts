@@ -228,7 +228,7 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
       assert.deepStrictEqual(calls.map((call) => call.pass), ["entry check"], "one read-only call");
       assert.ok(!calls[0].cwd.startsWith(workspace), "Claude ran in the HEAD copy, not in the workspace folder");
 
-      assert.ok(outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.ok(outline().includes("    💰🧠 payment.py · ✅\u2002owned · Reserves the amount first, then charges it."), outline().join("\n"));
       assert.ok(!isMarked("💰🧠 payment.py"), "the understood check confirmed the change marker at its commit");
       assert.strictEqual(api.codemapView.message, "3am 💰🔒: 1 of 2 owned · 1 not checked · next: session.py");
       const lenses = await codeLensTitles("shop/checkout/payment.py");
@@ -254,11 +254,11 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
 
       await vscode.commands.executeCommand("reviewGuide.codemap.stillTrue", findNode("💰🧠 payment.py"));
       await api.entryOwnership.refresh();
-      assert.ok(!outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), "Still true alone does not bring ✅ back");
+      assert.ok(!outline().includes("    💰🧠 payment.py · ✅\u2002owned · Reserves the amount first, then charges it."), "Still true alone does not bring ✅ back");
 
       await vscode.commands.executeCommand("reviewGuide.codemap.checkWords", findNode("💰🧠 payment.py"));
       await api.entryOwnership.refresh();
-      assert.ok(outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.ok(outline().includes("    💰🧠 payment.py · ✅\u2002owned · Reserves the amount first, then charges it."), outline().join("\n"));
       assert.strictEqual(git(workspace, "status", "--porcelain"), "", "nothing was written into the repo");
     });
 
