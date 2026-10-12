@@ -5,7 +5,7 @@ Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9) and 2026
 ## WP1 "Own it" (2026-10-09)
 
 - **Built:** "Check my words" (one read-only call on a clean HEAD copy; sees the entry and `mine` only), the "Own it" view in the Explain panel with the tutor chat, ✅ owned / ⚠️ changed in the Codemap view, the state in tooltip and CodeLens, the filter "not owned yet", the 3am line of money and security entries, Own Next and Show changes. C10-C13 are in SPEC.md.
-- **Assumed, reversible:** D1 = (b), only a check of `mine` counts; the chat's verdicts are hints ("would be …"). Switching to (a) is one line (`chatVerdictCounts`, DECISIONS.md).
+- **Decided by the owner (2026-10-09):** D1 = (b), only a check of `mine` counts; the chat's verdicts are hints ("would be …"). Switching to (a) is one line (`chatVerdictCounts`, DECISIONS.md).
 - **S1 extended** and run with the real claude (haiku): in the HEAD copy, next to an ignored `.env` and `.codemap`, nothing changed and neither the `.env` nor the explanation page reached the answer. Control by hand: with the repo itself as working directory, haiku read and returned the `.env`, so the copy is what protects it.
 - **Mutation check:** giving the check call the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red. Both reverted.
 - **Integration tests on Linux:** the new C10-C13 tests pass in a real VS Code 1.141. Four older codemap tests (C1, C2, C4, "Explain again") fail on that Linux host at 0298a33 too: VS Code's inotify watcher misses a file created together with its folder. They need a run on macOS (see TASKS.md).

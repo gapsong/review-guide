@@ -196,9 +196,9 @@ The Explorer hover and the CodeLens stay at the one sentence, so the code stays 
 - A partial clone is refused: `git archive` would fetch the missing blobs and so write into the repo's `.git`. For the same reason `git archive` runs with `GIT_LFS_SKIP_SMUDGE=1`: it applies the repo's smudge filters, and Git LFS's would fetch every large file into `.git/lfs`; the copy holds the pointer files instead. `export-ignore` paths and submodules are not in the copy.
 - The path's git history (`history.txt`, the last 20 commits) is written into `entry-context/<folder hash>/<path hash>/`, the one extra folder Claude may read. The design named the folder after the path; a hash keeps the context of a folder entry from holding the contexts of the entries below it.
 
-## Only a check of the owner's words counts (D1, assumed, reversible)
+## Only a check of the owner's words counts (D1)
 
-- The owner has not decided D1 yet; WP1 assumes (b): an entry is understood only after a fresh check of `mine`. The check sees the entry and `mine`, never the chat and never the explanation page; `entryCheckPrompt` has no parameter for a conversation, so this holds by construction, and a test (D1) fails when the chat reaches the check's prompt.
+- The owner decided D1 on 2026-10-09: (b). An entry is understood only after a fresh check of `mine`. The check sees the entry and `mine`, never the chat and never the explanation page; `entryCheckPrompt` has no parameter for a conversation, so this holds by construction, and a test (D1) fails when the chat reaches the check's prompt.
 - The chat is a tutor: its verdict is shown as "would be …" and changes no state. In the same call that explains, a "yes, as you say" can become "understood"; a grader that only sees the owner's own words cannot be talked into it.
 - The price: good words from the chat must go into `mine` by hand. "Use my last message as mine" puts them on the clipboard as a `mine` block and opens the codemap at the entry; the extension never writes the codemap.
 - Switching to (a) (the chat's latest verdict counts, as for PR units, F15) is one line: `chatVerdictCounts` in `src/codemap/entryOwnership.ts`. With it set, each chat turn is also stored as a check (and an understood one confirms the change marker), and the panel drops "would be".

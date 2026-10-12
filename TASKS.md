@@ -84,7 +84,7 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 ## WP1 "Own it" (2026-10-09)
 
 - [x] HEAD copy for Claude (git archive, no .codemap, no link that leaves the copy, partial clone refused)
-- [x] Check my words and the tutor chat, stored per folder and path in the extension's storage (D1 assumed as (b), one switch in entryOwnership.ts)
+- [x] Check my words and the tutor chat, stored per folder and path in the extension's storage (D1 = (b), decided by the owner; one switch in entryOwnership.ts)
 - [x] Codemap view, tooltip, CodeLens, Explain panel ("Own it" view), filter, 3am line, Own Next, Show changes
 - [x] S1 extended and run with real haiku; control by hand: in the repo itself as working directory, haiku does return the .env
 - [x] Mutation check: giving the check the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red
