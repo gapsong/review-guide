@@ -127,6 +127,25 @@ export function parseCodemap(text: string, pathExists: (repoPath: string) => boo
   return { entries, problems };
 }
 
+// The line of an entry's "path" key, so "Edit in codemap" opens the file there; undefined when the
+// path is not listed (or the YAML is broken). parseCodemap keeps its result as it is, so this reads
+// the file again; it runs only on a click.
+export function entryLineOf(text: string, repoPath: string): number | undefined {
+  const lineCounter = new LineCounter();
+  const document = parseDocument(text, { lineCounter });
+  if (document.errors.length > 0 || !isSeq(document.contents)) {
+    return undefined;
+  }
+  for (const item of document.contents.items) {
+    const pathPair = isMap(item) ? item.items.find((pair) => isScalar(pair.key) && pair.key.value === "path") : undefined;
+    const value = pathPair && isScalar(pathPair.value) && typeof pathPair.value.value === "string" ? cleanRelativePath(pathPair.value.value) : undefined;
+    if (value === repoPath && isScalar(pathPair!.key) && pathPair!.key.range) {
+      return lineCounter.linePos(pathPair!.key.range[0]).line;
+    }
+  }
+  return undefined;
+}
+
 // Every problem of an entry is reported, not only the first, so one save shows all that is left to fix.
 function readEntry(item: unknown, lineAt: (offset: number) => number): ReadEntry {
   const itemLine = isNode(item) && item.range ? lineAt(item.range[0]) : 1;

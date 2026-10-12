@@ -1,6 +1,11 @@
 import { withBadge } from "../codemap/badge";
 import { ChangeMarker, changeText } from "../codemap/changeMarkers";
 import { CodemapEntry } from "../codemap/codemap";
+import { OwnershipState } from "../codemap/entryOwnership";
+import { dateOf } from "./dates";
+import { ownershipLine } from "./ownershipText";
+
+export { dateOf };
 
 // The Codemap view's tooltip for one entry, as Markdown: the sentence, the owner's notes, the
 // label, whether an explanation exists, and links that run commands. Pure, so it can be tested
@@ -13,6 +18,8 @@ export interface EntryStatus {
   explanationOlder: boolean;
   // Set when commits changed the path since the owner confirmed the entry.
   change: ChangeMarker | undefined;
+  // Whether the owner owns the entry (C10-C13); undefined while it is not known yet.
+  ownership?: OwnershipState;
 }
 
 export interface TooltipLink {
@@ -38,6 +45,7 @@ export function codemapTooltip(content: TooltipContent): string {
     content.status.change ? `$(warning) **${changeText(content.status.change)}**` : "",
     escapeMarkdown(entry.says),
     ...notesOf(content),
+    content.status.ownership ? `**Do you own it?** ${escapeMarkdown(ownershipLine(content.status.ownership))}` : "",
     labelLine(entry),
     explanationLine(content.status),
     content.actions.map((action) => `[${escapeMarkdown(action.title)}](${action.link})`).join(" · "),
@@ -79,12 +87,6 @@ function explanationLine(status: EntryStatus): string {
 // Each line of the owner's text stays a line of its own, inside a quote.
 function quoted(text: string): string {
   return text.split("\n").map((line) => (line.trim() === "" ? ">" : `> ${escapeMarkdown(line)}  `)).join("\n");
-}
-
-// 2026-10-07, in the local time zone.
-export function dateOf(date: Date): string {
-  const twoDigits = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`;
 }
 
 // Every ASCII punctuation character may be escaped in Markdown, so the owner's text is shown as

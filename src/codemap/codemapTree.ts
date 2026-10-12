@@ -11,7 +11,7 @@ import { CodemapEntry } from "./codemap";
 //
 // A chain of plain folders with one child each is shown as one node, as VS Code's Explorer does.
 
-export const codemapFilters = ["all", "money", "security", "deep"] as const;
+export const codemapFilters = ["all", "money", "security", "deep", "unowned"] as const;
 export type CodemapFilter = (typeof codemapFilters)[number];
 
 export interface CodemapTreeNode {
@@ -26,11 +26,17 @@ export interface CodemapTreeNode {
 }
 
 // isFolder tells whether an entry with nothing listed below it is a folder; a path that does not
-// exist counts as a file.
-export function buildCodemapTree(entries: CodemapEntry[], filter: CodemapFilter, isFolder: (repoPath: string) => boolean): CodemapTreeNode[] {
+// exist counts as a file. isOwned is asked only for the "unowned" filter: the owner's state lives
+// outside the codemap, so it is passed in and this function stays pure.
+export function buildCodemapTree(
+  entries: CodemapEntry[],
+  filter: CodemapFilter,
+  isFolder: (repoPath: string) => boolean,
+  isOwned: (entry: CodemapEntry) => boolean = () => false,
+): CodemapTreeNode[] {
   const root = newNode("", "");
   for (const entry of entries) {
-    if (matchesFilter(entry, filter)) {
+    if (matchesFilter(entry, filter, isOwned)) {
       addEntry(root, entry);
     }
   }
@@ -38,7 +44,7 @@ export function buildCodemapTree(entries: CodemapEntry[], filter: CodemapFilter,
   return sortedByName(root.children.map(compacted));
 }
 
-export function matchesFilter(entry: CodemapEntry, filter: CodemapFilter): boolean {
+export function matchesFilter(entry: CodemapEntry, filter: CodemapFilter, isOwned: (entry: CodemapEntry) => boolean = () => false): boolean {
   switch (filter) {
     case "all":
       return true;
@@ -48,6 +54,8 @@ export function matchesFilter(entry: CodemapEntry, filter: CodemapFilter): boole
       return entry.label === "security";
     case "deep":
       return entry.deep;
+    case "unowned":
+      return !isOwned(entry);
   }
 }
 

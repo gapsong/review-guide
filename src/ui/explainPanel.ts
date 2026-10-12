@@ -3,14 +3,18 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { ExplainRequest } from "../claude/explainPrompt";
+import { mineBlockOf } from "../codemap/entryOwnership";
 import { explanationFolderOf, explanationPageName, explanationsFolder } from "../codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../codemap/repoPath";
 import { WorkspaceChangeMarkers } from "../codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
+import { WorkspaceEntryOwnership } from "../codemap/workspaceEntryOwnership";
 import { openStartOf } from "./codemapNavigation";
-import { targetOf } from "./codemapTarget";
+import { CodemapTarget, targetOf } from "./codemapTarget";
 import { entryStatusOf } from "./entryStatus";
-import { ExplainHeader, ExplainMessage, renderExplainPanel, renderExplanationPage } from "./explainHtml";
+import { ExplainHeader, ExplainMessage, ExplainMode, renderExplainPanel, renderExplanationPage } from "./explainHtml";
+import { ownershipLine } from "./ownershipText";
+import { OwnItModel, renderOwnItPanel } from "./ownItHtml";
 
 interface OpenExplanation {
   folder: vscode.WorkspaceFolder;
@@ -19,12 +23,20 @@ interface OpenExplanation {
   panel: vscode.WebviewPanel;
   // The page shown, relative to the explanation folder.
   page: string;
+  mode: ExplainMode;
+  // What the owner typed into the chat's reply box and has not sent; it survives a redraw.
+  draft: string | undefined;
+  // Drawing "Own it" waits for git; only the newest drawing may land.
+  renders: number;
 }
 
 export type StartGeneration = (folder: vscode.WorkspaceFolder, request: ExplainRequest) => void;
 
-// The Explain panels, one per path: the codemap entry, then the generated explanation page.
-// A panel redraws itself when its page is written or its codemap entry changes.
+export type ShowChanges = (target: CodemapTarget) => Promise<void>;
+
+// The Explain panels, one per path: the codemap entry, then the generated explanation page, or
+// "Own it" with the owner's words, their check and the tutor chat. A panel redraws itself when its
+// page is written, its codemap entry changes or the owner's state of it changes.
 export class ExplainPanels implements vscode.Disposable {
   static readonly viewType = "reviewGuide.explain";
   private readonly open = new Map<string, OpenExplanation>();
@@ -33,18 +45,22 @@ export class ExplainPanels implements vscode.Disposable {
   constructor(
     private readonly codemaps: WorkspaceCodemaps,
     private readonly markers: WorkspaceChangeMarkers,
+    private readonly ownership: WorkspaceEntryOwnership,
     private readonly startGeneration: StartGeneration,
+    private readonly showChanges: ShowChanges,
     private readonly showError: (error: unknown) => void,
   ) {
     codemaps.onDidChange(() => this.renderAll());
     markers.onDidChange(() => this.renderAll());
+    ownership.onDidChange(() => this.renderAll());
     const pageChanged = (uri: vscode.Uri) => this.renderShowing(uri);
     this.watcher.onDidCreate(pageChanged);
     this.watcher.onDidChange(pageChanged);
     this.watcher.onDidDelete(pageChanged);
   }
 
-  async show(uri: vscode.Uri): Promise<void> {
+  // Opens the panel, or brings it forward; with a mode, it shows that view.
+  async show(uri: vscode.Uri, mode?: ExplainMode): Promise<void> {
     const folder = vscode.workspace.getWorkspaceFolder(uri);
     const repoPath = folder && repoPathOf(folder.uri.fsPath, uri.fsPath);
     if (!folder || repoPath === undefined) {
@@ -53,6 +69,10 @@ export class ExplainPanels implements vscode.Disposable {
     const key = keyOf(folder, repoPath);
     const alreadyOpen = this.open.get(key);
     if (alreadyOpen) {
+      if (mode && mode !== alreadyOpen.mode) {
+        alreadyOpen.mode = mode;
+        this.render(alreadyOpen);
+      }
       alreadyOpen.panel.reveal();
       return;
     }
@@ -61,7 +81,9 @@ export class ExplainPanels implements vscode.Disposable {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(folder.uri, explanationsFolder)],
     });
-    const explanation: OpenExplanation = { folder, repoPath, kind: isFolder ? "folder" : "file", panel, page: explanationPageName };
+    const explanation: OpenExplanation = {
+      folder, repoPath, kind: isFolder ? "folder" : "file", panel, page: explanationPageName, mode: mode ?? "explanation", draft: undefined, renders: 0,
+    };
     this.open.set(key, explanation);
     panel.onDidDispose(() => this.open.delete(key));
     panel.webview.onDidReceiveMessage((message: ExplainMessage) => this.handle(explanation, message).catch(this.showError));
@@ -72,6 +94,13 @@ export class ExplainPanels implements vscode.Disposable {
   async explainAgain(uri: vscode.Uri): Promise<void> {
     await this.show(uri);
     await this.receive(uri, { type: "generate" });
+  }
+
+  // "Check my words" from the Codemap view, a tooltip or a CodeLens: the check runs in the open
+  // "Own it" view, so the owner sees it running and its answer.
+  async checkWords(uri: vscode.Uri): Promise<void> {
+    await this.show(uri, "ownIt");
+    await this.receive(uri, { type: "checkWords" });
   }
 
   // What the panel's buttons and links send. Public so tests can press them.
@@ -94,16 +123,13 @@ export class ExplainPanels implements vscode.Disposable {
   }
 
   private async handle(explanation: OpenExplanation, message: ExplainMessage): Promise<void> {
+    const pathUri = vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath);
     switch (message.type) {
       case "generate":
-        this.startGeneration(explanation.folder, {
-          path: explanation.repoPath,
-          kind: explanation.kind,
-          entry: this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath)),
-        });
+        this.startGeneration(explanation.folder, { path: explanation.repoPath, kind: explanation.kind, entry: this.codemaps.entryOf(pathUri) });
         return;
       case "confirm":
-        await this.markers.confirm(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath));
+        await this.markers.confirm(pathUri);
         return;
       case "showIndex":
         explanation.page = explanationPageName;
@@ -113,13 +139,68 @@ export class ExplainPanels implements vscode.Disposable {
         await this.openLink(explanation, message.target);
         return;
       case "openStart": {
-        const entry = this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath));
+        const entry = this.codemaps.entryOf(pathUri);
         if (entry) {
           await openStartOf(targetOf(explanation.folder, explanation.repoPath), entry);
         }
         return;
       }
+      case "explanation":
+      case "ownIt":
+        explanation.mode = message.type;
+        this.render(explanation);
+        return;
+      case "checkWords":
+        await this.ownership.check(pathUri);
+        return;
+      case "chat":
+        await this.sendChat(explanation, pathUri, message.text);
+        return;
+      case "chatDraft":
+        explanation.draft = message.text;
+        return;
+      case "editInCodemap":
+        await this.openEntryInCodemap(pathUri);
+        return;
+      case "useAsMine":
+        await this.useLastMessageAsMine(pathUri);
+        return;
+      case "showChanges":
+        await this.showChanges(targetOf(explanation.folder, explanation.repoPath));
+        return;
     }
+  }
+
+  // The reply box keeps the text until Claude has answered, so a failed call loses nothing.
+  private async sendChat(explanation: OpenExplanation, pathUri: vscode.Uri, text: string): Promise<void> {
+    if (text.trim() === "") {
+      return;
+    }
+    explanation.draft = text;
+    await this.ownership.chat(pathUri, text);
+    explanation.draft = undefined;
+    this.render(explanation);
+  }
+
+  private async openEntryInCodemap(pathUri: vscode.Uri): Promise<void> {
+    const place = this.codemaps.lineOf(pathUri);
+    if (!place) {
+      return;
+    }
+    const line = new vscode.Position((place.line ?? 1) - 1, 0);
+    await vscode.window.showTextDocument(place.file, { selection: new vscode.Range(line, line), viewColumn: vscode.ViewColumn.Beside });
+  }
+
+  // The extension never writes the codemap: the owner pastes the block and saves.
+  private async useLastMessageAsMine(pathUri: vscode.Uri): Promise<void> {
+    const conversation = this.ownership.recordOf(pathUri)?.conversation ?? [];
+    const last = [...conversation].reverse().find((turn) => turn.speaker === "owner");
+    if (!last || last.speaker !== "owner") {
+      return;
+    }
+    await vscode.env.clipboard.writeText(mineBlockOf(last.text));
+    await this.openEntryInCodemap(pathUri);
+    void vscode.window.showInformationMessage("Review Guide: your last message is on the clipboard as a mine block. Paste it over the entry's mine, save, then check your words.");
   }
 
   // A link to another page of the explanation opens in the panel; a link to any other of its
@@ -153,20 +234,37 @@ export class ExplainPanels implements vscode.Disposable {
   }
 
   private render(explanation: OpenExplanation): void {
+    const ticket = ++explanation.renders;
+    this.draw(explanation, ticket).catch(this.showError);
+  }
+
+  // The explanation view is drawn at once; "Own it" asks git for the changes since the check first.
+  private async draw(explanation: OpenExplanation, ticket: number): Promise<void> {
     if (!fs.existsSync(this.fileOf(explanation, explanation.page))) {
       explanation.page = explanationPageName;
     }
     const pageFile = this.fileOf(explanation, explanation.page);
     const { webview } = explanation.panel;
-    const status = entryStatusOf(targetOf(explanation.folder, explanation.repoPath), this.markers);
+    const pathUri = vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath);
+    const status = entryStatusOf(targetOf(explanation.folder, explanation.repoPath), this.markers, this.ownership);
+    const entry = this.codemaps.entryOf(pathUri);
     const header: ExplainHeader = {
       path: explanation.repoPath,
-      entry: this.codemaps.entryOf(vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath)),
+      entry,
       hasExplanation: fs.existsSync(pageFile),
       explanationOlder: status.explanationOlder,
       change: status.change,
       otherPage: explanation.page === explanationPageName ? undefined : explanation.page,
+      ownership: entry && status.ownership ? ownershipLine(status.ownership) : undefined,
+      mode: entry ? explanation.mode : "explanation",
     };
+    if (entry && explanation.mode === "ownIt") {
+      const model = await this.ownItModelOf(explanation, pathUri);
+      if (ticket === explanation.renders) {
+        webview.html = renderOwnItPanel(header, model, randomBytes(16).toString("hex"), webview.cspSource);
+      }
+      return;
+    }
     if (!header.hasExplanation) {
       webview.html = renderExplainPanel(header, randomBytes(16).toString("hex"), webview.cspSource);
       return;
@@ -177,6 +275,20 @@ export class ExplainPanels implements vscode.Disposable {
       folderUrl: `${webview.asWebviewUri(vscode.Uri.file(this.fileOf(explanation, "")))}/`,
     };
     webview.html = renderExplanationPage(page, header, webview.cspSource);
+  }
+
+  private async ownItModelOf(explanation: OpenExplanation, pathUri: vscode.Uri): Promise<OwnItModel> {
+    const record = this.ownership.recordOf(pathUri);
+    const changes = record?.check ? await this.ownership.changesSinceCheck(pathUri).catch(() => undefined) : undefined;
+    return {
+      mine: this.codemaps.entryOf(pathUri)?.mine,
+      state: this.ownership.stateOf(pathUri),
+      lastCheck: record?.check,
+      conversation: record?.conversation ?? [],
+      draft: explanation.draft,
+      work: this.ownership.workOn(pathUri),
+      changes,
+    };
   }
 
   private openFor(uri: vscode.Uri): OpenExplanation | undefined {

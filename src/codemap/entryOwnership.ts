@@ -157,3 +157,10 @@ export function nextToOwnOfAll(entries: CodemapEntry[], stateOf: (entry: Codemap
     ?? entries.find((entry) => entry.deep && !isOwned(stateOf(entry)))
     ?? entries.find((entry) => !isOwned(stateOf(entry)));
 }
+
+// "Use my last message as mine": the message as a block to paste into the entry, indented as an
+// entry's key in a codemap list ("- path: …" then "  mine: |").
+export function mineBlockOf(message: string): string {
+  const lines = message.trim().replace(/\r\n/g, "\n").split("\n");
+  return ["  mine: |", ...lines.map((line) => (line.trim() === "" ? "" : `    ${line}`))].join("\n") + "\n";
+}

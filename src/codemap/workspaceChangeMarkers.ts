@@ -57,6 +57,12 @@ export class WorkspaceChangeMarkers implements vscode.Disposable {
     await this.check();
   }
 
+  // An "understood" check of the owner's words confirms the entry at the commit it read.
+  async confirmAt(repoFolder: string, repoPath: string, commit: string): Promise<void> {
+    this.markers.confirmAt(repoFolder, repoPath, commit);
+    await this.check();
+  }
+
   // Resolves when the markers are up to date; for tests and for "Still true".
   async check(): Promise<void> {
     this.checkRequested = true;

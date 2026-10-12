@@ -6,4 +6,7 @@ export const codemapCommands = {
   explain: "reviewGuide.codemap.explain",
   stillTrue: "reviewGuide.codemap.stillTrue",
   explainAgain: "reviewGuide.codemap.explainAgain",
+  ownIt: "reviewGuide.codemap.ownIt",
+  checkWords: "reviewGuide.codemap.checkWords",
+  showChanges: "reviewGuide.codemap.showChanges",
 } as const;

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { CodemapEntry, CodemapProblem, parseCodemap } from "./codemap";
+import { CodemapEntry, CodemapProblem, entryLineOf, parseCodemap } from "./codemap";
 import { repoPathOf } from "./repoPath";
 
 // The codemap of every workspace folder, kept fresh: read at the start, read again whenever its
@@ -48,6 +48,18 @@ export class WorkspaceCodemaps implements vscode.Disposable {
       return undefined;
     }
     return this.entriesByFolder.get(folder.uri.toString())?.get(repoPath);
+  }
+
+  // Where an entry starts in its codemap file: the file and the line of its "path" (counting from 1).
+  lineOf(uri: vscode.Uri): { file: vscode.Uri; line: number | undefined } | undefined {
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    const repoPath = folder && repoPathOf(folder.uri.fsPath, uri.fsPath);
+    if (!folder || repoPath === undefined) {
+      return undefined;
+    }
+    const file = this.codemapFileOf(folder);
+    const text = fs.existsSync(file.fsPath) ? fs.readFileSync(file.fsPath, "utf8") : "";
+    return { file, line: entryLineOf(text, repoPath) };
   }
 
   dispose(): void {

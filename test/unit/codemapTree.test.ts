@@ -82,6 +82,20 @@ describe("the Codemap view's tree", () => {
     ]);
   });
 
+  it("C13: filters to entries that are not owned yet, keeping the folders on their way", () => {
+    const owned = new Set(["shop", "shop/checkout/payment.py", "shop/auth/passwords.py", "shop/search", "shop/app.py", "docs/guides/setup/install.md"]);
+    const tree = buildCodemapTree(shop, "unowned", (path) => folders.has(path), (candidate) => owned.has(candidate.path));
+    assert.deepStrictEqual(outline(tree), [
+      "shop/",
+      "  auth/",
+      "    + session.py",
+      "  billing/",
+      "    + discounts.py",
+    ]);
+    assert.strictEqual(tree[0].entry, undefined, "an owned entry on the way is a plain folder");
+    assert.deepStrictEqual(buildCodemapTree(shop, "unowned", () => false, () => true), [], "nothing left when all are owned");
+  });
+
   it("shows an entry that does not match the filter, but holds one that does, as a plain folder", () => {
     const tree = buildCodemapTree(shop, "money", (path) => folders.has(path));
     assert.strictEqual(tree[0].path, "shop");

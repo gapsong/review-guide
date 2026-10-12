@@ -133,6 +133,27 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "reviewGuide.codemap.ownIt",
+        "title": "Own It",
+        "category": "Review Guide",
+        "icon": "$(target)"
+      },
+      {
+        "command": "reviewGuide.codemap.checkWords",
+        "title": "Check My Words",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.codemap.showChanges",
+        "title": "Show Changes Since My Check",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.codemap.ownNext",
+        "title": "Own Next",
+        "category": "Review Guide"
+      },
+      {
         "command": "reviewGuide.codemap.showAll",
         "title": "Show All",
         "category": "Review Guide",
@@ -155,6 +176,12 @@
         "title": "Show Deep Modules Only",
         "category": "Review Guide",
         "icon": "$(layers)"
+      },
+      {
+        "command": "reviewGuide.codemap.showUnowned",
+        "title": "Show Not Owned Yet",
+        "category": "Review Guide",
+        "icon": "$(target)"
       },
       {
         "command": "reviewGuide.codemap.openFile",
@@ -186,12 +213,22 @@
           "group": "navigation@3"
         },
         {
-          "command": "reviewGuide.codemap.showAll",
-          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != all",
+          "command": "reviewGuide.codemap.showUnowned",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != unowned",
           "group": "navigation@4"
         },
         {
+          "command": "reviewGuide.codemap.showAll",
+          "when": "view == reviewGuide.codemap && reviewGuide.codemapFilter != all",
+          "group": "navigation@5"
+        },
+        {
           "command": "reviewGuide.codemap.openFile",
+          "when": "view == reviewGuide.codemap && reviewGuide.hasCodemap",
+          "group": "2_codemap"
+        },
+        {
+          "command": "reviewGuide.codemap.ownNext",
           "when": "view == reviewGuide.codemap && reviewGuide.hasCodemap",
           "group": "2_codemap"
         }
@@ -216,9 +253,14 @@
           "when": "view == reviewGuide.pullRequests && viewItem =~ /^unit-(read|understood)/"
         },
         {
-          "command": "reviewGuide.codemap.explain",
+          "command": "reviewGuide.codemap.ownIt",
           "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
           "group": "inline@2"
+        },
+        {
+          "command": "reviewGuide.codemap.explain",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "inline@3"
         },
         {
           "command": "reviewGuide.codemap.stillTrue",
@@ -228,7 +270,7 @@
         {
           "command": "reviewGuide.codemap.explain",
           "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
-          "group": "1_codemap@1"
+          "group": "1_codemap@4"
         },
         {
           "command": "reviewGuide.codemap.stillTrue",
@@ -239,6 +281,21 @@
           "command": "reviewGuide.codemap.explainAgain",
           "when": "view == reviewGuide.codemap && viewItem == codemapEntryChanged",
           "group": "1_codemap@3"
+        },
+        {
+          "command": "reviewGuide.codemap.ownIt",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "0_own@1"
+        },
+        {
+          "command": "reviewGuide.codemap.checkWords",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "0_own@2"
+        },
+        {
+          "command": "reviewGuide.codemap.showChanges",
+          "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
+          "group": "0_own@3"
         }
       ],
       "commandPalette": [
@@ -312,6 +369,26 @@
         },
         {
           "command": "reviewGuide.codemap.explainAgain",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.ownIt",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.checkWords",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.showChanges",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.codemap.ownNext",
+          "when": "reviewGuide.hasCodemap"
+        },
+        {
+          "command": "reviewGuide.codemap.showUnowned",
           "when": "false"
         }
       ],

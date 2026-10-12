@@ -83,7 +83,12 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
       assert.ok(tooltip.value.includes(shown), `the tooltip shows ${shown}:\n${tooltip.value}`);
     }
     assert.match(tooltip.value, /\[Explain\]\(command:reviewGuide\.codemap\.explain\?/);
-    assert.deepStrictEqual(tooltip.isTrusted, { enabledCommands: ["reviewGuide.codemap.open", "reviewGuide.codemap.openStart", "reviewGuide.codemap.explain", "reviewGuide.codemap.stillTrue", "reviewGuide.codemap.explainAgain"] });
+    assert.deepStrictEqual(tooltip.isTrusted, {
+      enabledCommands: [
+        "reviewGuide.codemap.open", "reviewGuide.codemap.openStart", "reviewGuide.codemap.explain", "reviewGuide.codemap.stillTrue", "reviewGuide.codemap.explainAgain",
+        "reviewGuide.codemap.ownIt", "reviewGuide.codemap.checkWords", "reviewGuide.codemap.showChanges",
+      ],
+    });
   });
 
   it("filters to money, security or deep modules, and back to all", async () => {
@@ -118,14 +123,14 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
   });
 
   it("puts the badge, the sentence and Explain above the first line of a file in the codemap, and nothing on other files", async () => {
-    assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain"]);
+    assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain", "🎯 Own it"]);
     assert.deepStrictEqual(await codeLensTitles("shop/app.py"), []);
   });
 
   it("follows a change of the codemap file, and says so when the codemap is gone", async () => {
     writeFile(".codemap/codemap.yaml", codemap.replace("Amounts in cents.", "Amounts in whole cents."));
     await waitFor(() => outline().includes("    🧰 money.py · Amounts in whole cents."), "the new sentence is shown");
-    assert.deepStrictEqual(await codeLensTitles("shop/util/money.py"), ["🧰 Amounts in whole cents.", "Explain"]);
+    assert.deepStrictEqual(await codeLensTitles("shop/util/money.py"), ["🧰 Amounts in whole cents.", "Explain", "🎯 Own it"]);
 
     fs.rmSync(path.join(workspace, ".codemap", "codemap.yaml"));
     await waitFor(() => api.codemapView.getChildren().length === 0, "the view is empty, so it shows its welcome text");
@@ -166,6 +171,7 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
         "$(warning) Changed since you confirmed it (1 commit)",
         "Still true",
         "Explain again",
+        "🎯 Own it",
       ]);
       assert.ok(!isMarked("🔒 session.py"), "an entry the commit did not touch has no marker");
 
@@ -193,13 +199,97 @@ describe("the Codemap view and CodeLens in a real VS Code", () => {
     it("Still true clears the marker everywhere, until the next commit that changes the path", async () => {
       await vscode.commands.executeCommand("reviewGuide.codemap.stillTrue", findNode("💰🧠 payment.py"));
       assert.ok(!isMarked("💰🧠 payment.py"));
-      assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain"]);
+      assert.deepStrictEqual(await codeLensTitles("shop/checkout/payment.py"), ["💰🧠 Reserves the amount first, then charges it.", "Explain", "🎯 Own it"]);
       assert.ok(!api.explainPanels.htmlOf(paymentFile())!.includes("Changed since you confirmed it"));
       assert.strictEqual(git(workspace, "status", "--porcelain"), "", "the confirmation is not stored in the repo");
 
       writeFile("shop/checkout/payment.py", "line 1\nline 2 edited again\nline 3\n");
       commitAll("Charge once");
       await waitFor(() => isMarked("💰🧠 payment.py"), "the next commit marks it again", 15_000);
+    });
+  });
+
+  describe("owning an entry: check my words, the chat, the 3am line (C10-C13)", () => {
+    const paymentFile = () => vscode.Uri.file(path.join(workspace, "shop", "checkout", "payment.py"));
+    let claudeLog: string;
+
+    before(() => {
+      claudeLog = path.join(process.env.REVIEW_GUIDE_TEST_SCRATCH ?? workspace, "fake-claude-codemap-view.log");
+      process.env.FAKE_CLAUDE_LOG = claudeLog;
+    });
+
+    it("C10-C13 in VS Code: check mine, see ✅ in the view and the CodeLens, a real commit takes it away, a new check brings it back", async () => {
+      await api.entryOwnership.refresh();
+      assert.strictEqual(api.codemapView.message, "3am 💰🔒: 0 of 2 owned · 2 not checked · next: payment.py");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.checkWords", findNode("💰🧠 payment.py"));
+      await api.entryOwnership.refresh();
+      const calls = fs.readFileSync(claudeLog, "utf8").trim().split("\n").map((line) => JSON.parse(line) as { pass: string; cwd: string });
+      assert.deepStrictEqual(calls.map((call) => call.pass), ["entry check"], "one read-only call");
+      assert.ok(!calls[0].cwd.startsWith(workspace), "Claude ran in the HEAD copy, not in the workspace folder");
+
+      assert.ok(outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.ok(!isMarked("💰🧠 payment.py"), "the understood check confirmed the change marker at its commit");
+      assert.strictEqual(api.codemapView.message, "3am 💰🔒: 1 of 2 owned · 1 not checked · next: session.py");
+      const lenses = await codeLensTitles("shop/checkout/payment.py");
+      assert.match(lenses[lenses.length - 1], /^✅ owned \d{4}-\d{2}-\d{2}$/);
+      const payment = findNode("💰🧠 payment.py");
+      const tooltip = (api.codemapView.resolveTreeItem(api.codemapView.getTreeItem(payment), payment).tooltip as vscode.MarkdownString).value;
+      assert.match(tooltip, /\*\*Do you own it\?\*\* ✅ owned · checked \d{4}\\-\d{2}\\-\d{2} at [0-9a-f]{7}/);
+      assert.match(tooltip, /\[Own it\]\(command:reviewGuide\.codemap\.ownIt\?/);
+      await waitFor(() => api.explainPanels.htmlOf(paymentFile())?.includes("<span class=\"verdict verdict-understood\">understood</span>") === true, "the Own it view shows the check");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.showUnowned");
+      assert.ok(!outline().some((line) => line.includes("payment.py")), outline().join("\n"));
+      assert.ok(outline().some((line) => line.includes("session.py")));
+      await vscode.commands.executeCommand("reviewGuide.codemap.showAll");
+
+      writeFile("shop/checkout/payment.py", "line 1\nline 2 charged twice\nline 3\n");
+      commitAll("Charge twice");
+      await waitFor(() => isMarked("💰🧠 payment.py"), "the commit marks the entry", 15_000);
+      await api.entryOwnership.refresh();
+      assert.strictEqual(api.codemapView.getTreeItem(findNode("💰🧠 payment.py")).description, "⚠️\u2002changed · Reserves the amount first, then charges it.");
+      assert.strictEqual(api.codemapView.message, "3am 💰🔒: 0 of 2 owned · 1 changed · 1 not checked · next: payment.py");
+      assert.strictEqual((await codeLensTitles("shop/checkout/payment.py")).pop(), "🎯 Check your words again");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.stillTrue", findNode("💰🧠 payment.py"));
+      await api.entryOwnership.refresh();
+      assert.ok(!outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), "Still true alone does not bring ✅ back");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.checkWords", findNode("💰🧠 payment.py"));
+      await api.entryOwnership.refresh();
+      assert.ok(outline().includes("    💰🧠 payment.py · ✅ owned · Reserves the amount first, then charges it."), outline().join("\n"));
+      assert.strictEqual(git(workspace, "status", "--porcelain"), "", "nothing was written into the repo");
+    });
+
+    it("C12 in VS Code: Show changes opens the diff of the file from the checked commit to HEAD", async () => {
+      const checked = git(workspace, "rev-parse", "HEAD");
+      writeFile("shop/checkout/payment.py", "line 1\nline 2 charged once\nline 3\n");
+      commitAll("Charge once");
+      const head = git(workspace, "rev-parse", "HEAD");
+      await vscode.commands.executeCommand("reviewGuide.codemap.showChanges", findNode("💰🧠 payment.py"));
+      await waitFor(() => vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputTextDiff, "a diff is open");
+      const diff = vscode.window.tabGroups.activeTabGroup.activeTab!.input as vscode.TabInputTextDiff;
+      assert.ok(diff.original.fsPath.includes(checked) && diff.modified.fsPath.includes(head), `${diff.original.fsPath} -> ${diff.modified.fsPath}`);
+      assert.strictEqual(fs.readFileSync(diff.original.fsPath, "utf8"), "line 1\nline 2 charged twice\nline 3\n");
+      assert.strictEqual(fs.readFileSync(diff.modified.fsPath, "utf8"), "line 1\nline 2 charged once\nline 3\n");
+      assert.ok(!diff.original.fsPath.startsWith(workspace), "the sides live in the extension's storage");
+    });
+
+    it("C11 in VS Code: a chat turn shows Claude's reply as a hint and leaves the state alone; Own Next opens the next entry", async () => {
+      await api.explainPanels.show(paymentFile(), "ownIt");
+      await api.explainPanels.receive(paymentFile(), { type: "chat", text: "Is it reserved before the charge?" });
+      await waitFor(() => api.explainPanels.htmlOf(paymentFile())?.includes("<span class=\"muted\">would be</span>") === true, "the reply is shown as a hint");
+      assert.ok(api.explainPanels.htmlOf(paymentFile())!.includes("<pre class=\"diagram\">"), "its diagram is preformatted");
+      await waitFor(() => isMarked("💰🧠 payment.py"), "the last commit marked the entry", 15_000);
+      await api.entryOwnership.refresh();
+      assert.strictEqual(api.entryOwnership.stateOf(paymentFile())!.kind, "changed", "the chat's verdict changed nothing");
+
+      await vscode.commands.executeCommand("reviewGuide.codemap.checkWords", findNode("💰🧠 payment.py"));
+      await api.entryOwnership.refresh();
+      await vscode.commands.executeCommand("reviewGuide.codemap.ownNext");
+      const session = vscode.Uri.file(path.join(workspace, "shop", "auth", "session.py"));
+      await waitFor(() => api.explainPanels.htmlOf(session)?.includes("No words yet.") === true, "Own Next opens the next entry, which has no words yet");
     });
   });
 

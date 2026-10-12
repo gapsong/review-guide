@@ -4,11 +4,14 @@ import { withBadge } from "../codemap/badge";
 import { CodemapEntry, startLocationOf } from "../codemap/codemap";
 import { buildCodemapTree, CodemapFilter, CodemapTreeNode } from "../codemap/codemapTree";
 import { changeText } from "../codemap/changeMarkers";
+import { CodemapLabel } from "../codemap/codemap";
+import { describeThreeAmCheck, isOwned, threeAmLabels } from "../codemap/entryOwnership";
 import { WorkspaceChangeMarkers } from "../codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
+import { WorkspaceEntryOwnership } from "../codemap/workspaceEntryOwnership";
 import { codemapCommands } from "./codemapCommands";
 import { isDirectory } from "./codemapNavigation";
-import { CodemapTarget, commandLink, targetOf } from "./codemapTarget";
+import { CodemapTarget, commandLink, targetOf, uriOfTarget } from "./codemapTarget";
 import { codemapTooltip, TooltipLink } from "./codemapTooltip";
 import { entryStatusOf } from "./entryStatus";
 
@@ -27,6 +30,16 @@ const filterDescriptions: Record<CodemapFilter, string | undefined> = {
   money: "💰 money only",
   security: "🔒 security only",
   deep: "🧠 deep modules only",
+  unowned: "🎯 not owned yet",
+};
+
+// The 3am line counts the money and security entries; with one of them as the filter, only that one.
+const threeAmLabelsOf: Record<CodemapFilter, CodemapLabel[]> = {
+  all: threeAmLabels,
+  money: ["money"],
+  security: ["security"],
+  deep: threeAmLabels,
+  unowned: threeAmLabels,
 };
 
 export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vscode.Disposable {
@@ -36,10 +49,15 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
   private readonly treeView: vscode.TreeView<CodemapViewNode>;
   private filter: CodemapFilter = "all";
 
-  constructor(private readonly codemaps: WorkspaceCodemaps, private readonly markers: WorkspaceChangeMarkers) {
+  constructor(
+    private readonly codemaps: WorkspaceCodemaps,
+    private readonly markers: WorkspaceChangeMarkers,
+    private readonly ownership: WorkspaceEntryOwnership,
+  ) {
     this.treeView = vscode.window.createTreeView(CodemapView.viewId, { treeDataProvider: this, showCollapseAll: true });
     codemaps.onDidChange(() => this.refresh());
     markers.onDidChange(() => this.refresh());
+    ownership.onDidChange(() => this.refresh());
     void this.updateContext();
   }
 
@@ -55,7 +73,13 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
 
   refresh(): void {
     void this.updateContext();
+    this.treeView.message = this.threeAmLine();
     this.changed.fire(undefined);
+  }
+
+  // The view's message above the tree: "3am 💰🔒: 2 of 9 owned · 1 changed · … · next: payment.py".
+  get message(): string | undefined {
+    return this.treeView.message;
   }
 
   getChildren(element?: CodemapViewNode): CodemapViewNode[] {
@@ -85,14 +109,18 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
       return item;
     }
     const item = new vscode.TreeItem(withBadge(node.entry, node.name), collapsible);
-    const change = entryStatusOf(element, this.markers).change;
+    const status = entryStatusOf(element, this.markers, this.ownership);
+    const change = status.change;
+    const owned = status.ownership !== undefined && isOwned(status.ownership);
     // The marker leads the description: an icon in front would push the row out of line with the
-    // others, and the emoji keeps its color in the grey description text.
-    item.description = change ? `⚠️\u2002changed · ${node.entry.says}` : node.entry.says;
+    // others, and the emoji keeps its color in the grey description text. At most one prefix, the
+    // marker first: an entry that is not owned stays quiet, its state is in the tooltip.
+    item.description = change ? `⚠️\u2002changed · ${node.entry.says}` : owned ? `✅\u2002owned · ${node.entry.says}` : node.entry.says;
     item.contextValue = change ? "codemapEntryChanged" : "codemapEntry";
     item.command = { title: "Open", command: codemapCommands.open, arguments: [element] };
     const changed = change ? `, ${changeText(change).toLowerCase()}` : "";
-    item.accessibilityInformation = { label: `${node.name}, ${node.entry.label}${node.entry.deep ? ", deep module" : ""}${changed}: ${node.entry.says}` };
+    const ownedText = owned ? ", owned" : "";
+    item.accessibilityInformation = { label: `${node.name}, ${node.entry.label}${node.entry.deep ? ", deep module" : ""}${changed}${ownedText}: ${node.entry.says}` };
     return item;
   }
 
@@ -111,20 +139,26 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
 
   private pathNodesOf(folder: vscode.WorkspaceFolder): CodemapViewNode[] {
     const isFolder = (repoPath: string) => isDirectory(path.join(folder.uri.fsPath, repoPath));
-    const tree = buildCodemapTree(this.codemaps.entriesOf(folder), this.filter, isFolder);
+    const isOwnedEntry = (entry: CodemapEntry) => {
+      const state = this.ownership.stateOf(uriOfTarget(targetOf(folder, entry.path)));
+      return state !== undefined && isOwned(state);
+    };
+    const tree = buildCodemapTree(this.codemaps.entriesOf(folder), this.filter, isFolder, isOwnedEntry);
     const parent = targetOf(folder, "");
     return tree.map((node) => pathNode(parent, node));
   }
 
   private tooltipOf(target: CodemapTarget, entry: CodemapEntry): vscode.MarkdownString {
-    const status = entryStatusOf(target, this.markers);
+    const status = entryStatusOf(target, this.markers, this.ownership);
+    const ownIt = { title: "Own it", link: commandLink(codemapCommands.ownIt, target) };
     const actions: TooltipLink[] = status.change
       ? [
+        ownIt,
         { title: "Still true", link: commandLink(codemapCommands.stillTrue, target) },
         { title: "Explain again", link: commandLink(codemapCommands.explainAgain, target) },
         { title: "Explain", link: commandLink(codemapCommands.explain, target) },
       ]
-      : [{ title: "Explain", link: commandLink(codemapCommands.explain, target) }];
+      : [ownIt, { title: "Explain", link: commandLink(codemapCommands.explain, target) }];
     const markdown = codemapTooltip({
       name: path.posix.basename(entry.path),
       entry,
@@ -136,6 +170,11 @@ export class CodemapView implements vscode.TreeDataProvider<CodemapViewNode>, vs
     const tooltip = new vscode.MarkdownString(markdown, true);
     tooltip.isTrusted = { enabledCommands: Object.values(codemapCommands) };
     return tooltip;
+  }
+
+  private threeAmLine(): string | undefined {
+    const check = this.ownership.threeAmCheck(threeAmLabelsOf[this.filter]);
+    return check && describeThreeAmCheck(check);
   }
 
   // The view's welcome text depends on these (package.json, viewsWelcome).

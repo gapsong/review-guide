@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import { deepCheckPrompt } from "../../src/claude/deepCheckPrompt";
+import { entryChatPrompt } from "../../src/claude/entryCheckPrompt";
 import { ownershipPrompt } from "../../src/claude/ownershipPrompt";
 import { ReviewUnit } from "../../src/review/reviewUnit";
 import { GuideModel, renderGuide } from "../../src/ui/guideHtml";
@@ -25,6 +26,7 @@ describe("F16: explanations are visual and use analogies", () => {
   const prompts = {
     "pass 2": deepCheckPrompt({ pullRequest, profile: undefined, units: [{ shortId: "U1", unit, reason: "STE" }], contextFolder: "/context" }),
     "ownership chat": ownershipPrompt(unit, [], "It rounds."),
+    "entry chat": entryChatPrompt({ path: "qpeft/quant_schemes/base.py", says: "Rounds with an STE.", label: "core", deep: false }, [], "It rounds.", { commit: "b", contextFolder: "/context", language: "English" }),
   };
 
   for (const [name, prompt] of Object.entries(prompts)) {

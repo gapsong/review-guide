@@ -113,7 +113,7 @@ export class EntryChecks {
     }
     const range = `${check.commit}..HEAD`;
     const log = await runGit(["--literal-pathspecs", "log", "--format=%h %s", range, "--", repoPath], { cwd: repoFolder });
-    const names = await runGit(["--literal-pathspecs", "diff", "--name-only", check.commit, "HEAD", "--", repoPath], { cwd: repoFolder });
+    const names = await runGit(["--literal-pathspecs", "diff", "--name-only", "--relative", check.commit, "HEAD", "--", repoPath], { cwd: repoFolder });
     return { checkedCommit: check.commit, commits: nonEmptyLines(log), files: nonEmptyLines(names), commitIsGone: false };
   }
 

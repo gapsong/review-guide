@@ -21,7 +21,13 @@ export interface ExplainHeader {
   change: ChangeMarker | undefined;
   // The page shown, relative to the explanation folder, when it is not index.html.
   otherPage: string | undefined;
+  // Whether the owner owns the entry, as one line (see ownershipText.ts); undefined when not known.
+  ownership?: string;
+  // Which of the panel's two views is shown; an entry always offers both.
+  mode?: ExplainMode;
 }
+
+export type ExplainMode = "explanation" | "ownIt";
 
 export interface ExplanationPage {
   html: string;
@@ -41,7 +47,17 @@ export type ExplainMessage =
   // Opens the file that the entry's "start" points to.
   | { type: "openStart" }
   // target: relative to the explanation folder.
-  | { type: "openLink"; target: string };
+  | { type: "openLink"; target: string }
+  // The panel's two views: the explanation page, and "Own it" (ownItHtml.ts).
+  | { type: "explanation" }
+  | { type: "ownIt" }
+  // "Own it": check mine, chat with the tutor, and the ways to put words into the codemap.
+  | { type: "checkWords" }
+  | { type: "chat"; text: string }
+  | { type: "chatDraft"; text: string }
+  | { type: "editInCodemap" }
+  | { type: "useAsMine" }
+  | { type: "showChanges" };
 
 export function renderExplainPanel(header: ExplainHeader, nonce: string, cspSource: string): string {
   return `<!DOCTYPE html>
@@ -88,7 +104,7 @@ export function explanationPolicy(cspSource: string): string {
   ].join("; ") + ";";
 }
 
-function headerHtml(header: ExplainHeader): string {
+export function headerHtml(header: ExplainHeader): string {
   const badge = header.entry ? `<span class="badge">${spacedBadgeOf(header.entry)}</span>` : "";
   const about = header.entry
     ? `<p class="says">${escapeHtml(header.entry.says)}</p>
@@ -97,8 +113,23 @@ ${notesHtml(header.entry)}<p class="muted">${labelLine(header.entry)}</p>`
   return `<header>
 <h2>${badge}<span class="path">${escapeHtml(header.path)}</span></h2>
 ${changeLine(header)}${about}
-${actions(header)}
+${ownershipLine(header)}${modeButtons(header)}${actions(header)}
 </header>`;
+}
+
+function ownershipLine(header: ExplainHeader): string {
+  return header.ownership === undefined ? "" : `<p class="ownership">🎯 ${escapeHtml(header.ownership)}</p>\n`;
+}
+
+// "📖 Explanation" and "🎯 Own it"; the one shown is pressed. Only an entry can be owned.
+function modeButtons(header: ExplainHeader): string {
+  if (!header.entry) {
+    return "";
+  }
+  const mode = header.mode ?? "explanation";
+  const modeButton = (label: string, shows: ExplainMode) =>
+    button(label, { type: shows }, mode === shows ? "mode pressed" : "mode secondary", ` aria-pressed="${mode === shows}"`);
+  return `<p class="modes">${modeButton("📖 Explanation", "explanation")}${modeButton("🎯 Own it", "ownIt")}</p>\n`;
 }
 
 // The owner's optional notes; nothing at all when the entry has none.
@@ -151,9 +182,9 @@ function linkButton(label: string, message: ExplainMessage): string {
   return `<button class="link" data-review-guide="${escapeHtml(JSON.stringify(message))}">${escapeHtml(label)}</button>`;
 }
 
-function button(label: string, message: ExplainMessage, className = ""): string {
+export function button(label: string, message: ExplainMessage, className = "", attributes = ""): string {
   const classAttribute = className ? ` class="${className}"` : "";
-  return `<button${classAttribute} data-review-guide="${escapeHtml(JSON.stringify(message))}">${escapeHtml(label)}</button>`;
+  return `<button${classAttribute}${attributes} data-review-guide="${escapeHtml(JSON.stringify(message))}">${escapeHtml(label)}</button>`;
 }
 
 // Inserts text right after the first tag that matches; undefined when the page has no such tag.
@@ -221,7 +252,7 @@ function panelScript(folderUrl: string | undefined): string {
 `;
 }
 
-const headerStyles = `
+export const headerStyles = `
 header { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); line-height: 1.55; color: var(--vscode-foreground); max-width: 72ch; }
 h2 { font-size: 1.15em; font-weight: 600; margin: 14px 0 4px; }
 .badge { margin-right: 8px; }
@@ -240,6 +271,9 @@ button.link:hover { background: none; text-decoration: underline; }
 .notes { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0; }
 .notes dt { color: var(--vscode-descriptionForeground); }
 .notes dd { margin: 0; }
+.ownership { font-weight: 600; }
+.modes { margin: 10px 0 6px; }
+button.mode.pressed { outline: 1px solid var(--vscode-focusBorder); }
 .notes blockquote { margin: 0; padding-left: 10px; border-left: 2px solid var(--vscode-textBlockQuote-border, var(--vscode-descriptionForeground)); white-space: pre-wrap; }
 `;
 

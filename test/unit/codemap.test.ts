@@ -2,7 +2,7 @@ import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
 import { badgeOf, tooltipOf, withBadge } from "../../src/codemap/badge";
-import { CodemapEntry, parseCodemap, startLocationOf } from "../../src/codemap/codemap";
+import { CodemapEntry, entryLineOf, parseCodemap, startLocationOf } from "../../src/codemap/codemap";
 import { explanationFolderOf, explanationPageOf } from "../../src/codemap/explanationFiles";
 import { cleanRelativePath, repoPathOf } from "../../src/codemap/repoPath";
 
@@ -216,5 +216,15 @@ describe("C3: repo paths and where explanations live", () => {
     for (const outside of ["", "/etc/passwd", "../x", "a/../../x", "a//b", "C:/x"]) {
       assert.strictEqual(cleanRelativePath(outside), undefined, outside);
     }
+  });
+});
+
+describe("where an entry starts in the codemap file (Edit in codemap, C11)", () => {
+  it("finds the line of an entry's path, also for a path written with ./, and nothing for a path not listed", () => {
+    const text = "# my codemap\n- path: shop\n  says: The shop.\n  label: core\n\n- says: Pays.\n  label: money\n  path: ./shop/payment.py\n";
+    assert.strictEqual(entryLineOf(text, "shop"), 2);
+    assert.strictEqual(entryLineOf(text, "shop/payment.py"), 8);
+    assert.strictEqual(entryLineOf(text, "shop/cart.py"), undefined);
+    assert.strictEqual(entryLineOf("- path: [broken\n", "shop"), undefined);
   });
 });

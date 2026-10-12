@@ -5,6 +5,7 @@ import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
 import { defaultExplanationLanguage, ExplainRequest, explainTerminal } from "./claude/explainPrompt";
 import { WorkspaceChangeMarkers } from "./codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "./codemap/workspaceCodemaps";
+import { WorkspaceEntryOwnership } from "./codemap/workspaceEntryOwnership";
 import { gitAuthEnvironment } from "./git/gitAuth";
 import { PullRequestCheckouts } from "./git/pullRequestCheckout";
 import { findConfiguredRepos } from "./github/configuredRepos";
@@ -19,9 +20,10 @@ import { ReviewStateStore } from "./state/reviewState";
 import { CodemapCodeLenses } from "./ui/codemapCodeLens";
 import { CodemapDecorations } from "./ui/codemapDecorations";
 import { openCodemapPath, openStartOf } from "./ui/codemapNavigation";
-import { CodemapTarget, uriOfTarget } from "./ui/codemapTarget";
+import { CodemapTarget, targetOf, uriOfTarget } from "./ui/codemapTarget";
 import { codemapCommands } from "./ui/codemapCommands";
 import { CodemapView } from "./ui/codemapView";
+import { showEntryChanges } from "./ui/entryChanges";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
@@ -37,6 +39,7 @@ export interface ReviewGuideApi {
   ownershipTree: OwnershipTree;
   codemaps: WorkspaceCodemaps;
   changeMarkers: WorkspaceChangeMarkers;
+  entryOwnership: WorkspaceEntryOwnership;
   codemapDecorations: CodemapDecorations;
   codemapView: CodemapView;
   codemapCodeLenses: CodemapCodeLenses;
@@ -63,10 +66,20 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   const codemaps = new WorkspaceCodemaps(codemapFile);
   // Confirmations live in the extension's storage, never in the repo.
   const changeMarkers = new WorkspaceChangeMarkers(codemaps, path.join(storagePath, "codemap-confirmations"));
+  // Checks of the owner's words, their chats and the HEAD copies Claude reads: storage, never the repo.
+  const entryOwnership = new WorkspaceEntryOwnership(codemaps, changeMarkers, { storageFolder: storagePath, runClaude: claudeRunner(claudeSettings), language: explanationLanguage });
   const codemapDecorations = new CodemapDecorations(codemaps);
-  const codemapView = new CodemapView(codemaps, changeMarkers);
-  const codemapCodeLenses = new CodemapCodeLenses(codemaps, changeMarkers);
-  const explainPanels = new ExplainPanels(codemaps, changeMarkers, (folder, request) => startExplainTerminal(context, folder, request), showError);
+  const codemapView = new CodemapView(codemaps, changeMarkers, entryOwnership);
+  const codemapCodeLenses = new CodemapCodeLenses(codemaps, changeMarkers, entryOwnership);
+  const showChanges = (target: CodemapTarget) => showEntryChanges(target, entryOwnership, storagePath);
+  const explainPanels = new ExplainPanels(
+    codemaps,
+    changeMarkers,
+    entryOwnership,
+    (folder, request) => startExplainTerminal(context, folder, request),
+    showChanges,
+    showError,
+  );
 
   const openPullRequest = async (pullRequest: PullRequest) => {
     await vscode.window.withProgress(
@@ -86,6 +99,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   context.subscriptions.push(
     codemaps,
     changeMarkers,
+    entryOwnership,
     codemapView,
     codemapCodeLenses,
     explainPanels,
@@ -138,7 +152,19 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
         await openStartOf(target, entry);
       }
     })),
+    vscode.commands.registerCommand(codemapCommands.ownIt, reportErrors((target: CodemapTarget) => explainPanels.show(uriOfTarget(target), "ownIt"))),
+    vscode.commands.registerCommand(codemapCommands.checkWords, reportErrors((target: CodemapTarget) => explainPanels.checkWords(uriOfTarget(target)))),
+    vscode.commands.registerCommand(codemapCommands.showChanges, reportErrors(showChanges)),
+    vscode.commands.registerCommand("reviewGuide.codemap.ownNext", reportErrors(async () => {
+      const next = entryOwnership.nextToOwn();
+      if (!next) {
+        void vscode.window.showInformationMessage("Review Guide: you own every entry of the codemap.");
+        return;
+      }
+      await explainPanels.show(uriOfTarget(targetOf(next.folder, next.entry.path)), "ownIt");
+    })),
     vscode.commands.registerCommand("reviewGuide.codemap.showAll", () => codemapView.setFilter("all")),
+    vscode.commands.registerCommand("reviewGuide.codemap.showUnowned", () => codemapView.setFilter("unowned")),
     vscode.commands.registerCommand("reviewGuide.codemap.showMoney", () => codemapView.setFilter("money")),
     vscode.commands.registerCommand("reviewGuide.codemap.showSecurity", () => codemapView.setFilter("security")),
     vscode.commands.registerCommand("reviewGuide.codemap.showDeep", () => codemapView.setFilter("deep")),
@@ -149,7 +175,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       }
     })),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
 }
 
 export function deactivate(): void {
