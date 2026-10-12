@@ -11,6 +11,7 @@ import { EntryOwnershipStore } from "../codemap/entryOwnershipStore";
 import { cleanRelativePath } from "../codemap/repoPath";
 import { runGit } from "../git/git";
 import { folderKey, HeadCopies, HeadCopy } from "../git/headCopy";
+import { Verdict } from "../state/reviewState";
 
 // "Check my words" and the tutor chat for codemap entries, without VS Code: each is one read-only
 // Claude call in a copy of the workspace folder's HEAD, and its result is kept in the extension's
@@ -147,7 +148,13 @@ function requireMine(entry: CodemapEntry): string {
 }
 
 // Only what the schema allows is kept; a file and line only for "not yet", and only a path inside the repo.
+// An answer outside the schema (Claude wrote prose that happened to parse as JSON) is refused, so no
+// made-up verdict reaches the store or the panel.
 function replyOf(answer: EntryChatReply): EntryChatReply {
+  const verdicts: Verdict[] = ["understood", "almost", "not yet"];
+  if (!verdicts.includes(answer.verdict) || typeof answer.feedback !== "string") {
+    throw new Error(`Claude Code's answer is not a verdict with feedback: ${JSON.stringify(answer).slice(0, 300)}`);
+  }
   const reply: EntryChatReply = { verdict: answer.verdict, feedback: answer.feedback };
   const file = typeof answer.file === "string" ? cleanRelativePath(answer.file) : undefined;
   if (answer.verdict === "not yet" && file !== undefined) {

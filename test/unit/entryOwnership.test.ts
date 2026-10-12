@@ -123,6 +123,20 @@ describe("owning a codemap entry: check my words, the tutor chat, the 3am check 
     assert.strictEqual((await stateOf(checks, { ...payment, mine: `${payment.mine} And a refund.` })).kind, "not checked");
   });
 
+  it("C10: refuses an answer that is not a verdict with feedback, and stores nothing", async () => {
+    // Prose that happened to parse as JSON: what readClaudeResult hands on when there is no structured answer.
+    const prose = async <T,>() => ({ answer: { verdict: "<b>great</b>", feedback: 42 } as unknown as T, durationMilliseconds: 1, inputTokens: 0, outputTokens: 0 });
+    const checks = new EntryChecks({
+      storageFolder: storage,
+      runClaude: prose,
+      language: () => "English",
+      confirmAt: () => undefined,
+    });
+    await assert.rejects(checks.check(repo, payment), /not a verdict with feedback/);
+    await assert.rejects(checks.chat(repo, payment, "And a refund?"), /not a verdict with feedback/);
+    assert.strictEqual(checks.recordOf(repo, payment.path), undefined, "nothing was stored");
+  });
+
   it("C11: a chat turn sends the conversation so far, its verdict is only a hint, and the history survives a new store", async () => {
     const checks = entryChecks();
     const first = await checks.chat(repo, payment, "So the row stays open until a cleanup?");
