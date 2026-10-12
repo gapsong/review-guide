@@ -94,6 +94,23 @@ describe("the HEAD copy that Claude reads (C10)", () => {
     assert.ok(!fs.existsSync(storage) || filesIn(storage).length === 0, "nothing was copied");
   });
 
+  // git archive runs the smudge filters; Git LFS's would fetch the large files into .git/lfs.
+  it("C10: leaves Git LFS pointer files as they are, so the copy fetches nothing into the repo's .git", async () => {
+    const smudge = path.resolve(__dirname, "..", "..", "..", "test", "fixtures", "fake-git-lfs-smudge.js");
+    git(repo, "config", "filter.lfs.smudge", `${JSON.stringify(process.execPath)} ${JSON.stringify(smudge)} -- %f`);
+    git(repo, "config", "filter.lfs.clean", "cat");
+    git(repo, "config", "filter.lfs.required", "true");
+    write({ ".gitattributes": "*.bin filter=lfs\n", "model.bin": "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 3\n" });
+    commit("One");
+    const before = fingerprint(repo);
+
+    const copy = await new HeadCopies(storage).copyOf(repo);
+
+    assert.strictEqual(fs.readFileSync(path.join(copy.folder, "model.bin"), "utf8"), "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 3\n", "the pointer, not a fetched file");
+    assert.ok(!fs.existsSync(path.join(repo, ".git", "lfs")), "nothing was fetched into .git/lfs");
+    assert.strictEqual(fingerprint(repo), before, "no byte in the repo (or its .git) changed");
+  });
+
   it("says so when there is no commit yet", async () => {
     await assert.rejects(new HeadCopies(storage).copyOf(repo), /no commit yet/);
   });

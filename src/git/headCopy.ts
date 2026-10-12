@@ -84,9 +84,14 @@ async function writeCopy(repoFolder: string, commit: string, folder: string): Pr
 }
 
 // git archive | tar -x, without a shell in between: no path can become a command.
+//
+// git archive runs the repo's smudge filters. Git LFS's filter would fetch every large file it does
+// not have yet, over the network and into the repo's .git/lfs: the same thing the partial-clone
+// refusal keeps out. GIT_LFS_SKIP_SMUDGE=1 makes it leave the pointer file as it is.
 function extractArchive(repoFolder: string, commit: string, target: string): Promise<void> {
   const leftOut = foldersLeftOut.map((folder) => `:(exclude)${folder}`);
-  const archive = spawn("git", ["archive", "--format=tar", commit, "--", ".", ...leftOut], { cwd: repoFolder, stdio: ["ignore", "pipe", "pipe"] });
+  const environment = { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" };
+  const archive = spawn("git", ["archive", "--format=tar", commit, "--", ".", ...leftOut], { cwd: repoFolder, env: environment, stdio: ["ignore", "pipe", "pipe"] });
   const tar = spawn("tar", ["-x", "-f", "-", "-C", target], { stdio: ["pipe", "ignore", "pipe"] });
   archive.stdout.pipe(tar.stdin);
   return Promise.all([finished(archive, "git archive"), finished(tar, "tar")]).then(() => undefined);
