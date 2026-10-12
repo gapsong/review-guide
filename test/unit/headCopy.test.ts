@@ -77,6 +77,15 @@ describe("the HEAD copy that Claude reads (C10)", () => {
     assert.ok(!kept.includes(path.basename(first.folder)), "the oldest copy is gone");
   });
 
+  it("copies the same commit twice at once into one copy", async () => {
+    write({ "a.py": "1\n" });
+    commit("One");
+    const [first, second] = await Promise.all([new HeadCopies(storage).copyOf(repo), new HeadCopies(storage).copyOf(repo)]);
+    assert.strictEqual(first.folder, second.folder);
+    assert.deepStrictEqual(fs.readdirSync(path.dirname(first.folder)), [path.basename(first.folder)], "no half copy is left behind");
+    assert.strictEqual(fs.readFileSync(path.join(first.folder, "a.py"), "utf8"), "1\n");
+  });
+
   it("C10: refuses a partial clone, because copying HEAD would fetch into its .git", async () => {
     write({ "a.py": "1\n" });
     commit("One");

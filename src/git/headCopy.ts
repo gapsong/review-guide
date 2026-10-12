@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { runGit } from "./git";
@@ -67,18 +67,19 @@ async function headCommitOf(repoFolder: string): Promise<string> {
 }
 
 // Written into a folder of its own first and renamed when complete, so a crash never leaves a half copy
-// that later looks finished.
+// that later looks finished. A check and a chat turn may copy the same commit at once; the one that
+// finishes second keeps the first one's copy.
 async function writeCopy(repoFolder: string, commit: string, folder: string): Promise<void> {
-  const unfinished = `${folder}.${process.pid}.partial`;
-  fs.rmSync(unfinished, { recursive: true, force: true });
+  const unfinished = `${folder}.${process.pid}.${randomBytes(4).toString("hex")}.partial`;
   fs.mkdirSync(unfinished, { recursive: true });
   try {
     await extractArchive(repoFolder, commit, unfinished);
     removeLinksLeavingFolder(unfinished);
-    fs.renameSync(unfinished, folder);
-  } catch (error) {
+    if (!fs.existsSync(folder)) {
+      fs.renameSync(unfinished, folder);
+    }
+  } finally {
     fs.rmSync(unfinished, { recursive: true, force: true });
-    throw error;
   }
 }
 
