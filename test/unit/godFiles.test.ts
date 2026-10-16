@@ -500,6 +500,28 @@ describe("God files: areas and code lines", () => {
     }
   });
 
+  it("odd layouts: one top-level folder, src twice, a package of __init__ and one subfolder, root files, a nested container; never everything in one area or each file alone", () => {
+    const onePackage = areaRuleFor(["mypkg/__init__.py", "mypkg/cli.py", "mypkg/a/x.py", "mypkg/b/y.py"]);
+    assert.deepStrictEqual(["mypkg/__init__.py", "mypkg/cli.py", "mypkg/a/x.py", "mypkg/b/y.py"].map(onePackage), ["mypkg", "mypkg", "mypkg/a", "mypkg/b"], "the only top-level folder is skipped; its own files stay in it");
+    const srcTwice = areaRuleFor(["src/src/a/x.ts", "src/src/b/y.ts", "src/src/index.ts"]);
+    assert.deepStrictEqual(["src/src/a/x.ts", "src/src/index.ts"].map(srcTwice), ["src/src/a", "src/src"]);
+    const initAndSubfolder = areaRuleFor(["pkg/__init__.py", "pkg/sub/a.py", "pkg/sub/b.py", "pkg/sub/deep/c.py"]);
+    assert.deepStrictEqual(["pkg/__init__.py", "pkg/sub/a.py", "pkg/sub/deep/c.py"].map(initAndSubfolder), ["pkg", "pkg/sub", "pkg/sub/deep"], "a folder alone in its parent is skipped at any depth");
+    const flat = areaRuleFor(["a.py", "b.py"]);
+    assert.deepStrictEqual(["a.py", "b.py"].map(flat), [".", "."], "files in the repo root share one area");
+    const rootAndOneFolder = areaRuleFor(["main.py", "lib/a.py", "lib/b/c.py"]);
+    assert.deepStrictEqual(["main.py", "lib/a.py", "lib/b/c.py"].map(rootAndOneFolder), [".", "lib", "lib/b"]);
+    const nestedContainer = areaRuleFor(["x/apps/a/f.py", "x/apps/b/g.py", "y/z.py"]);
+    assert.strictEqual(nestedContainer("x/apps/a/f.py"), "x", "a container folder below the root is a normal folder");
+    const appUnderContainer = areaRuleFor(["apps/api/src/x.py", "apps/api/src/y.py", "apps/web/src/z.ts"]);
+    assert.strictEqual(appUnderContainer("apps/api/src/x.py"), "apps/api/src", "when every folder is skipped, the file's own folder is the area");
+    const unicode = areaRuleFor(["src/über/ä.ts", "src/日本/x.ts", "src/ü.ts"]);
+    assert.deepStrictEqual(["src/über/ä.ts", "src/日本/x.ts", "src/ü.ts"].map(unicode), ["src/über", "src/日本", "src"]);
+    const tsApp = areaRuleFor(["src/app/x.ts", "src/lib/y.ts", "src/index.ts"]);
+    assert.deepStrictEqual(["src/app/x.ts", "src/lib/y.ts", "src/index.ts"].map(tsApp), ["src/app", "src/lib", "src"]);
+    assert.strictEqual(areaRuleFor(["src/a/x.ts", "src/b/y.ts"])("src/zzz/q/w.ts"), "src/zzz", "a path outside the measured files still gets a stable area");
+  });
+
   it("counts code lines without blank and comment-only lines", () => {
     assert.strictEqual(countCodeLines("a();\n\n// note\n/**\n * one\n */\nb(); // tail\nconst glob = \"**/*.ts\";\n", "typescript"), 3);
     assert.strictEqual(countCodeLines("import os\n\n# note\n    # indented note\nx = 1  # tail\n", "python"), 2);
