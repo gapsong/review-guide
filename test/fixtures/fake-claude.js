@@ -34,7 +34,9 @@ function main() {
   const pass = /^Review Guide pass: (.*)$/m.exec(prompt)[1].trim();
   const answer = answerFor(pass, prompt);
   const watched = process.env.FAKE_CLAUDE_WATCH;
-  log({ pass, unitIds: answer.unitIds, cwd: process.cwd(), readableFolders: readableFolders(args), ...(watched ? { saw: prompt.includes(watched) } : {}) });
+  // The judge's tests check every flag of the call; the older passes keep their log entries as they were.
+  const flags = pass === "god file judge" ? { args: args.filter((arg, index) => args[index - 1] !== "--json-schema") } : {};
+  log({ pass, unitIds: answer.unitIds, cwd: process.cwd(), readableFolders: readableFolders(args), ...(watched ? { saw: prompt.includes(watched) } : {}), ...flags });
   delete answer.unitIds;
   process.stdout.write(JSON.stringify({
     type: "result",
@@ -62,6 +64,9 @@ function answerFor(pass, prompt) {
   }
   if (pass === "entry chat") {
     return entryChat(prompt);
+  }
+  if (pass === "god file judge") {
+    return godFileJudge(prompt);
   }
   throw new Error(`fake-claude: unknown pass ${pass}`);
 }
@@ -156,6 +161,32 @@ function entryChat(prompt) {
     return { verdict: "almost", feedback: "No: it is resolved at once.\n```\nopen ─► fail ─► resolve\n```", unitIds };
   }
   return { verdict: "understood", feedback: "Yes, that is it.", unitIds };
+}
+
+// A judgment with a line far outside the file and text that looks like markup, so tests see that
+// the panel keeps both harmless.
+function godFileJudge(prompt) {
+  const path = /^path: (.*)$/m.exec(prompt)[1];
+  return {
+    verdict: "god_file",
+    verdictWhy: "It does <script>alert(1)</script> three jobs behind 12 names.",
+    responsibilities: [
+      { name: "Pricing", startLine: 1, endLine: 4, mainFunctions: ["broad1"] },
+      { name: "Shipping", startLine: 5, endLine: 99999, mainFunctions: ["broad5"] },
+    ],
+    reasonsToChange: [{ theme: "Prices", commits: 2 }, { theme: "Shipping", commits: 1 }, { theme: "Admin", commits: 1 }],
+    namesUsedOutside: {
+      justified: [{ name: "broad1", why: "The checkout verb." }],
+      notJustified: [{ name: "broad9", why: "[x](javascript:alert(1)) a helper of the admin panel." }],
+    },
+    readingPath: [
+      { name: "broad1", line: 1, why: "Where a price starts." },
+      { name: "broad5", line: 99999, why: "No such line." },
+      { name: "broad9", line: 3, why: "The admin helper." },
+    ],
+    keepOrSplit: { decision: "split", why: "Three reasons to change.", modules: [{ name: "pricing.ts", moves: "broad1-broad4", interface: "price()" }] },
+    unitIds: [path],
+  };
 }
 
 function readableFolders(args) {
