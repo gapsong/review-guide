@@ -25,7 +25,7 @@ export const godFileCommands = {
   judge: "reviewGuide.godFiles.judge",
 };
 
-export type FolderGodFiles =
+type FolderGodFiles =
   | { folder: vscode.WorkspaceFolder; state: "measuring" }
   | { folder: vscode.WorkspaceFolder; state: "ready"; report: GodFileReport }
   | { folder: vscode.WorkspaceFolder; state: "failed"; message: string };
@@ -87,8 +87,11 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     return this.treeView.message;
   }
 
-  stateOf(folderUri: string): FolderGodFiles | undefined {
-    return this.states.get(folderUri);
+  // The measured file and its report, when the view has measured the path.
+  measured(target: CodemapTarget): { item: GodFileItem; report: GodFileReport } | undefined {
+    const state = this.states.get(target.folderUri);
+    const item = state?.state === "ready" ? state.report.items.find((candidate) => candidate.path === target.path) : undefined;
+    return state?.state === "ready" && item ? { item, report: state.report } : undefined;
   }
 
   // Finds the git repos among the workspace folders and measures them; resolves when the view is up to date.
@@ -130,7 +133,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     item.description = `${warning}${godFile.hint ? `${godFile.hint} · ` : ""}${numbersLine(godFile)}`;
     item.contextValue = "godFile";
     item.resourceUri = uriOfTarget(element);
-    item.command = { title: "Open at the longest function", command: godFileCommands.open, arguments: [targetOfNode(element)] };
+    item.command = { title: "Open at the longest function", command: godFileCommands.open, arguments: [{ folderUri: element.folderUri, path: element.path }] };
     item.accessibilityInformation = { label: `${godFile.path}, ${godFile.hint ?? "no hint"}: ${numbersLine(godFile)}` };
     return item;
   }
@@ -138,7 +141,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
   // The tooltip is built only when it is shown.
   resolveTreeItem(item: vscode.TreeItem, element: GodFilesViewNode): vscode.TreeItem {
     if (element.kind === "file") {
-      const target = targetOfNode(element);
+      const target = { folderUri: element.folderUri, path: element.path };
       const actions = [
         { title: "Open at the longest function", link: commandLink(godFileCommands.open, target) },
         { title: "Judge with Claude", link: commandLink(godFileCommands.judge, target) },
@@ -244,10 +247,6 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     const cut = report.historyIsCut ? " (shallow clone: older commits are missing)" : "";
     return `${report.sourceFileCount} source files · ${report.commitCount} commits in ${godFileRules.days} days${cut} · ranked by breadth and history, never by length`;
   }
-}
-
-export function targetOfNode(node: CodemapTarget): CodemapTarget {
-  return { folderUri: node.folderUri, path: node.path };
 }
 
 // Opens the file at once, then moves to its longest function when the language server knows the

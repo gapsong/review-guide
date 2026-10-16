@@ -35,16 +35,10 @@ export interface StoredJudgment {
   durationMilliseconds: number;
 }
 
-export interface GodFileJudgesOptions {
-  storageFolder: string;
-  runClaude: RunClaude;
-  language: () => string;
-}
-
 export class GodFileJudges {
   private readonly copies: HeadCopies;
 
-  constructor(private readonly options: GodFileJudgesOptions) {
+  constructor(private readonly options: { storageFolder: string; runClaude: RunClaude; language: () => string }) {
     this.copies = new HeadCopies(path.join(options.storageFolder, "head-copies"));
   }
 

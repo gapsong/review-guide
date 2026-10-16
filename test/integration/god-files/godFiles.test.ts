@@ -133,8 +133,7 @@ describe("God Files in a real VS Code", () => {
   }
 
   function reportCommit(): string | undefined {
-    const state = api.godFilesView.stateOf(folderUri);
-    return state?.state === "ready" ? state.report.commit : undefined;
+    return api.godFilesView.measured({ folderUri, path: "src/ledger/ledger.ts" })?.report.commit;
   }
 
   function writeFile(relativePath: string, content: string): void {

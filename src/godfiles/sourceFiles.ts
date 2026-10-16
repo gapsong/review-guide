@@ -19,7 +19,8 @@ const testFolders = new Set(["test", "tests", "__tests__", "spec", "specs", "e2e
 const generatedFolders = new Set(["node_modules", "dist", "build", "generated", "__generated__", "vendor"]);
 
 export function languageOf(repoPath: string): Language | undefined {
-  const extension = extensionOf(repoPath);
+  // The extension of the file name; a name that starts with its only dot (".eslintrc") has none.
+  const extension = /[^/.][^/]*(\.[^./]+)$/.exec(repoPath)?.[1].toLowerCase() ?? "";
   if (typescriptExtensions.includes(extension)) {
     return "typescript";
   }
@@ -55,11 +56,6 @@ function isGeneratedOrVendored(repoPath: string): boolean {
     || name.endsWith(".min.js");
 }
 
-function extensionOf(repoPath: string): string {
-  const name = repoPath.slice(repoPath.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  return dot <= 0 ? "" : name.slice(dot).toLowerCase();
-}
 
 // A glob as VS Code's settings write them: "**" any number of folders, "*" any text within one
 // path part. A glob without "/" matches a file name in any folder.

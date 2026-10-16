@@ -117,8 +117,8 @@ export class ExplainPanels implements vscode.Disposable {
   async judge(uri: vscode.Uri): Promise<void> {
     await this.show(uri, "judge");
     const explanation = this.openFor(uri);
-    const measured = explanation && this.measuredOf(explanation);
-    if (!measured || !this.judges.judgmentOf(measured.repoFolder, measured.item.path, measured.report.commit)) {
+    const measured = explanation && this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
+    if (!explanation || !measured || !this.judges.judgmentOf(explanation.folder.uri.fsPath, measured.item.path, measured.report.commit)) {
       await this.receive(uri, { type: "judgeWithClaude" });
     }
   }
@@ -203,7 +203,7 @@ export class ExplainPanels implements vscode.Disposable {
   }
 
   private async judgeWithClaude(explanation: OpenExplanation): Promise<void> {
-    const measured = this.measuredOf(explanation);
+    const measured = this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
     if (!measured) {
       throw new Error(`${explanation.repoPath} is not among the measured god files. Refresh God Files, then judge again.`);
     }
@@ -213,18 +213,11 @@ export class ExplainPanels implements vscode.Disposable {
     explanation.judging = true;
     this.render(explanation);
     try {
-      await this.judges.judge(measured.repoFolder, measured.item, measured.report);
+      await this.judges.judge(explanation.folder.uri.fsPath, measured.item, measured.report);
     } finally {
       explanation.judging = false;
       this.render(explanation);
     }
-  }
-
-  // The god file measurement of the path, when the God Files view has one.
-  private measuredOf(explanation: OpenExplanation) {
-    const state = this.godFiles.stateOf(explanation.folder.uri.toString());
-    const item = state?.state === "ready" ? state.report.items.find((candidate) => candidate.path === explanation.repoPath) : undefined;
-    return state?.state === "ready" && item ? { repoFolder: explanation.folder.uri.fsPath, item, report: state.report } : undefined;
   }
 
   // The reply box keeps the text until Claude has answered, so a failed call loses nothing.
@@ -304,7 +297,7 @@ export class ExplainPanels implements vscode.Disposable {
     const pathUri = vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath);
     const status = entryStatusOf(targetOf(explanation.folder, explanation.repoPath), this.markers, this.ownership);
     const entry = this.codemaps.entryOf(pathUri);
-    const measured = this.measuredOf(explanation);
+    const measured = this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
     const shows = (explanation.mode === "ownIt" && entry) || (explanation.mode === "judge" && measured) ? explanation.mode : "explanation";
     const header: ExplainHeader = {
       path: explanation.repoPath,
@@ -318,7 +311,7 @@ export class ExplainPanels implements vscode.Disposable {
       canJudge: measured !== undefined,
     };
     if (measured && shows === "judge") {
-      const stored = this.judges.judgmentOf(measured.repoFolder, measured.item.path, measured.report.commit);
+      const stored = this.judges.judgmentOf(explanation.folder.uri.fsPath, measured.item.path, measured.report.commit);
       const main = judgeHtml({ item: measured.item, commit: measured.report.commit, stored, judging: explanation.judging });
       webview.html = renderExplainPanel(header, randomBytes(16).toString("hex"), webview.cspSource, main, judgeStyles);
       return;
