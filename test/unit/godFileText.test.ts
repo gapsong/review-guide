@@ -28,7 +28,7 @@ const report: GodFileReport = { commit: "abc", days: 90, minCodeLines: 150, sour
 describe("G5: what the God Files view says about a file", () => {
   it("G5: shows the numbers line", () => {
     assert.strictEqual(numbersLine(broad, 90), "23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines");
-    assert.strictEqual(numbersLine({ ...broad, namesUsedOutside: ["a"], filesUsingIt: ["b"], coChangeAreas: ["c"] }, 30), "1 name used by 1 file · 66 commits/30 d · changes with 1 area · 1,176 lines");
+    assert.strictEqual(numbersLine({ ...broad, namesUsedOutside: ["a"], filesUsingIt: ["b"], coChangeAreas: ["c"], commitsInWindow: 1 }, 30), "1 name used by 1 file · 1 commit/30 d · changes with 1 area · 1,176 lines");
   });
 
   it("G3, G5: shows unknown breadth as \"–\", never as 0", () => {

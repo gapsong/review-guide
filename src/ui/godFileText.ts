@@ -17,7 +17,7 @@ export const unknownNumber = "–";
 export function numbersLine(item: GodFileItem, days: number): string {
   return [
     breadthText(item),
-    `${formatted(item.commitsInWindow)} commits/${days} d`,
+    `${formatted(item.commitsInWindow)} ${plural(item.commitsInWindow, "commit", "commits")}/${days} d`,
     `changes with ${formatted(item.coChangeAreas.length)} ${plural(item.coChangeAreas.length, "area", "areas")}`,
     `${formatted(item.codeLines)} lines`,
   ].join(" · ");
@@ -66,7 +66,7 @@ function numberLines(item: GodFileItem, days: number): string[] {
     : `- **${breadthText(item)}:** ${names.length === 0 ? "no other source file imports a name of it." : `other source files import ${escapeMarkdown(shortList(names))}. The more names, the broader the interface you must keep stable.`}`;
   return [
     breadth,
-    `- **${item.commitsInWindow} commits in ${days} days** (${item.commitsInRecentDays} in the last ${godFileRules.recentDays}): each commit is a reason it had to change.`,
+    `- **${item.commitsInWindow} ${plural(item.commitsInWindow, "commit", "commits")} in ${days} days** (${item.commitsInRecentDays} in the last ${godFileRules.recentDays}): each commit is a reason it had to change.`,
     `- **Changes with ${item.coChangePartners.length} other files in ${item.coChangeAreas.length} ${plural(item.coChangeAreas.length, "area", "areas")}**${item.coChangeAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.coChangeAreas))})` : ""}: files that changed in the same commits; many areas mean many unrelated reasons. Commits of more than ${godFileRules.largestCoChangeCommitFiles} files are sweeps and do not count.`,
     `- **${formatted(item.codeLines)} code lines:** shown, but never part of the score.`,
   ];
