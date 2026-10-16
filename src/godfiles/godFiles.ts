@@ -111,7 +111,7 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
 
 // Only a hint: Claude's verdict (Judge with Claude) is the real judgment. A file whose breadth is
 // not known (yet) gets no hint, because no hint is better than a wrong one. "deep" needs all four:
-// a narrow interface (class members included), enough code to hide, few reasons to change and
+// a narrow interface (members included), enough code to hide, few reasons to change and
 // little knowledge of other areas. A file nobody uses (an entry point, or unused) has no interface
 // to be deep behind.
 export function hintOf(item: Pick<GodFileItem, "breadth" | "codeLines" | "coChangeAreas" | "knownAreas">): GodFileHint {

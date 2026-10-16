@@ -5,7 +5,7 @@ import { languageOf } from "./sourceFiles";
 // ("Find All References"). Only the files the God Files view shows are measured, after the
 // ranking is up:
 //
-//   document symbols ──► top-level names, public class members as "Class.member"
+//   document symbols ──► top-level names, public members as "Owner.member" (a class, an exported object, a namespace)
 //        │
 //        └─ references of each ──► in another measured source file, not on an import line? ──► used outside
 //
@@ -30,16 +30,18 @@ export interface LanguageServer {
 
 export interface SymbolNode {
   name: string;
-  isClass: boolean;
   line: number;
   character: number;
-  children: SymbolNode[];
+  // The names below the symbol that are part of its interface: a class's members, an exported
+  // object's properties and methods (a module in disguise), a namespace's declarations. Empty for a
+  // function: its locals are nobody's interface.
+  members: SymbolNode[];
 }
 
 export type Breadth =
   | { state: "pending" }
   | { state: "unknown"; reason: string }
-  // names: sorted, "Class.member" for class members. complete is false when the count stopped
+  // names: sorted, "Owner.member" for members. complete is false when the count stopped
   // above the broad threshold (shown as "8+"). files: the other files using any of them.
   | { state: "known"; names: string[]; files: string[]; complete: boolean };
 
@@ -116,17 +118,15 @@ interface Declaration {
   character: number;
 }
 
-// Top-level declarations and the public members of top-level classes. Private, protected, "#" and
-// "_" names, constructors and anything on an import or re-export line are left out.
+// Top-level declarations and the public members below them (SymbolNode.members). Private,
+// protected, "#" and "_" names, constructors and anything on an import or re-export line are left out.
 function declarationsOf(symbols: SymbolNode[], lines: string[], importLines: Set<number>): Declaration[] {
   const isOwn = (symbol: SymbolNode) => !importLines.has(symbol.line) && !/^[_#]/.test(symbol.name) && symbol.name !== "constructor";
   const declarations: Declaration[] = [];
   for (const symbol of symbols.filter(isOwn)) {
     declarations.push({ name: symbol.name, line: symbol.line, character: symbol.character });
-    if (symbol.isClass) {
-      for (const member of symbol.children.filter(isOwn).filter((child) => !isHidden(child, lines))) {
-        declarations.push({ name: `${symbol.name}.${member.name}`, line: member.line, character: member.character });
-      }
+    for (const member of symbol.members.filter(isOwn).filter((child) => !isHidden(child, lines))) {
+      declarations.push({ name: `${symbol.name}.${member.name}`, line: member.line, character: member.character });
     }
   }
   return declarations;
@@ -139,8 +139,8 @@ function isHidden(member: SymbolNode, lines: string[]): boolean {
   return /\b(private|protected)\b[^,;({]*$/.test(before);
 }
 
-// "Model.create" is a class member; "create" is a top-level name.
-export function isClassMember(nameUsedOutside: string): boolean {
+// "Model.create" is a member (of a class, an exported object or a namespace); "create" is a top-level name.
+export function isMember(nameUsedOutside: string): boolean {
   return nameUsedOutside.includes(".");
 }
 

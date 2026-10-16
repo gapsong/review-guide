@@ -1,7 +1,7 @@
 import { StoredJudgment } from "../analysis/godFileJudge";
 import { spacedBadgeOf } from "../codemap/badge";
 import { CodemapEntry } from "../codemap/codemap";
-import { isClassMember } from "../godfiles/breadth";
+import { isMember } from "../godfiles/breadth";
 import { godFileRules, GodFileItem, hintOf, isBroad } from "../godfiles/godFiles";
 import { escapeMarkdown, TooltipLink } from "./codemapTooltip";
 import { button } from "./explainHtml";
@@ -93,13 +93,13 @@ function breadthMeaning(item: GodFileItem): string {
   return `${breadthSplit(breadth.names)}, used by ${files} (the language server's references).${stopped} The more names, the broader the interface you must keep stable.`;
 }
 
-// "3 top-level names (a, b, c) and 12 class members (Model.x, …)"
+// "3 top-level names (a, b, c) and 12 members (Model.x, …)"
 function breadthSplit(names: string[]): string {
-  const topLevel = names.filter((name) => !isClassMember(name));
-  const members = names.filter(isClassMember);
+  const topLevel = names.filter((name) => !isMember(name));
+  const members = names.filter(isMember);
   return [
     topLevel.length > 0 ? `${topLevel.length} top-level ${plural(topLevel.length, "name", "names")} (${shortList(topLevel)})` : "",
-    members.length > 0 ? `${members.length} class ${plural(members.length, "member", "members")} (${shortList(members)})` : "",
+    members.length > 0 ? `${members.length} ${plural(members.length, "member", "members")} (${shortList(members)})` : "",
   ].filter((part) => part !== "").join(" and ");
 }
 
@@ -122,7 +122,7 @@ function hintMeaning(item: GodFileItem, hint: ReturnType<typeof hintOf>, usedNam
   if (hint === "deep") {
     return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines, changes with at most ${deepAtMostCoChangeAreas} areas and knows at most ${deepAtMostKnownAreas}: it looks like a deep module.`;
   }
-  const why = hint === "god file?" ? `More than ${broad} names used outside (class members included): maybe several modules in one file.`
+  const why = hint === "god file?" ? `More than ${broad} names used outside (members of classes, exported objects and namespaces included): maybe several modules in one file.`
     : item.breadth.state !== "known" ? "No hint without a measured breadth."
       : usedNames === 0 ? "No hint: nothing uses it, so it has no interface to be deep behind."
         : item.codeLines < deepFromCodeLines ? "No hint."

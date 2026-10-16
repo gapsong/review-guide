@@ -43,6 +43,9 @@ describe("God Files in a real VS Code", () => {
     writeFile("apps/web/page.ts", `import { Shop } from '../../src/shop';\nimport { post } from '../../src/ledger/ledger';\nconst shop = new Shop();\n${calls("shop", methods.slice(0, 4))}\npost();\n`);
     writeFile("packages/billing/charge.ts", `import * as shop from '../../src/shop/broad';\nimport { balance } from '../../src/ledger/ledger';\nconst s = new shop.Shop();\n${calls("s", methods.slice(4, 8))}\nbalance();\n`);
     writeFile("src/admin/panel.ts", `import { Shop as Store } from '../shop/broad';\nconst s = new Store();\n${calls("s", methods.slice(8))}\n`);
+    // A module in disguise: one exported object whose members other files call.
+    writeFile("src/shop/api.ts", `export const api = {\n${methods.map((name) => `  ${name}(): number {\n    return 1;\n  },`).join("\n")}\n  helper: 1,\n};\nexport namespace tools {\n  export function sweep(): void {}\n  export function count(): number { return 0; }\n}\n`);
+    writeFile("apps/web/api-user.ts", `import { api, tools } from '../../src/shop/api';\n${calls("api", methods.slice(0, 4))}\ntools.sweep();\n`);
     writeFile("src/shop/broad.test.ts", "import { Shop } from './broad';\nnew Shop().method1();\n");
     writeFile(".gitignore", "/.codemap/\n");
     git(workspace, "init", "--quiet", "--initial-branch=main");
@@ -90,6 +93,11 @@ describe("God Files in a real VS Code", () => {
     assert.deepStrictEqual(broad.files, ["apps/web/page.ts", "packages/billing/charge.ts", "src/admin/panel.ts"], "the barrel and the test are no users");
     assert.deepStrictEqual(nodeOf("src/shop/index.ts").item.breadth, { state: "known", names: [], files: [], complete: true }, "a barrel re-exports, it declares nothing of its own");
     assert.deepStrictEqual(nodeOf("src/ledger/ledger.ts").item.breadth, { state: "known", names: ["balance", "post"], files: ["apps/web/page.ts", "packages/billing/charge.ts"], complete: true });
+  });
+
+  it("G3: the members of an exported object and of a namespace count like class members: a module in disguise is broad", () => {
+    const expected = { state: "known", names: ["api", ...methods.slice(0, 4).map((name) => `api.${name}`), "tools", "tools.sweep"].sort(), files: ["apps/web/api-user.ts"], complete: true };
+    assert.deepStrictEqual(nodeOf("src/shop/api.ts").item.breadth, expected, "the object, its called methods, the namespace and its called function; api.helper and tools.count are used by nobody");
   });
 
   it("G5: shows the files with the numbers line and hints, and writes nothing into the repo", async () => {

@@ -491,14 +491,14 @@ function fakeFile(filePath: string, lines: string[], symbols: SymbolNode[] | und
 }
 
 // The character is filled in from the file's line, where the name stands.
-function symbol(name: string, line: number, children: SymbolNode[] = []): SymbolNode {
-  return { name, isClass: children.length > 0, line, character: -1, children };
+function symbol(name: string, line: number, members: SymbolNode[] = []): SymbolNode {
+  return { name, line, character: -1, members };
 }
 
 // A language server that knows the given files; the references of a declaration by its "path:line".
 function fakeServer(files: FakeFile[], references: Record<string, Use[]>): LanguageServer {
   const byPath = new Map(files.map((file) => [file.path, file]));
-  const placed = (file: FakeFile) => (node: SymbolNode): SymbolNode => ({ ...node, character: Math.max(0, file.lines[node.line]?.indexOf(node.name) ?? 0), children: node.children.map(placed(file)) });
+  const placed = (file: FakeFile) => (node: SymbolNode): SymbolNode => ({ ...node, character: Math.max(0, file.lines[node.line]?.indexOf(node.name) ?? 0), members: node.members.map(placed(file)) });
   return {
     symbols: async (repoPath) => {
       const file = byPath.get(repoPath);

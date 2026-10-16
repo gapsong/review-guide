@@ -346,15 +346,21 @@ function languageServerOf(folder: vscode.WorkspaceFolder): LanguageServer {
     const relative = path.relative(root, uri.fsPath);
     return uri.scheme !== "file" || relative.startsWith("..") || path.isAbsolute(relative) ? undefined : relative.split(path.sep).join("/");
   };
-  const nodeOf = (symbol: vscode.DocumentSymbol): SymbolNode => ({
+  // The symbols whose children are their interface, and which children: all of a class's and a
+  // namespace's; of a variable only the properties and methods of an object literal (a module in
+  // disguise), not the locals of a function it holds. Interfaces and enums stay one name each.
+  const ownersOfMembers = new Set([vscode.SymbolKind.Class, vscode.SymbolKind.Namespace, vscode.SymbolKind.Module, vscode.SymbolKind.Object, vscode.SymbolKind.Variable, vscode.SymbolKind.Constant]);
+  const objectMemberKinds = new Set([vscode.SymbolKind.Property, vscode.SymbolKind.Method, vscode.SymbolKind.Field]);
+  const isMember = (owner: vscode.DocumentSymbol, child: vscode.DocumentSymbol) =>
+    ownersOfMembers.has(owner.kind) && (owner.kind === vscode.SymbolKind.Variable || owner.kind === vscode.SymbolKind.Constant ? objectMemberKinds.has(child.kind) : true);
+  const nodeOf = (symbol: vscode.DocumentSymbol, members: vscode.DocumentSymbol[] = []): SymbolNode => ({
     name: symbol.name,
-    isClass: symbol.kind === vscode.SymbolKind.Class,
     line: symbol.selectionRange.start.line,
     character: symbol.selectionRange.start.character,
-    children: (symbol.children ?? []).map(nodeOf),
+    members: members.map((member) => nodeOf(member)),
   });
   return {
-    symbols: async (repoPath) => (await documentSymbolsOf(uriOf(repoPath)))?.map(nodeOf),
+    symbols: async (repoPath) => (await documentSymbolsOf(uriOf(repoPath)))?.map((symbol) => nodeOf(symbol, (symbol.children ?? []).filter((child) => isMember(symbol, child)))),
     // VS Code's TypeScript extension sends references to its syntax server, which knows only the open
     // files, until the project has loaded. A semantic request waits for the load: the server runs
     // one request at a time. Other languages have no such mode here.
