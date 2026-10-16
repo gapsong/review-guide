@@ -2,7 +2,7 @@ import { StoredJudgment } from "../analysis/godFileJudge";
 import { spacedBadgeOf } from "../codemap/badge";
 import { CodemapEntry } from "../codemap/codemap";
 import { isClassMember } from "../godfiles/breadth";
-import { godFileRules, GodFileItem, isBroad } from "../godfiles/godFiles";
+import { godFileRules, GodFileItem, hintOf, isBroad } from "../godfiles/godFiles";
 import { escapeMarkdown, TooltipLink } from "./codemapTooltip";
 import { button } from "./explainHtml";
 import { escapeHtml } from "./markdown";
@@ -12,25 +12,31 @@ import { escapeHtml } from "./markdown";
 
 export const ownersRule = "A big file is fine only as a well-designed deep module: few names used outside, one reason to change.";
 
-// "23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines"
+// "23 names used outside · 66 commits/90 d · changes with 9 areas · knows 4 areas · 1,176 lines"
 export function numbersLine(item: GodFileItem): string {
   return [
     breadthText(item),
     `${formatted(item.commits)} ${plural(item.commits, "commit", "commits")}/${godFileRules.days} d`,
     `changes with ${formatted(item.coChangeAreas.length)} ${plural(item.coChangeAreas.length, "area", "areas")}`,
+    `knows ${formatted(item.knownAreas.length)} ${plural(item.knownAreas.length, "area", "areas")}`,
     `${formatted(item.codeLines)} lines`,
   ].join(" · ");
 }
 
-// Breadth that is not measured shows as "–": a 0 would claim nobody uses the file.
+// Breadth not measured yet shows as "…", breadth that cannot be measured as "–": a 0 would claim
+// nobody uses the file. A count that stopped above the broad threshold shows as "8+".
 function breadthText(item: GodFileItem): string {
-  const names = item.namesUsedOutside?.length;
-  return names === undefined ? "– names used outside" : `${formatted(names)} ${plural(names, "name", "names")} used outside`;
+  const { breadth } = item;
+  if (breadth.state !== "known") {
+    return `${breadth.state === "pending" ? "…" : "–"} names used outside`;
+  }
+  const count = breadth.complete ? formatted(breadth.names.length) : `${godFileRules.broadAboveNamesUsedOutside + 1}+`;
+  return `${count} ${plural(breadth.names.length, "name", "names")} used outside`;
 }
 
 // The codemap calls the file deep, but other files use more of it than a deep module shows.
 export function contradictsCodemap(item: GodFileItem, entry: CodemapEntry | undefined): boolean {
-  return entry?.deep === true && item.namesUsedOutside !== undefined && isBroad(item.namesUsedOutside.length);
+  return entry?.deep === true && item.breadth.state === "known" && isBroad(item.breadth.names.length);
 }
 
 export interface GodFileTooltipContent {
@@ -41,50 +47,85 @@ export interface GodFileTooltipContent {
 
 export function godFileTooltip(content: GodFileTooltipContent): string {
   const { item, entry } = content;
+  const hint = hintOf(item);
+  const usedNames = item.breadth.state === "known" ? item.breadth.names.length : 0;
   const sections = [
-    `**${escapeMarkdown(item.path)}**${item.hint ? ` · *${escapeMarkdown(item.hint)}*` : ""}`,
-    contradictsCodemap(item, entry) ? `$(warning) **Your codemap calls this file a deep module, but ${item.namesUsedOutside!.length} of its names are used by other files** (more than ${godFileRules.broadAboveNamesUsedOutside}).` : "",
+    `**${escapeMarkdown(item.path)}**${hint ? ` · *${escapeMarkdown(hint)}*` : ""}`,
+    contradictsCodemap(item, entry) ? `$(warning) **Your codemap calls this file a deep module, but ${breadthCount(item)} of its names are used by other files** (more than ${godFileRules.broadAboveNamesUsedOutside}).` : "",
     entry ? `Codemap: ${spacedBadgeOf(entry)} ${escapeMarkdown(entry.says)} *(${entry.label}${entry.deep ? " · deep module" : ""})*` : "",
     numberLines(item).join("\n"),
-    `*${escapeMarkdown(ownersRule)}* ${escapeMarkdown(hintMeaning(item))}`,
+    `*${escapeMarkdown(ownersRule)}* ${escapeMarkdown(hintMeaning(item, hint, usedNames))}`,
     content.actions.map((action) => `[${escapeMarkdown(action.title)}](${action.link})`).join(" · "),
   ];
   return sections.filter((section) => section !== "").join("\n\n");
 }
 
+function breadthCount(item: GodFileItem): string {
+  return item.breadth.state === "known" && !item.breadth.complete ? `more than ${godFileRules.broadAboveNamesUsedOutside}` : String(item.breadth.state === "known" ? item.breadth.names.length : 0);
+}
+
 function numberLines(item: GodFileItem): string[] {
-  const names = item.namesUsedOutside;
-  const breadth = names === undefined
-    ? `- **– names used outside:** breadth is measured for TypeScript, JavaScript and Python only; this file ranks on its history.`
-    : `- **${breadthText(item)}:** ${names.length === 0 ? "nothing imports it: an entry point, or unused." : `${escapeMarkdown(breadthSplit(names))}. The more names, the broader the interface you must keep stable.`}`;
   return [
-    breadth,
+    `- **${breadthText(item)}:** ${escapeMarkdown(breadthMeaning(item))}`,
     `- **${item.commits} ${plural(item.commits, "commit", "commits")} in ${godFileRules.days} days:** each commit is a reason it had to change.`,
     `- **Changes with ${item.coChangeAreas.length} ${plural(item.coChangeAreas.length, "area", "areas")}**${item.coChangeAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.coChangeAreas))})` : ""}: files that changed in the same commits; many areas mean many unrelated reasons. Commits of more than ${godFileRules.largestCoChangeCommitFiles} files are sweeps and do not count.`,
+    `- **Knows ${item.knownAreas.length} ${plural(item.knownAreas.length, "area", "areas")}**${item.knownAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.knownAreas))})` : ""}: the other areas it imports from; the more it knows, the more changes elsewhere reach it.`,
     `- **${formatted(item.codeLines)} code lines:** shown, but never part of the score.`,
+    `- **Hardest function:** ${escapeMarkdown(complexityText(item))}`,
   ];
 }
 
-// "other source files import 3 top-level names (a, b, c) and 12 class members (Model.x, …)"
+function breadthMeaning(item: GodFileItem): string {
+  const { breadth } = item;
+  if (breadth.state === "pending") {
+    return "the language server is still finding the references.";
+  }
+  if (breadth.state === "unknown") {
+    return `not measured: ${breadth.reason} This file ranks on its history and imports.`;
+  }
+  if (breadth.names.length === 0) {
+    return "no other source file uses its names (tests do not count): an entry point, or unused.";
+  }
+  const files = `${breadth.files.length}${breadth.complete ? "" : "+"} other ${plural(breadth.files.length, "file", "files")}`;
+  const stopped = breadth.complete ? "" : ` Counting stopped above ${godFileRules.broadAboveNamesUsedOutside}.`;
+  return `${breadthSplit(breadth.names)}, used by ${files} (the language server's references).${stopped} The more names, the broader the interface you must keep stable.`;
+}
+
+// "3 top-level names (a, b, c) and 12 class members (Model.x, …)"
 function breadthSplit(names: string[]): string {
   const topLevel = names.filter((name) => !isClassMember(name));
   const members = names.filter(isClassMember);
-  const parts = [
+  return [
     topLevel.length > 0 ? `${topLevel.length} top-level ${plural(topLevel.length, "name", "names")} (${shortList(topLevel)})` : "",
     members.length > 0 ? `${members.length} class ${plural(members.length, "member", "members")} (${shortList(members)})` : "",
-  ].filter((part) => part !== "");
-  return `other source files import ${parts.join(" and ")}`;
+  ].filter((part) => part !== "").join(" and ");
 }
 
-function hintMeaning(item: GodFileItem): string {
-  const { broadAboveNamesUsedOutside: broad, deepFromCodeLines, deepAtMostCoChangeAreas } = godFileRules;
-  if (item.hint === "deep") {
-    return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines and changes with at most ${deepAtMostCoChangeAreas} areas: it looks like a deep module.`;
+// "Checkout.total, cognitive complexity 31 (line 120)": where reading is hard, not a score input.
+function complexityText(item: GodFileItem): string {
+  const { complexity } = item;
+  if (complexity.state === "pending") {
+    return "… (measuring)";
   }
-  const why = item.hint === "god file?" ? `More than ${broad} names used outside (class members included): maybe several modules in one file.`
-    : item.namesUsedOutside?.length === 0 ? "No hint: nothing imports it, so it has no interface to be deep behind."
-      : item.namesUsedOutside !== undefined && item.codeLines >= deepFromCodeLines ? `No hint: a narrow interface, but it changes with more than ${deepAtMostCoChangeAreas} areas, so it has more reasons to change than a deep module.`
-        : "No hint.";
+  if (complexity.state === "unknown") {
+    return `– ${complexity.reason}`;
+  }
+  return complexity.hardest
+    ? `${complexity.hardest.name}, cognitive complexity ${complexity.hardest.score} (line ${complexity.hardest.line}). Where reading is hard; not part of the score.`
+    : "none, the file has no functions.";
+}
+
+function hintMeaning(item: GodFileItem, hint: ReturnType<typeof hintOf>, usedNames: number): string {
+  const { broadAboveNamesUsedOutside: broad, deepFromCodeLines, deepAtMostCoChangeAreas, deepAtMostKnownAreas } = godFileRules;
+  if (hint === "deep") {
+    return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines, changes with at most ${deepAtMostCoChangeAreas} areas and knows at most ${deepAtMostKnownAreas}: it looks like a deep module.`;
+  }
+  const why = hint === "god file?" ? `More than ${broad} names used outside (class members included): maybe several modules in one file.`
+    : item.breadth.state !== "known" ? "No hint without a measured breadth."
+      : usedNames === 0 ? "No hint: nothing uses it, so it has no interface to be deep behind."
+        : item.codeLines < deepFromCodeLines ? "No hint."
+          : item.coChangeAreas.length > deepAtMostCoChangeAreas ? `No hint: a narrow interface, but it changes with more than ${deepAtMostCoChangeAreas} areas, so it has more reasons to change than a deep module.`
+            : `No hint: a narrow interface, but it knows more than ${deepAtMostKnownAreas} other areas.`;
   return `${why} Judge with Claude for a verdict.`;
 }
 

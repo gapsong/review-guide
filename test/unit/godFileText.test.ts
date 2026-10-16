@@ -5,36 +5,50 @@ import { GodFileItem } from "../../src/godfiles/godFiles";
 import { renderExplainPanel } from "../../src/ui/explainHtml";
 import { contradictsCodemap, godFileTooltip, judgeHtml, judgeStyles, numbersLine } from "../../src/ui/godFileText";
 
+const names = (count: number) => Array.from({ length: count }, (_, index) => `name${index}`);
+
 const broad: GodFileItem = {
   path: "src/shop/checkout.py",
   codeLines: 1176,
-  namesUsedOutside: Array.from({ length: 23 }, (_, index) => `name${index}`),
   commits: 66,
   coChangeAreas: Array.from({ length: 9 }, (_, index) => `area${index}`),
+  knownAreas: ["apps/api", "billing", "src/core", "users"],
   score: 0.9,
-  hint: "god file?",
+  breadth: { state: "known", names: names(23), files: ["apps/api/routes.py", "billing/charge.py"], complete: true },
+  complexity: { state: "known", hardest: { name: "Checkout.total", line: 120, score: 31 } },
 };
 
-const unknownBreadth: GodFileItem = { ...broad, path: "cmd/main.go", namesUsedOutside: undefined, hint: undefined };
+const unknownBreadth: GodFileItem = { ...broad, path: "cmd/main.go", breadth: { state: "unknown", reason: "No language server answers document symbols for \".go\" files here." } };
 
 describe("G5: what the God Files view says about a file", () => {
-  it("G5: shows the numbers line", () => {
-    assert.strictEqual(numbersLine(broad), "23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines");
-    assert.strictEqual(numbersLine({ ...broad, namesUsedOutside: ["a"], coChangeAreas: ["c"], commits: 1 }), "1 name used outside · 1 commit/90 d · changes with 1 area · 1,176 lines");
+  it("G5: shows the numbers line: at most 5 numbers", () => {
+    assert.strictEqual(numbersLine(broad), "23 names used outside · 66 commits/90 d · changes with 9 areas · knows 4 areas · 1,176 lines");
+    const one: GodFileItem = { ...broad, breadth: { state: "known", names: ["a"], files: ["x.py"], complete: true }, coChangeAreas: ["c"], knownAreas: ["d"], commits: 1 };
+    assert.strictEqual(numbersLine(one), "1 name used outside · 1 commit/90 d · changes with 1 area · knows 1 area · 1,176 lines");
+    assert.ok(numbersLine({ ...broad, breadth: { state: "known", names: names(8), files: ["x.py"], complete: false } }).startsWith("8+ names used outside · "), "the count stopped above 7");
   });
 
-  it("G3, G5: shows unknown breadth as \"–\", never as 0", () => {
+  it("G3, G5: shows unknown breadth as \"–\" with its reason, and breadth not measured yet as \"…\", never as 0", () => {
     assert.ok(numbersLine(unknownBreadth).startsWith("– names used outside · "), numbersLine(unknownBreadth));
-    const tooltip = godFileTooltip({ item: unknownBreadth, entry: undefined, actions: [] });
-    assert.ok(tooltip.includes("– names used outside:** breadth is measured for TypeScript, JavaScript and Python only"), tooltip);
+    const tooltip = unescaped(godFileTooltip({ item: unknownBreadth, entry: undefined, actions: [] }));
+    assert.ok(tooltip.includes("– names used outside:** not measured: No language server answers document symbols for \".go\" files here."), tooltip);
+    assert.ok(tooltip.includes("No hint without a measured breadth"), tooltip);
+    const pending: GodFileItem = { ...broad, breadth: { state: "pending" } };
+    assert.ok(numbersLine(pending).startsWith("… names used outside · "), numbersLine(pending));
+    assert.ok(!/\b0 names/.test(numbersLine(unknownBreadth) + numbersLine(pending)));
   });
 
-  it("G5: the tooltip says what each number means and the owner's rule", () => {
+  it("G5: the tooltip says what each number means, the hardest function and the owner's rule", () => {
     const tooltip = godFileTooltip({ item: broad, entry: undefined, actions: [{ title: "Open", link: "command:x" }] });
     const shown = unescaped(tooltip);
-    for (const part of ["**23 names used outside:**", "**66 commits in 90 days:**", "**Changes with 9 areas**", "never part of the score", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
+    for (const part of ["**23 names used outside:**", "used by 2 other files", "**66 commits in 90 days:**", "**Changes with 9 areas**", "**Knows 4 areas** (apps/api, billing, src/core, users)", "never part of the score", "**Hardest function:** Checkout.total, cognitive complexity 31 (line 120)", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
       assert.ok(shown.includes(part), `${part}\n---\n${tooltip}`);
     }
+  });
+
+  it("G5: the tooltip says when complexity is not measured, and why", () => {
+    const missing: GodFileItem = { ...broad, complexity: { state: "unknown", reason: "complexipy was not found (\"complexipy\").", missingTool: true } };
+    assert.ok(unescaped(godFileTooltip({ item: missing, entry: undefined, actions: [] })).includes("**Hardest function:** – complexipy was not found"));
   });
 
   it("G6: shows the codemap label and warns when the codemap says deep but the file measures broad", () => {
@@ -44,13 +58,13 @@ describe("G5: what the God Files view says about a file", () => {
     assert.ok(unescaped(tooltip).includes("Codemap: 💰\u2009🧠 Checks out. *(money · deep module)*"), tooltip);
     assert.strictEqual(contradictsCodemap(broad, deepEntry), true);
     assert.strictEqual(contradictsCodemap(broad, { ...deepEntry, deep: false }), false);
-    assert.strictEqual(contradictsCodemap({ ...broad, namesUsedOutside: ["a", "b", "c", "d", "e", "f", "g"] }, deepEntry), false, "7 names are not broad");
+    assert.strictEqual(contradictsCodemap({ ...broad, breadth: { state: "known", names: names(7), files: [], complete: true } }, deepEntry), false, "7 names are not broad");
     assert.strictEqual(contradictsCodemap(unknownBreadth, deepEntry), false, "unknown breadth never contradicts");
     assert.ok(!godFileTooltip({ item: broad, entry: { ...deepEntry, deep: false }, actions: [] }).includes("$(warning)"));
   });
 
-  it("G5: a path from the repo cannot become a link in the tooltip", () => {
-    const tooltip = godFileTooltip({ item: { ...broad, path: "src/[x](command:evil).py" }, entry: undefined, actions: [] });
+  it("G5: a path or a function name from the repo cannot become a link in the tooltip", () => {
+    const tooltip = godFileTooltip({ item: { ...broad, path: "src/[x](command:evil).py", complexity: { state: "known", hardest: { name: "[y](command:evil)", line: 1, score: 1 } } }, entry: undefined, actions: [] });
     assert.ok(!tooltip.includes("](command:evil)"), tooltip);
   });
 });

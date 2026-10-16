@@ -21,10 +21,21 @@ Lines are lines of the file at commit ${context.commit}, counting from 1. Write 
 ## The file
 path: ${item.path}
 code lines: ${item.codeLines}
-names used by other files: ${item.namesUsedOutside === undefined ? "not measured for this language" : `${item.namesUsedOutside.length}: ${item.namesUsedOutside.join(", ") || "none"}`}
+names used by other files: ${namesUsedOutside(item)}
 commits in ${godFileRules.days} days: ${item.commits}
 areas it changed with (commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
+other areas it imports from: ${item.knownAreas.join(", ") || "none"}
 
 ## Its commits of the last ${godFileRules.days} days, newest first
 ${context.commitSubjects}`;
+}
+
+// As the language server found them; "not measured" when it could not.
+function namesUsedOutside(item: GodFileItem): string {
+  const { breadth } = item;
+  if (breadth.state !== "known") {
+    return breadth.state === "unknown" ? `not measured (${breadth.reason})` : "not measured yet";
+  }
+  const more = breadth.complete ? "" : `, and the count stopped there (more than ${godFileRules.broadAboveNamesUsedOutside})`;
+  return `${breadth.names.length}${more}: ${breadth.names.join(", ") || "none"}`;
 }

@@ -28,7 +28,7 @@ import { showEntryChanges } from "./ui/entryChanges";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
-import { GodFilesView, godFileCommands, openAtLongestFunction } from "./ui/godFilesView";
+import { GodFilesView, godFileCommands, openGodFile } from "./ui/godFilesView";
 import { GuideView } from "./ui/guideView";
 import { OwnershipTree } from "./ui/ownershipTree";
 import { PullRequestTree } from "./ui/pullRequestTree";
@@ -184,7 +184,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
       }
     })),
     vscode.commands.registerCommand(godFileCommands.refresh, reportErrors(() => godFilesView.refresh())),
-    vscode.commands.registerCommand(godFileCommands.open, reportErrors(openAtLongestFunction)),
+    vscode.commands.registerCommand(godFileCommands.open, reportErrors(openGodFile)),
     vscode.commands.registerCommand(godFileCommands.judge, reportErrors((target: CodemapTarget) => explainPanels.judge(uriOfTarget(target)))),
   );
   return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels, godFilesView };

@@ -2,8 +2,9 @@ import * as assert from "assert";
 import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
-import { measureBreadth } from "../../src/godfiles/breadth";
+import { Breadth, LanguageServer, measureBreadth, SymbolNode } from "../../src/godfiles/breadth";
 import { areaOf, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles } from "../../src/godfiles/godFiles";
+import { importedFiles, importLinesOf } from "../../src/godfiles/imports";
 import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
@@ -115,14 +116,13 @@ describe("G2: the ranking follows the owner's rule", () => {
     const report = await measureGodFiles(repo, defaultGodFileOptions);
     const broad = itemOf(report, "src/shop/broad.ts");
     const ledger = itemOf(report, "src/ledger/ledger.ts");
-    assert.deepStrictEqual(broad.namesUsedOutside, [...broadNames].sort());
     assert.deepStrictEqual(broad.coChangeAreas, ["apps/web", "packages/billing", "src/admin"]);
-    assert.deepStrictEqual(ledger.namesUsedOutside, ["balance", "post"]);
     assert.ok(ledger.codeLines >= 600, `the ledger has ${ledger.codeLines} code lines`);
     assert.ok(broad.codeLines < ledger.codeLines, "the broad file is the shorter one");
     assert.deepStrictEqual(report.items.map((item) => item.path), ["src/shop/broad.ts", "src/ledger/ledger.ts", "src/long/table.ts"]);
-    assert.strictEqual(broad.hint, "god file?");
-    assert.strictEqual(ledger.hint, "deep");
+    assert.strictEqual(broad.breadth.state, "pending", "breadth comes later, from the language server");
+    assert.strictEqual(hintOf({ ...broad, breadth: known(broadNames) }), "god file?");
+    assert.strictEqual(hintOf({ ...ledger, breadth: known(["balance", "post"]) }), "deep");
   });
 
   it("G2: length alone never lifts a file: ten times the lines leave its score and rank as they were", async () => {
@@ -138,14 +138,25 @@ describe("G2: the ranking follows the owner's rule", () => {
     assert.strictEqual(short.items[short.items.length - 1].path, "src/long/table.ts", "the 5000-line file that nobody uses ranks last");
   });
 
-  it("G2: the hint is 'god file?' above 7 names used outside; 'deep' needs 1 to 7 names, 300 code lines and at most 3 co-change areas; none when breadth is unknown or nothing imports the file", () => {
-    assert.strictEqual(hintOf(8, 10, 0), "god file?");
-    assert.strictEqual(hintOf(8, 10, 12), "god file?");
-    assert.strictEqual(hintOf(7, 300, 3), "deep");
-    assert.strictEqual(hintOf(7, 299, 3), undefined, "too short for a deep module");
-    assert.strictEqual(hintOf(7, 300, 4), undefined, "narrow but changing with many areas: many reasons to change");
-    assert.strictEqual(hintOf(0, 5000, 0), undefined, "nothing imports it: an entry point or unused, not a deep module");
-    assert.strictEqual(hintOf(undefined, 5000, 0), undefined);
+  it("G2: the hint is 'god file?' above 7 names used outside; 'deep' needs 1 to 7 names, 300 code lines, at most 3 co-change areas and at most 3 known areas; none when breadth is unknown, pending or nothing uses the file", () => {
+    const areas = (count: number) => Array.from({ length: count }, (_, index) => `area${index}`);
+    const hint = (names: number | undefined, codeLines: number, coChange: number, knownAreas = 0, complete = true) => hintOf({
+      breadth: names === undefined ? { state: "unknown", reason: "no server" } : { ...known(areas(names)), complete },
+      codeLines,
+      coChangeAreas: areas(coChange),
+      knownAreas: areas(knownAreas),
+    });
+    assert.strictEqual(hint(8, 10, 0), "god file?");
+    assert.strictEqual(hint(8, 10, 12), "god file?", "the count stopped at 8 (\"8+\") is broad too");
+    assert.strictEqual(hint(8, 10, 0, 0, false), "god file?");
+    assert.strictEqual(hint(7, 300, 3), "deep");
+    assert.strictEqual(hint(7, 300, 3, 3), "deep");
+    assert.strictEqual(hint(7, 300, 3, 4), undefined, "narrow, but it knows 4 other areas");
+    assert.strictEqual(hint(7, 299, 3), undefined, "too short for a deep module");
+    assert.strictEqual(hint(7, 300, 4), undefined, "narrow but changing with many areas: many reasons to change");
+    assert.strictEqual(hint(0, 5000, 0), undefined, "nothing uses it: an entry point or unused, not a deep module");
+    assert.strictEqual(hint(undefined, 5000, 0), undefined);
+    assert.strictEqual(hintOf({ breadth: { state: "pending" }, codeLines: 5000, coChangeAreas: [], knownAreas: [] }), undefined);
   });
 
   it("G2: a long narrow file that changes with 6 areas gets no deep hint", async () => {
@@ -157,9 +168,27 @@ describe("G2: the ranking follows the owner's rule", () => {
       commitFilesAt(repo, days, { "src/ledger/ledger.ts": `${ledger}// ledger ${days}\n`, [partner]: `${partnerText}// ledger ${days}\n` }, `Change the ledger with ${partner}`);
     }
     const ledger = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "src/ledger/ledger.ts");
-    assert.deepStrictEqual(ledger.namesUsedOutside, ["balance", "post"]);
     assert.deepStrictEqual(ledger.coChangeAreas, ["apps/web", "packages/billing", "src/admin", "src/ledger", "src/long", "src/shop"]);
-    assert.strictEqual(ledger.hint, undefined);
+    assert.strictEqual(hintOf({ ...ledger, breadth: known(["balance", "post"]) }), undefined);
+  });
+
+  it("G2: a file that imports from 11 other areas knows them all and ranks first, before anything uses it", async () => {
+    const repo = path.join(scratch, "knows");
+    initRepo(repo);
+    const areas = Array.from({ length: 11 }, (_, index) => `area${index}`);
+    const files: Record<string, string> = {
+      "app/main.py": `${areas.map((area) => `from ${area}.service import run_${area}`).join("\n")}\nimport os\nfrom .local import x\n${filler(200)}\n`,
+      "app/local.py": "x = 1\n",
+      "lib/quiet.py": `${filler(200)}\n`,
+    };
+    for (const area of areas) {
+      files[`${area}/service.py`] = `def run_${area}():\n    pass\n`;
+    }
+    commitFilesAt(repo, 10, files);
+    const report = await measureGodFiles(repo, defaultGodFileOptions);
+    assert.deepStrictEqual(itemOf(report, "app/main.py").knownAreas, [...areas].sort(), "its own area, os and packages outside the repo do not count");
+    assert.deepStrictEqual(itemOf(report, "lib/quiet.py").knownAreas, []);
+    assert.strictEqual(report.items[0].path, "app/main.py");
   });
 
   it("G2: candidates start at the minimum of code lines (150 by default)", async () => {
@@ -173,130 +202,139 @@ describe("G2: the ranking follows the owner's rule", () => {
   });
 });
 
-describe("G3: breadth through imports", () => {
-  it("G3: TypeScript and JavaScript: named, default, namespace, alias by path suffix, re-exports, require and dynamic import", () => {
-    const breadth = measureBreadth([
-      ts("src/lib/money.ts", "export function add() {}\nexport const cents = 1;\nexport let euros = 2;\nexport class Purse {}\nexport interface Price {}\nexport type Rate = number;\nexport enum Coin { A }\nexport default function format() {}\nfunction hidden() {}\nexport { hidden as visible };\n"),
-      ts("src/lib/index.ts", "export { add } from './money';\nexport * from './tax';\n"),
-      ts("src/lib/tax.ts", "export const vat = 1;\nexport function rate() {}\n"),
-      ts("src/lib/old.js", "exports.legacy = 1;\nmodule.exports.older = 2;\n"),
-      ts("src/lib/cjs.js", "module.exports = { alpha, beta: 2, gamma() {} };\n"),
-      ts("apps/web/a.ts", "import format, { cents as c, type Price } from '../../src/lib/money';\n// import { euros } from '../../src/lib/money';\n"),
-      ts("apps/web/b.tsx", "import * as m from '@/lib/money';\nm.Purse; m.Coin; m.notExported;\n"),
-      ts("apps/web/c.js", "const { legacy } = require('../../src/lib/old.js');\nconst cjs = require('../../src/lib/cjs');\ncjs.alpha(); require('../../src/lib/old').older;\n"),
-      ts("apps/web/d.mjs", "const { rate } = await import('../../src/lib/tax.js');\n"),
-      ts("apps/web/e.ts", "import { visible } from '~/lib/money';\nimport React from 'react';\nimport { x } from 'money';\n"),
-      ts("apps/web/f.ts", "import { add, vat } from '../../src/lib';\n"),
-    ]);
-    assert.deepStrictEqual(breadth.get("src/lib/money.ts"), ["Price", "Purse", "Coin", "add", "cents", "default", "visible"].sort());
-    assert.deepStrictEqual(breadth.get("src/lib/tax.ts"), ["rate", "vat"], "export * uses every name, and a name taken from the barrel is a use of its module");
-    assert.deepStrictEqual(breadth.get("src/lib/index.ts"), ["add"]);
-    assert.deepStrictEqual(breadth.get("src/lib/old.js"), ["legacy", "older"]);
-    assert.deepStrictEqual(breadth.get("src/lib/cjs.js"), ["alpha"]);
-    assert.deepStrictEqual(breadth.get("apps/web/a.ts"), []);
-  });
-
-  it("G3: a class with 12 public methods that other files call is broad, not deep: members count as names, members nobody calls and private ones do not", async () => {
-    const methods = Array.from({ length: 12 }, (_, index) => `  method${index + 1}(): void {\n${filler(20, `step${index + 1}`)}\n  }\n`).join("");
-    const model = `export class Model {\n  private secret = 1;\n  protected guarded(): void {}\n  #hidden(): void {}\n  _internal(): void {}\n  constructor(public readonly id: string) {}\n  static create(): Model { return new Model("1"); }\n  get title(): string { return ""; }\n  unused(): void {}\n${methods}}\nexport function helper(): void {}\n`;
+describe("G3: the module-level import scan (knows N areas)", () => {
+  it("G3: TypeScript and JavaScript: import, multi-line import, export from, require, dynamic import, relative paths with extensions and index files, path aliases; packages and comments are not imports", () => {
     const sources = [
-      ts("src/github/model.ts", model),
-      ts("src/github/index.ts", "export { Model } from './model';\n"),
-      ts("src/view/tree.ts", "import { Model } from '../github/model';\nconst m = Model.create();\nm.method1(); m.method2(); m.method3(); m.method4(); m.secret; m.guarded(); m._internal(); m.id;\n"),
-      ts("src/commands.ts", "import * as github from './github/model';\nfunction run(m: github.Model) { m.method5(); m.method6(); m.method7(); m.method8(); m.title; }\n"),
-      ts("src/webview.ts", "import type { Model } from './github';\nexport function show(m: Model) { m.method9(); m.method10(); m.method11(); m.method12(); }\n"),
-      ts("src/other.ts", "const x = { method1() {}, unused() {} };\nx.method1(); x.unused();\n"),
+      ts("src/lib/money.ts", "export const cents = 1;\n"),
+      ts("src/lib/index.ts", "export { cents } from './money';\nexport * from './tax';\n"),
+      ts("src/lib/tax.ts", "export const vat = 1;\n"),
+      ts("src/util/log.js", "exports.log = 1;\n"),
+      ts("apps/web/a.ts", "import {\n  cents as c,\n  type Price,\n} from '../../src/lib/money';\n// import { x } from '../../src/util/log';\nimport React from 'react';\nimport { y } from 'money';\n"),
+      ts("apps/web/b.tsx", "import * as m from '@/lib/money';\n"),
+      ts("apps/web/c.js", "const { log } = require('../../src/util/log.js');\n"),
+      ts("apps/web/d.mjs", "const { vat } = await import('~/lib/tax.js');\n"),
+      ts("apps/web/e.ts", "import { vat } from '../../src/lib';\nimport './side-effect';\n"),
+      ts("apps/web/side-effect.ts", "\n"),
     ];
-    const breadth = measureBreadth(sources);
-    assert.deepStrictEqual(breadth.get("src/github/model.ts"), ["Model", ...Array.from({ length: 12 }, (_, index) => `Model.method${index + 1}`), "Model.create", "Model.id", "Model.title"].sort(), "a member counts when a file that imports the class accesses it (a public constructor parameter too); private, protected, #, _ and the constructor never; unused ones not; a file that does not import the class not");
-    const scratch = makeTempDir("godfiles-g3-members");
-    try {
-      const repo = path.join(scratch, "repo");
-      initRepo(repo);
-      commitFilesAt(repo, 10, Object.fromEntries(sources.map((source) => [source.path, source.text])));
-      const item = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "src/github/model.ts");
-      assert.strictEqual(item.hint, "god file?", "16 names used outside, the class and 15 of its members");
-    } finally {
-      fs.rmSync(scratch, { recursive: true, force: true });
-    }
+    const imported = importedFiles(sources);
+    assert.deepStrictEqual(imported.get("apps/web/a.ts"), ["src/lib/money.ts"], "a multi-line import; the commented-out one and the packages are not imports");
+    assert.deepStrictEqual(imported.get("apps/web/b.tsx"), ["src/lib/money.ts"], "an alias is resolved by path suffix");
+    assert.deepStrictEqual(imported.get("apps/web/c.js"), ["src/util/log.js"]);
+    assert.deepStrictEqual(imported.get("apps/web/d.mjs"), ["src/lib/tax.ts"]);
+    assert.deepStrictEqual(imported.get("apps/web/e.ts"), ["apps/web/side-effect.ts", "src/lib/index.ts"]);
+    assert.deepStrictEqual(imported.get("src/lib/index.ts"), ["src/lib/money.ts", "src/lib/tax.ts"]);
+    assert.deepStrictEqual([...importLinesOf(sources[4].text, "typescript")].sort(), [0, 1, 2, 3, 5, 6], "the lines of the statements, not the comment");
   });
 
-  it("G3: Python: public methods, properties and class attributes other files access count as names; _names do not", () => {
-    const breadth = measureBreadth([
-      py("app/models.py", "class Order:\n    STATES = ['new']\n    _cache = {}\n\n    def __init__(self):\n        pass\n\n    @property\n    def total(self):\n        return 0\n\n    async def ship(self):\n        pass\n\n    def _recompute(self):\n        pass\n\n    def cancel(self):\n        pass\n\nclass Line:\n    def price(self):\n        pass\n"),
-      py("app/views.py", "from app.models import Order\no = Order()\no.total; o.ship(); o._recompute(); Order.STATES; o._cache\n"),
-      py("app/jobs.py", "import app.models as models\nmodels.Line().price()\n"),
-      py("app/unrelated.py", "x.cancel()\n"),
-    ]);
-    assert.deepStrictEqual(breadth.get("app/models.py"), ["Line", "Line.price", "Order", "Order.STATES", "Order.ship", "Order.total"]);
+  it("G3: Python: from pkg import module, import a.b as c, relative imports, parenthesised and continued lists; a docstring's import is not one", () => {
+    const sources = [
+      py("app/routes/billing.py", "router = 1\n"),
+      py("app/routes/__init__.py", "\n"),
+      py("app/models.py", "class Order: pass\n"),
+      py("shop/payment.py", "def charge(): pass\n"),
+      py("api/main.py", "from app.routes import billing\nbilling.router\n"),
+      py("api/admin.py", "import app.models as m\nfrom ..shop import payment\n"),
+      py("api/jobs.py", "from app.models import (\n    Order,\n)\nfrom shop.payment \\\n    import charge\n\"\"\"from app.routes import billing\"\"\"\n"),
+    ];
+    const imported = importedFiles(sources);
+    assert.deepStrictEqual(imported.get("api/main.py"), ["app/routes/billing.py"], "from a package, a module is the import");
+    assert.deepStrictEqual(imported.get("api/admin.py"), ["app/models.py", "shop/payment.py"]);
+    assert.deepStrictEqual(imported.get("api/jobs.py"), ["app/models.py", "shop/payment.py"]);
+    assert.deepStrictEqual([...importLinesOf(sources[6].text, "python")].sort(), [0, 1, 2, 3, 4]);
   });
 
-  it("G3: class members are found behind type arguments with braces, decorators, generics, getters and typed fields; private, protected and # never", () => {
-    const service = "@injectable()\nexport default class Svc<T extends object> extends Base<{ a: 1 }> implements I {\n  @dec() public items: T[] = [];\n  handler = (x: number) => { return x; };\n  private readonly map = new Map<string, { b: 2 }>();\n  static readonly VERSION = \"1\";\n  get size(): number { return 0 }\n  set size(v: number) {}\n  async run<U>(a: U): Promise<void> {}\n  *gen() {}\n  opt?: string;\n  def!: string;\n  [key: string]: unknown;\n  protected prot() {}\n  #priv() {}\n  tpl = `a { b } ${\"c\"}`;\n  constructor(private a: number, public readonly b: string, protected c: number, readonly d: number, e: number) { super(); }\n}\nclass Later { later() {} }\nexport { Later };\n";
-    const everyName = ["items", "handler", "map", "VERSION", "size", "run", "gen", "opt", "def", "key", "prot", "priv", "tpl", "a", "b", "c", "d", "e", "later"];
-    const breadth = measureBreadth([
-      ts("src/svc.ts", service),
-      ts("src/user.ts", `import Svc, { Later } from './svc';\n${everyName.map((name) => `x.${name};`).join(" ")}\n`),
-    ]);
-    const publicMembers = ["VERSION", "b", "d", "def", "gen", "handler", "items", "opt", "run", "size", "tpl"].map((member) => `default.${member}`);
-    assert.deepStrictEqual(breadth.get("src/svc.ts"), ["Later", "Later.later", "default", ...publicMembers].sort());
-  });
-
-  it("G3: an import that two files of the same suffix could mean is not counted for either, unless one shares more folders", () => {
-    const breadth = measureBreadth([
+  it("G3: an import that two files of the same suffix could mean is not resolved, unless one shares more folders", () => {
+    const imported = importedFiles([
       ts("packages/a/src/util/log.ts", "export function log() {}\n"),
       ts("packages/b/src/util/log.ts", "export function log() {}\n"),
       ts("packages/a/src/main.ts", "import { log } from 'src/util/log';\n"),
       ts("apps/x.ts", "import { log } from 'src/util/log';\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("packages/a/src/util/log.ts"), ["log"], "packages/a/src/main.ts shares more folders with it");
-    assert.deepStrictEqual(breadth.get("packages/b/src/util/log.ts"), [], "apps/x.ts could mean either, so it counts for neither");
+    assert.deepStrictEqual(imported.get("packages/a/src/main.ts"), ["packages/a/src/util/log.ts"]);
+    assert.deepStrictEqual(imported.get("apps/x.ts"), []);
   });
+});
 
-  it("G3: Python: from-imports, import as with attributes, relative imports, __all__, private names and package re-exports", () => {
-    const breadth = measureBreadth([
-      py("src/shop/payment.py", "import os\n\nLIMIT = 3\n_secret = 1\n\ndef charge():\n    pass\n\nasync def refund():\n    pass\n\nclass Receipt:\n    def total(self):\n        pass\n\ndef _helper():\n    pass\n"),
-      py("src/shop/__init__.py", "from .payment import Receipt\n"),
-      py("src/shop/models.py", "__all__ = ['Order', \"Line\"]\nclass Order: pass\nclass Line: pass\nclass Hidden: pass\n"),
-      py("src/api/views.py", "from shop.payment import charge, _secret\nimport shop.models as m\nm.Order\n\"\"\"from shop.payment import LIMIT\"\"\"\n# from shop.payment import refund\n"),
-      py("src/api/admin.py", "from ..shop import payment\npayment.refund()\nfrom ..shop.models import (\n    Line,\n    Hidden,\n)\n"),
-      py("src/api/home.py", "from shop import Receipt\nimport shop.payment\nshop.payment.LIMIT\n"),
-      py("src/api/everything.py", "from src.shop.models import *\n"),
-    ]);
-    assert.deepStrictEqual(breadth.get("src/shop/payment.py"), ["LIMIT", "Receipt", "charge", "refund"]);
-    assert.deepStrictEqual(breadth.get("src/shop/models.py"), ["Line", "Order"], "__all__ decides; Hidden is not public");
-    assert.deepStrictEqual(breadth.get("src/shop/__init__.py"), ["Receipt"], "a package offers what its __init__ imports");
-  });
+describe("G3: breadth from the language server (a fake one)", () => {
+  const measured = new Set(["src/github/model.ts", "src/github/index.ts", "src/view/tree.ts", "src/commands.ts", "src/webview.ts", "src/lib/money.ts", "src/lib/index.ts", "apps/web/f.ts", "apps/web/g.ts", "app/routes/billing.py", "app/main.py", "cmd/main.go"]);
+  const options = { measured, stopAbove: 100, timeoutMilliseconds: 5_000, isCancelled: () => false };
 
-  it("G3: Python: a name a package's __init__.py passes on is also a use of the module that defines it", () => {
-    const breadth = measureBreadth([
-      py("fastlib/applications.py", "class App:\n    pass\n"),
-      py("fastlib/params.py", "def Query():\n    pass\n"),
-      py("fastlib/__init__.py", "from .applications import App as App\nfrom .params import *\n"),
-      py("docs/a.py", "from fastlib import App, Query\n"),
-      py("docs/b.py", "import fastlib\nfastlib.App()\n"),
-    ]);
-    assert.deepStrictEqual(breadth.get("fastlib/applications.py"), ["App"]);
-    assert.deepStrictEqual(breadth.get("fastlib/params.py"), ["Query"]);
-  });
+  // Model: a class with 12 public methods, each used by another file, and members that never count.
+  const hiddenMembers = ["private secret = 1;", "protected guarded(): void {}", "#hidden(): void {}", "_internal(): void {}", "constructor(public readonly id: string) {}"];
+  const modelLines = ["export class Model {", ...hiddenMembers.map((line) => `  ${line}`), ...Array.from({ length: 12 }, (_, index) => `  method${index + 1}(): void {}`), "  unused(): void {}", "}", "function helper(): void {}"];
+  const memberNames = ["secret", "guarded", "#hidden", "_internal", "constructor", ...Array.from({ length: 12 }, (_, index) => `method${index + 1}`), "unused"];
+  const model = fakeFile("src/github/model.ts", modelLines, [
+    symbol("Model", 0, memberNames.map((name, index) => symbol(name, index + 1))),
+    symbol("helper", modelLines.length - 1),
+  ]);
 
-  it("G3: other languages show no breadth ('–', never 0) and still rank on history", async () => {
-    const scratch = makeTempDir("godfiles-g3");
-    try {
-      const repo = path.join(scratch, "repo");
-      initRepo(repo);
-      commitFilesAt(repo, 30, { "cmd/server/main.go": `package main\n${filler(200)}\n`, "src/app.ts": `export function a() {}\n${filler(200)}\n` });
-      commitFilesAt(repo, 20, { "cmd/server/main.go": `package main\n${filler(201)}\n` });
-      const report = await measureGodFiles(repo, defaultGodFileOptions);
-      const go = itemOf(report, "cmd/server/main.go");
-      assert.strictEqual(go.namesUsedOutside, undefined);
-      assert.strictEqual(go.hint, undefined);
-      assert.strictEqual(go.commits, 2);
-      assert.strictEqual(report.items[0].path, "cmd/server/main.go", "it ranks on its history");
-      assert.deepStrictEqual(itemOf(report, "src/app.ts").namesUsedOutside, []);
-    } finally {
-      fs.rmSync(scratch, { recursive: true, force: true });
+  it("G3: a class with 12 public methods that other files call is broad: members count as \"Class.member\"; private, protected, #, _, the constructor and members nobody calls do not", async () => {
+    const users = ["src/view/tree.ts", "src/commands.ts", "src/webview.ts"];
+    const references: Record<string, Use[]> = { "src/github/model.ts:0": [{ path: "src/view/tree.ts", line: 3 }] };
+    for (let index = 1; index <= 12; index++) {
+      references[`src/github/model.ts:${modelLines.indexOf(`  method${index}(): void {}`)}`] = [{ path: users[index % 3], line: index }];
     }
+    for (const hidden of [1, 2, 3, 4]) {
+      references[`src/github/model.ts:${hidden}`] = [{ path: "src/view/tree.ts", line: 20 + hidden }];
+    }
+    references[`src/github/model.ts:${modelLines.length - 1}`] = [{ path: "src/github/model.ts", line: 3 }];
+    const server = fakeServer([model, ...users.map((user) => fakeFile(user, ["import { Model } from '../github/model';"], []))], references);
+    const breadth = await measureBreadth("src/github/model.ts", server, options);
+    const methods = Array.from({ length: 12 }, (_, index) => `Model.method${index + 1}`);
+    assert.deepStrictEqual(breadth, { state: "known", names: ["Model", ...methods].sort(), files: [...users].sort(), complete: true });
+    const stopped = await measureBreadth("src/github/model.ts", server, { ...options, stopAbove: 7 });
+    assert.ok(stopped?.state === "known" && !stopped.complete && stopped.names.length === 8, `stops at 8 names ("8+"): ${JSON.stringify(stopped)}`);
+  });
+
+  it("G3: same-file references and references from tests or files outside the measured set are not uses", async () => {
+    const lines = ["export function charge() {}", "charge();"];
+    const server = fakeServer([fakeFile("src/lib/money.ts", lines, [symbol("charge", 0)])], {
+      "src/lib/money.ts:0": [{ path: "src/lib/money.ts", line: 0 }, { path: "src/lib/money.ts", line: 1 }, { path: "test/money.test.ts", line: 2 }, { path: undefined, line: 3 }],
+    });
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", server, options), { state: "known", names: [], files: [], complete: true });
+  });
+
+  it("G3: a barrel counts no re-exported name as its own, and is no user either: the defining module gets the use", async () => {
+    const money = fakeFile("src/lib/money.ts", ["export function add() {}", "export const cents = 1;"], [symbol("add", 0), symbol("cents", 1)]);
+    const barrel = fakeFile("src/lib/index.ts", ["export { add } from './money';", "export {", "  cents,", "} from './money';"], [symbol("add", 0), symbol("cents", 2)]);
+    const user = fakeFile("apps/web/f.ts", ["import { add } from '../../src/lib';", "add();"], []);
+    const server = fakeServer([money, barrel, user], {
+      "src/lib/money.ts:0": [{ path: "src/lib/money.ts", line: 0 }, { path: "src/lib/index.ts", line: 0 }, { path: "apps/web/f.ts", line: 0 }, { path: "apps/web/f.ts", line: 1 }],
+      "src/lib/money.ts:1": [{ path: "src/lib/money.ts", line: 1 }, { path: "src/lib/index.ts", line: 2 }],
+      "src/lib/index.ts:0": [{ path: "apps/web/f.ts", line: 1 }],
+      "src/lib/index.ts:2": [{ path: "apps/web/f.ts", line: 1 }],
+    });
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", server, options), { state: "known", names: ["add"], files: ["apps/web/f.ts"], complete: true });
+    assert.deepStrictEqual(await measureBreadth("src/lib/index.ts", server, options), { state: "known", names: [], files: [], complete: true });
+  });
+
+  it("G3: module.attr, an aliased import and a namespace import are uses of the defining file", async () => {
+    const billing = fakeFile("app/routes/billing.py", ["from fastapi import APIRouter", "", "router = APIRouter()", "def _private(): pass"], [symbol("APIRouter", 0), symbol("router", 2), symbol("_private", 3)]);
+    const main = fakeFile("app/main.py", ["from app.routes import billing", "", "app.include_router(billing.router)"], []);
+    const money = fakeFile("src/lib/money.ts", ["export const cents = 1;", "export function add() {}"], [symbol("cents", 0), symbol("add", 1)]);
+    const aliased = fakeFile("apps/web/f.ts", ["import { cents as c } from '@/lib/money';", "c + 1;"], []);
+    const namespace = fakeFile("apps/web/g.ts", ["import * as m from '../../src/lib/money';", "m.add();"], []);
+    const server = fakeServer([billing, main, money, aliased, namespace], {
+      "app/routes/billing.py:0": [{ path: "app/routes/billing.py", line: 0 }],
+      "app/routes/billing.py:2": [{ path: "app/routes/billing.py", line: 2 }, { path: "app/main.py", line: 2 }],
+      "src/lib/money.ts:0": [{ path: "src/lib/money.ts", line: 0 }, { path: "apps/web/f.ts", line: 0 }, { path: "apps/web/f.ts", line: 1 }],
+      "src/lib/money.ts:1": [{ path: "src/lib/money.ts", line: 1 }, { path: "apps/web/g.ts", line: 1 }],
+    });
+    assert.deepStrictEqual(await measureBreadth("app/routes/billing.py", server, options), { state: "known", names: ["router"], files: ["app/main.py"], complete: true }, "billing.router is a use; the imported APIRouter is not billing's own name");
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", server, options), { state: "known", names: ["add", "cents"], files: ["apps/web/f.ts", "apps/web/g.ts"], complete: true });
+  });
+
+  it("G3: unknown breadth is never 0: no symbol provider, no reference provider, a timeout and a failure each give a reason; a cancel gives nothing", async () => {
+    const go = fakeServer([fakeFile("cmd/main.go", ["package main", "func Run() {}"], undefined)], {});
+    const unknown = await measureBreadth("cmd/main.go", go, options);
+    assert.deepStrictEqual(unknown, { state: "unknown", reason: "No language server answers document symbols for \".go\" files here." });
+    const noReferences: LanguageServer = { ...fakeServer([fakeFile("src/lib/money.ts", ["export const cents = 1;"], [symbol("cents", 0)])], {}), references: async () => [] };
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", noReferences, options), { state: "unknown", reason: "No language server answers references for TypeScript/JavaScript files here." });
+    const slow: LanguageServer = { ...noReferences, references: () => new Promise(() => undefined) };
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", slow, { ...options, timeoutMilliseconds: 50 }), { state: "unknown", reason: "The language server did not answer within 0 s." });
+    const failing: LanguageServer = { ...noReferences, references: () => Promise.reject(new Error("crashed")) };
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", failing, options), { state: "unknown", reason: "The language server failed: crashed" });
+    assert.strictEqual(await measureBreadth("src/lib/money.ts", noReferences, { ...options, isCancelled: () => true }), undefined);
   });
 });
 
@@ -381,6 +419,46 @@ function ts(filePath: string, text: string) {
 
 function py(filePath: string, text: string) {
   return { path: filePath, language: "python" as const, text };
+}
+
+function known(names: string[]): Extract<Breadth, { state: "known" }> {
+  return { state: "known", names: [...names].sort(), files: ["apps/web/page.ts"], complete: true };
+}
+
+interface Use {
+  path: string | undefined;
+  line: number;
+}
+
+interface FakeFile {
+  path: string;
+  lines: string[];
+  symbols: SymbolNode[] | undefined;
+}
+
+function fakeFile(filePath: string, lines: string[], symbols: SymbolNode[] | undefined): FakeFile {
+  return { path: filePath, lines, symbols };
+}
+
+// The character is filled in from the file's line, where the name stands.
+function symbol(name: string, line: number, children: SymbolNode[] = []): SymbolNode {
+  return { name, isClass: children.length > 0, line, character: -1, children };
+}
+
+// A language server that knows the given files; the references of a declaration by its "path:line".
+function fakeServer(files: FakeFile[], references: Record<string, Use[]>): LanguageServer {
+  const byPath = new Map(files.map((file) => [file.path, file]));
+  const placed = (file: FakeFile) => (node: SymbolNode): SymbolNode => ({ ...node, character: Math.max(0, file.lines[node.line]?.indexOf(node.name) ?? 0), children: node.children.map(placed(file)) });
+  return {
+    symbols: async (repoPath) => {
+      const file = byPath.get(repoPath);
+      return file?.symbols?.map(placed(file));
+    },
+    ready: async () => undefined,
+    // A real server lists the declaration itself too.
+    references: async (repoPath, line) => [{ path: repoPath, line }, ...(references[`${repoPath}:${line}`] ?? [])],
+    text: async (repoPath) => byPath.get(repoPath)?.lines.join("\n") ?? "",
+  };
 }
 
 function execGitShow(repo: string, object: string): string {

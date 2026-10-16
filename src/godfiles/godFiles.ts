@@ -1,21 +1,25 @@
 import { execFile, spawn } from "child_process";
-import { measureBreadth, SourceText } from "./breadth";
+import { Breadth } from "./breadth";
+import { Complexity } from "./complexity";
+import { importedFiles, ScannedSource } from "./imports";
 import { countCodeLines, globToRegExp, isMeasuredSource, languageOf } from "./sourceFiles";
 
-// Where owning a repo hurts most: its files ranked by breadth (names other files use) and by
-// reasons to change (history), never by length. The owner's rule: a big file is fine only as a
+// Where owning a repo hurts most: its files ranked by reasons to change (history) and by how much
+// of the repo they know (imports), never by length. The owner's rule: a big file is fine only as a
 // well-designed deep module.
 //
-//   HEAD ── git ls-tree + cat-file ──► source files ──► code lines, breadth (imports)
+//   HEAD ── git ls-tree + cat-file ──► source files ──► code lines, areas it imports from (imports.ts)
 //   HEAD ── one git log pass ────────► commits, co-change areas
 //                                       └──► candidates (≥ minCodeLines) ──► score ──► report
 //
 // Deterministic and read-only: only HEAD and its history count, never the working tree, and git
-// never touches the network (readGit). No Claude, no language server.
+// never touches the network (readGit). No Claude, no language server. Breadth (names used outside,
+// from the language server) and cognitive complexity come later, for the files the view shows.
 
 // Every threshold of the God Files view, so each one is switched in one place (README, "God files").
 export const godFileRules = {
-  // More names used by other files than this, and the file's interface is broad.
+  // More names used by other files than this, and the file's interface is broad. Counting names
+  // stops there (shown as "8+").
   broadAboveNamesUsedOutside: 7,
   // A file with a narrow interface is called a deep module only from this many code lines on;
   // a short file with a narrow interface is just a small file.
@@ -25,6 +29,10 @@ export const godFileRules = {
   // on fastapi (routing.py, applications.py: 1 area) and vscode-pull-request-github (its narrow
   // 1,000-line files change with 5 to 10 areas); see REPORT.md.
   deepAtMostCoChangeAreas: 3,
+  // A deep module hides its work behind a narrow interface, and it needs little of the rest of the
+  // repo to do it. A file that imports from more other areas than this knows too much for one
+  // reason to change (assumption, reversible).
+  deepAtMostKnownAreas: 3,
   // A commit that touches more files than this is a sweep (a rename, a formatter run); its files did
   // not change together for one reason, so it does not count as co-change.
   largestCoChangeCommitFiles: 25,
@@ -44,21 +52,23 @@ export type GodFileHint = "god file?" | "deep" | undefined;
 export interface GodFileItem {
   path: string;
   codeLines: number;
-  // undefined: breadth is not measured for this language (shown as "–", never as 0). Top-level names
-  // and public class members as "Class.member" (breadth.ts, isClassMember).
-  namesUsedOutside: string[] | undefined;
   commits: number;
   // The areas (areaOf) of the other measured source files changed in the same commits, sorted.
   coChangeAreas: string[];
-  // 0 to 1: the mean of the file's percentiles on names used outside, co-change areas and commits.
+  // The other areas whose files this file imports, sorted.
+  knownAreas: string[];
+  // 0 to 1: the mean of the file's percentiles on known areas, co-change areas and commits.
   score: number;
-  hint: GodFileHint;
+  // Measured by the view, from the language server, for the files it shows; "pending" until then.
+  breadth: Breadth;
+  complexity: Complexity;
 }
 
 export interface GodFileReport {
   commit: string;
   minCodeLines: number;
-  sourceFileCount: number;
+  // Every measured source file: the files whose uses of a name count (tests are not users).
+  sourcePaths: string[];
   // Commits in the window before HEAD, merges left out.
   commitCount: number;
   // A shallow clone holds only the newest commits: the counts are a floor, not the history.
@@ -73,17 +83,17 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
   const commit = await headCommitOf(repoFolder);
   const sourcePaths = await measuredSourcesAt(repoFolder, commit, options);
   const sources = await readSources(repoFolder, sourcePaths);
-  const breadth = measureBreadth(sources);
+  const imports = importedFiles(sources);
   const history = await readHistory(repoFolder, commit, new Set(sourcePaths.map((file) => file.path)));
   const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"])).trim() === "true";
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
     .filter((source) => source.codeLines >= options.minCodeLines)
-    .map((source) => candidateOf(source.path, source.codeLines, breadth.get(source.path), history.files.get(source.path)));
+    .map((source) => candidateOf(source.path, source.codeLines, imports.get(source.path) ?? [], history.files.get(source.path)));
   return {
     commit,
     minCodeLines: options.minCodeLines,
-    sourceFileCount: sources.length,
+    sourcePaths: sources.map((source) => source.path),
     commitCount: history.commitCount,
     historyIsCut,
     items: ranked(candidates),
@@ -91,17 +101,22 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
 }
 
 // Only a hint: Claude's verdict (Judge with Claude) is the real judgment. A file whose breadth is
-// not known gets no hint, because no hint is better than a wrong one. "deep" needs all three: a
-// narrow interface (class members included), enough code to hide, and few reasons to change. A file
-// nobody imports (an entry point, or unused) has no interface to be deep behind.
-export function hintOf(namesUsedOutside: number | undefined, codeLines: number, coChangeAreas: number): GodFileHint {
-  if (namesUsedOutside === undefined) {
+// not known (yet) gets no hint, because no hint is better than a wrong one. "deep" needs all four:
+// a narrow interface (class members included), enough code to hide, few reasons to change and
+// little knowledge of other areas. A file nobody uses (an entry point, or unused) has no interface
+// to be deep behind.
+export function hintOf(item: Pick<GodFileItem, "breadth" | "codeLines" | "coChangeAreas" | "knownAreas">): GodFileHint {
+  if (item.breadth.state !== "known") {
     return undefined;
   }
-  if (isBroad(namesUsedOutside)) {
+  const names = item.breadth.names.length;
+  if (isBroad(names)) {
     return "god file?";
   }
-  const isDeep = namesUsedOutside >= 1 && codeLines >= godFileRules.deepFromCodeLines && coChangeAreas <= godFileRules.deepAtMostCoChangeAreas;
+  const isDeep = names >= 1
+    && item.codeLines >= godFileRules.deepFromCodeLines
+    && item.coChangeAreas.length <= godFileRules.deepAtMostCoChangeAreas
+    && item.knownAreas.length <= godFileRules.deepAtMostKnownAreas;
   return isDeep ? "deep" : undefined;
 }
 
@@ -124,28 +139,20 @@ export function areaOf(repoPath: string): string {
 
 type Candidate = Omit<GodFileItem, "score">;
 
-function candidateOf(path: string, codeLines: number, namesUsedOutside: string[] | undefined, history: FileHistory | undefined): Candidate {
+function candidateOf(path: string, codeLines: number, imported: string[], history: FileHistory | undefined): Candidate {
   const { commits, coChangeAreas } = history ?? { commits: 0, coChangeAreas: [] };
-  return {
-    path,
-    codeLines,
-    namesUsedOutside,
-    commits,
-    coChangeAreas,
-    hint: hintOf(namesUsedOutside?.length, codeLines, coChangeAreas.length),
-  };
+  const ownArea = areaOf(path);
+  const knownAreas = [...new Set(imported.map(areaOf))].filter((area) => area !== ownArea).sort();
+  return { path, codeLines, commits, coChangeAreas, knownAreas, breadth: { state: "pending" }, complexity: { state: "pending" } };
 }
 
-// The score: the mean of the candidate's percentile ranks among all candidates on three signals.
-// Code lines are not a signal: the owner's rule says length alone never makes a god file. An unknown
-// breadth is left out of the file's mean instead of counting as 0.
+// The score: the mean of the candidate's percentile ranks among all candidates on three signals,
+// all from HEAD and its history, so the ranking is there at once and the same every time. Code
+// lines are not a signal: the owner's rule says length alone never makes a god file.
 function ranked(candidates: Candidate[]): GodFileItem[] {
-  const signals = candidates.map((candidate) => [candidate.namesUsedOutside?.length, candidate.coChangeAreas.length, candidate.commits]);
+  const signals = candidates.map((candidate) => [candidate.knownAreas.length, candidate.coChangeAreas.length, candidate.commits]);
   const items = candidates.map((candidate, index) => {
-    const percentiles = signals[index].flatMap((value, signal) => {
-      const known = signals.map((other) => other[signal]).filter((other): other is number => other !== undefined);
-      return value === undefined ? [] : [percentileOf(value, known)];
-    });
+    const percentiles = signals[index].map((value, signal) => percentileOf(value, signals.map((other) => other[signal])));
     return { ...candidate, score: percentiles.reduce((sum, value) => sum + value, 0) / percentiles.length };
   });
   return items.sort((first, second) => second.score - first.score || first.path.localeCompare(second.path));
@@ -182,7 +189,14 @@ async function measuredSourcesAt(repoFolder: string, commit: string, options: Go
   return files;
 }
 
-async function readSources(repoFolder: string, files: TrackedFile[]): Promise<SourceText[]> {
+// The texts of files at a commit, for the complexity tools (they never read the working tree).
+export async function readFilesAt(repoFolder: string, commit: string, repoPaths: string[]): Promise<{ path: string; text: string }[]> {
+  const readable = repoPaths.filter((repoPath) => !repoPath.includes("\n"));
+  const blobs = await readBlobs(repoFolder, readable.map((repoPath) => `${commit}:${repoPath}`));
+  return readable.map((repoPath, index) => ({ path: repoPath, text: blobs[index].toString("utf8") }));
+}
+
+async function readSources(repoFolder: string, files: TrackedFile[]): Promise<ScannedSource[]> {
   const blobs = await readBlobs(repoFolder, files.map((file) => file.objectId));
   return files.map((file, index) => ({ path: file.path, language: languageOf(file.path)!, text: blobs[index].toString("utf8") }));
 }
@@ -289,7 +303,7 @@ function readGit(repoFolder: string, args: string[]): Promise<string> {
 }
 
 // The content of many blobs in one git process: "git cat-file --batch" answers each object id on
-// stdin with "<id> blob <size>\n<content>\n".
+// stdin with "<id> blob <size>\n<content>\n". An object can also be named "<commit>:<path>".
 function readBlobs(repoFolder: string, objectIds: string[]): Promise<Buffer[]> {
   return new Promise((resolve, reject) => {
     const child = spawn("git", [...readOnlyConfig, "cat-file", "--batch"], { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment } });

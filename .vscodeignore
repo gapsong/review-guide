@@ -4,7 +4,18 @@
 !package.json
 !README.md
 !LICENSE
-# The one runtime dependency, only the parts Node loads (not its browser build).
+# The runtime dependencies, only the parts Node loads (not browser builds, not TypeScript's
+# compiler hosts, language service data or type declarations).
 !node_modules/yaml/package.json
 !node_modules/yaml/LICENSE
 !node_modules/yaml/dist/**
+!node_modules/@barney-media/cognitive-typescript-core/package.json
+!node_modules/@barney-media/cognitive-typescript-core/LICENSE
+!node_modules/@barney-media/cognitive-typescript-core/dist/*.js
+!node_modules/typescript/package.json
+!node_modules/typescript/LICENSE.txt
+!node_modules/typescript/ThirdPartyNoticeText.txt
+!node_modules/typescript/lib/typescript.js
+!node_modules/fast-xml-parser/package.json
+!node_modules/fast-xml-parser/LICENSE
+!node_modules/fast-xml-parser/lib/fxp.cjs

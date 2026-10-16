@@ -54,7 +54,8 @@ describe("G7: Judge with Claude", () => {
 
   it("G7, S1: runs once, read-only, in a copy of HEAD with the commit subjects and the numbers in the prompt, and changes no byte of the repo", async () => {
     const before = fingerprint(repo);
-    const item = report.items.find((candidate) => candidate.path === "src/shop/broad.ts")!;
+    // Breadth as the view measured it with the language server.
+    const item = { ...report.items.find((candidate) => candidate.path === "src/shop/broad.ts")!, breadth: { state: "known" as const, names: ["broad1", "broad2"], files: ["apps/web/page.ts"], complete: true } };
     const stored = await judges(claudeRunner(() => ({ executable: fakeClaudePath, model: "haiku" }))).judge(repo, item, report);
 
     const calls = fs.readFileSync(logFile, "utf8").trim().split("\n").map((line) => JSON.parse(line) as FakeLogEntry);

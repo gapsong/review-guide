@@ -11,14 +11,21 @@ const fakeClaudePath = path.join(root, "test", "fixtures", "fake-claude.js");
 
 type FileNode = Extract<GodFilesViewNode, { kind: "file" }>;
 
-// A broad file that 12 names of which 3 areas use, and a long, narrow module.
+// A class with 12 public methods that three areas call (through a barrel, a namespace import and
+// an aliased import), a private one nobody may call, and one function that is hard to read.
+const methods = Array.from({ length: 12 }, (_, index) => `method${index + 1}`);
+
 function broadFile(): string {
-  const functions = Array.from({ length: 12 }, (_, index) => `export function broad${index + 1}(): void {\n${body(index === 6 ? 40 : 12)}\n}\n`);
-  return functions.join("\n");
+  const members = methods.map((name) => `  ${name}(): number {\n${body(12)}\n    return 1;\n  }\n`).join("");
+  return `export class Shop {\n  private secret(): number { return 0; }\n${members}}\n\nexport function hardest(x: number): number {\n  if (x > 1) {\n    for (let i = 0; i < x; i++) {\n      if (i % 2 === 0 && x > 3) {\n        x--;\n      }\n    }\n  }\n  return x;\n}\n`;
 }
 
 function body(lines: number): string {
-  return Array.from({ length: lines }, (_, index) => `  step${index}();`).join("\n");
+  return Array.from({ length: lines }, (_, index) => `    step${index}();`).join("\n");
+}
+
+function calls(variable: string, names: string[]): string {
+  return names.map((name) => `${variable}.${name}();`).join("\n");
 }
 
 describe("God Files in a real VS Code", () => {
@@ -29,10 +36,14 @@ describe("God Files in a real VS Code", () => {
   before(async () => {
     workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;
     folderUri = vscode.workspace.workspaceFolders![0].uri.toString();
+    // The TypeScript server finds the references in every file of a project it knows.
+    writeFile("tsconfig.json", JSON.stringify({ compilerOptions: { target: "es2022", module: "commonjs", strict: false }, include: ["**/*.ts"] }));
     writeFile("src/shop/broad.ts", broadFile());
-    writeFile("apps/web/page.ts", "import { broad1, broad2, broad3, broad4 } from '../../src/shop/broad';\nimport { post } from '../../src/ledger/ledger';\n");
-    writeFile("packages/billing/charge.ts", "import { broad5, broad6, broad7, broad8 } from '../../src/shop/broad';\nimport { balance } from '../../src/ledger/ledger';\n");
-    writeFile("src/admin/panel.ts", "import * as shop from '../shop/broad';\nshop.broad9(); shop.broad10(); shop.broad11(); shop.broad12();\n");
+    writeFile("src/shop/index.ts", "export { Shop } from './broad';\nexport * from './broad';\n");
+    writeFile("apps/web/page.ts", `import { Shop } from '../../src/shop';\nimport { post } from '../../src/ledger/ledger';\nconst shop = new Shop();\n${calls("shop", methods.slice(0, 4))}\npost();\n`);
+    writeFile("packages/billing/charge.ts", `import * as shop from '../../src/shop/broad';\nimport { balance } from '../../src/ledger/ledger';\nconst s = new shop.Shop();\n${calls("s", methods.slice(4, 8))}\nbalance();\n`);
+    writeFile("src/admin/panel.ts", `import { Shop as Store } from '../shop/broad';\nconst s = new Store();\n${calls("s", methods.slice(8))}\n`);
+    writeFile("src/shop/broad.test.ts", "import { Shop } from './broad';\nnew Shop().method1();\n");
     writeFile(".gitignore", "/.codemap/\n");
     git(workspace, "init", "--quiet", "--initial-branch=main");
     commitAll("Start the shop");
@@ -48,6 +59,8 @@ describe("God Files in a real VS Code", () => {
     const codemap = "- path: src/shop/broad.ts\n  says: Prices and shipping.\n  label: money\n  deep: true\n";
     writeFile(".codemap/codemap.yaml", codemap);
     await vscode.workspace.getConfiguration("reviewGuide").update("claudePath", fakeClaudePath, vscode.ConfigurationTarget.Global);
+    // Every file is a candidate, so the barrel and the users are measured too.
+    await vscode.workspace.getConfiguration("reviewGuide.godFiles").update("minLines", 1, vscode.ConfigurationTarget.Global);
     api = await vscode.extensions.getExtension<ReviewGuideApi>("gapsong.review-guide")!.activate();
     // The extension may have started before the codemap was written, and on Linux VS Code's watcher
     // misses a file created together with its folder (TASKS.md): writing it once more is seen.
@@ -60,45 +73,55 @@ describe("God Files in a real VS Code", () => {
     await vscode.commands.executeCommand("workbench.view.extension.reviewGuide");
     await vscode.commands.executeCommand("reviewGuide.godFiles.focus");
     await waitFor(() => fileNodes().length > 0, "the view shows the measured files", 30_000);
+    await waitFor(() => fileNodes().every((node) => node.item.breadth.state !== "pending" && node.item.complexity.state !== "pending"), "breadth and complexity are measured", 120_000);
   });
 
   after(async () => {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 
-  it("G5: shows the files ranked by breadth and history, with the numbers line, and writes nothing into the repo", async () => {
+  it("G3: breadth comes from the TypeScript server: class members through a barrel, a namespace import and an alias; the barrel has no names of its own; tests are not users", () => {
+    const broad = nodeOf("src/shop/broad.ts").item.breadth;
+    if (broad.state !== "known") {
+      assert.fail(JSON.stringify(broad));
+    }
+    assert.strictEqual(broad.complete, false, "it stops counting above 7 names");
+    assert.deepStrictEqual(broad.names, ["Shop", ...methods.slice(0, 7).map((name) => `Shop.${name}`)].sort(), "the class and its members in the order they are declared; the private one never");
+    assert.deepStrictEqual(broad.files, ["apps/web/page.ts", "packages/billing/charge.ts", "src/admin/panel.ts"], "the barrel and the test are no users");
+    assert.deepStrictEqual(nodeOf("src/shop/index.ts").item.breadth, { state: "known", names: [], files: [], complete: true }, "a barrel re-exports, it declares nothing of its own");
+    assert.deepStrictEqual(nodeOf("src/ledger/ledger.ts").item.breadth, { state: "known", names: ["balance", "post"], files: ["apps/web/page.ts", "packages/billing/charge.ts"], complete: true });
+  });
+
+  it("G5: shows the files with the numbers line and hints, and writes nothing into the repo", async () => {
     const before = fingerprint(workspace);
-    await vscode.commands.executeCommand("reviewGuide.godFiles.refresh");
-    const nodes = fileNodes();
-    assert.deepStrictEqual(nodes.map((node) => node.path), ["src/shop/broad.ts", "src/ledger/ledger.ts"]);
-    const broad = api.godFilesView.getTreeItem(nodes[0]);
+    const broad = api.godFilesView.getTreeItem(nodeOf("src/shop/broad.ts"));
     assert.strictEqual(plain(String(broad.label)), "⚠ 💰🧠 src/shop/broad.ts", "the mark, the codemap badge and the path");
-    assert.strictEqual(broad.description, "⚠️ codemap says deep · god file? · 12 names used outside · 4 commits/90 d · changes with 3 areas · 196 lines");
-    const ledger = api.godFilesView.getTreeItem(nodes[1]);
+    assert.match(String(broad.description), /^⚠️ codemap says deep · god file\? · 8\+ names used outside · 4 commits\/90 d · changes with 4 areas · knows 0 areas · \d+ lines$/, "apps/web, packages/billing, src/admin, and src/shop of its barrel");
+    const ledger = api.godFilesView.getTreeItem(nodeOf("src/ledger/ledger.ts"));
     assert.strictEqual(ledger.label, "✓ src/ledger/ledger.ts");
-    assert.strictEqual(ledger.description, "deep · 2 names used outside · 1 commit/90 d · changes with 0 areas · 605 lines");
-    assert.ok(api.godFilesView.message?.includes("ranked by breadth and history, never by length"));
+    assert.strictEqual(ledger.description, "deep · 2 names used outside · 1 commit/90 d · changes with 0 areas · knows 0 areas · 605 lines");
+    assert.match(String(api.godFilesView.getTreeItem(nodeOf("apps/web/page.ts")).description), /· knows 2 areas ·/, "page.ts imports from src/shop and src/ledger");
+    assert.ok(api.godFilesView.message?.includes("ranked by history and imports, never by length"), api.godFilesView.message);
     assert.strictEqual(fingerprint(workspace), before, "no byte in the repo (its .git and .codemap included) changed");
     assert.strictEqual(git(workspace, "status", "--porcelain"), "", "no new file in the repo");
   });
 
-  it("G5, G6: the tooltip explains each number and the owner's rule, and warns that the codemap calls a broad file deep", () => {
-    const node = fileNodes()[0];
+  it("G5, G6: the tooltip explains each number, the hardest function and the owner's rule, and warns that the codemap calls a broad file deep", () => {
+    const node = nodeOf("src/shop/broad.ts");
     const item = api.godFilesView.resolveTreeItem(api.godFilesView.getTreeItem(node), node);
     const tooltip = (item.tooltip as vscode.MarkdownString).value.replace(/\\(.)/g, "$1");
-    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used outside:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.judge"]) {
+    for (const part of ["Your codemap calls this file a deep module, but more than 7 of its names are used by other files", "Codemap: 💰", "8+ names used outside:", "Counting stopped above 7", "4 commits in 90 days", "Hardest function:** hardest, cognitive complexity", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.judge"]) {
       assert.ok(tooltip.includes(part), `${part}\n---\n${tooltip}`);
     }
   });
 
-  it("G5: a click opens the file at its longest function", async () => {
-    const node = fileNodes()[0];
+  it("G5: a click opens the file at its hardest function", async () => {
+    const node = nodeOf("src/shop/broad.ts");
     const command = api.godFilesView.getTreeItem(node).command!;
+    assert.strictEqual(command.title, "Open at the hardest function (hardest)");
     await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
-    const editor = vscode.window.activeTextEditor!;
-    assert.strictEqual(editor.document.uri.fsPath, path.join(workspace, "src/shop/broad.ts"));
-    const longestStart = broadFile().split("\n").findIndex((line) => line.startsWith("export function broad7("));
-    await waitFor(() => vscode.window.activeTextEditor?.selection.active.line === longestStart, `the cursor is on line ${longestStart + 1}, broad7`, 30_000);
+    const hardestLine = broadFile().split("\n").findIndex((line) => line.startsWith("export function hardest("));
+    await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath === path.join(workspace, "src/shop/broad.ts") && vscode.window.activeTextEditor.selection.active.line === hardestLine, `the cursor is on line ${hardestLine + 1}, hardest`, 30_000);
   });
 
   it("G5: measures again by itself when HEAD moves", async () => {
@@ -113,7 +136,7 @@ describe("God Files in a real VS Code", () => {
   });
 
   it("G7: Judge with Claude runs on the command in the Explain panel, shows the judgment escaped, and its code links open checked lines", async () => {
-    const node = fileNodes()[0];
+    const node = nodeOf("src/shop/broad.ts");
     const uri = vscode.Uri.file(path.join(workspace, node.path));
     await vscode.commands.executeCommand("reviewGuide.codemap.explain", { folderUri, path: node.path });
     assert.ok(api.explainPanels.htmlOf(uri)?.includes("⚖️ Judge"), "the Explain panel offers Judge for a measured file");
@@ -127,6 +150,12 @@ describe("God Files in a real VS Code", () => {
     await api.explainPanels.receive(uri, { type: "openLine", line: 3 });
     await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath === uri.fsPath && vscode.window.activeTextEditor.selection.active.line === 2, "the reading path's third step opens line 3");
   });
+
+  function nodeOf(repoPath: string): FileNode {
+    const node = fileNodes().find((candidate) => candidate.path === repoPath);
+    assert.ok(node, `${repoPath} is shown: ${fileNodes().map((candidate) => candidate.path).join(", ")}`);
+    return node;
+  }
 
   function fileNodes(): FileNode[] {
     return api.godFilesView.getChildren().filter((node): node is FileNode => node.kind === "file");

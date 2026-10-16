@@ -201,7 +201,7 @@
       },
       {
         "command": "reviewGuide.godFiles.open",
-        "title": "Open at the Longest Function",
+        "title": "Open at the Hardest Function",
         "category": "Review Guide"
       },
       {
@@ -473,6 +473,12 @@
           "default": ".codemap/codemap.yaml",
           "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`), an optional `deep: true` and optional notes (`why`, `watch`, `start`, `mine`). Keep it personal (gitignored)."
         },
+        "reviewGuide.complexipyPath": {
+          "type": "string",
+          "default": "complexipy",
+          "scope": "machine",
+          "markdownDescription": "God Files: path of the [complexipy](https://complexipy.com) CLI, which measures the cognitive complexity of Python files (install it with `uv tool install complexipy`). It runs on copies of your last commit in a temporary folder, never on your files."
+        },
         "reviewGuide.godFiles.minLines": {
           "type": "integer",
           "default": 150,
@@ -534,6 +540,7 @@
     "typescript-eslint": "^8.70.1"
   },
   "dependencies": {
+    "@barney-media/cognitive-typescript-core": "^1.0.0",
     "yaml": "^2.9.1"
   }
 }
