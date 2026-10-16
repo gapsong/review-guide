@@ -2,7 +2,6 @@ import * as path from "path";
 import * as python from "./pythonModules";
 import { Language } from "./sourceFiles";
 import * as typescript from "./typescriptModules";
-import { Reexport } from "./typescriptModules";
 
 // Breadth: how many of a file's names other source files use. Users are found through their imports, resolved to files of the repo:
 //
@@ -16,6 +15,22 @@ import { Reexport } from "./typescriptModules";
 // member counts as "Class.member". Otherwise a class with forty public methods would pass as one
 // name, and a broad class as a deep module.
 
+// What one file takes from another module, as its language's parser reads it: the names it
+// imports, or all of them (export *, from m import *). A re-export passes names on: "export { a as
+// b } from" or a package's "from .m import a as b" offers a as b, and "export * from" offers all.
+export interface ModuleUse {
+  module: string;
+  names: string[];
+  usesAllNames: boolean;
+  reexported?: Reexport[];
+  reexportsAll?: boolean;
+}
+
+export interface Reexport {
+  importedName: string;
+  exportedAs: string;
+}
+
 export interface SourceText {
   path: string;
   language: Language;
@@ -26,12 +41,57 @@ export interface SourceText {
 // other source file uses, sorted, top-level names and public class members as "Class.member"
 // (isClassMember). Other languages are not in the map.
 export function measureBreadth(sources: SourceText[]): Map<string, string[]> {
-  const typescript = sources.filter((source) => source.language === "typescript");
-  const python = sources.filter((source) => source.language === "python");
+  const typescriptSources = sources.filter((source) => source.language === "typescript");
+  const pythonSources = sources.filter((source) => source.language === "python");
   const uses = new UseCounter();
-  countTypescriptUses(typescript, uses);
-  countPythonUses(python, uses);
-  return new Map([...typescript, ...python].map((source) => [source.path, uses.namesUsedOutside(source.path)]));
+  countUses(typescriptSources, typescriptReader, new TypescriptModuleIndex(typescriptSources.map((source) => source.path)), uses);
+  countUses(pythonSources, pythonReader, new PythonModuleIndex(pythonSources.map((source) => source.path)), uses);
+  return new Map([...typescriptSources, ...pythonSources].map((source) => [source.path, uses.namesUsedOutside(source.path)]));
+}
+
+interface LanguageReader {
+  exportedNames(source: SourceText): string[];
+  classMembers(text: string): Map<string, string[]>;
+  uses(source: SourceText): ModuleUse[];
+  // Every .<name> the file accesses: the members it may use of the classes it imports.
+  membersAccessed(text: string): Set<string>;
+}
+
+const isPackageInit = (file: string) => file === "__init__.py" || file.endsWith("/__init__.py");
+
+const typescriptReader: LanguageReader = {
+  exportedNames: (source) => typescript.exportedNamesOf(source.text),
+  classMembers: typescript.classMembersOf,
+  uses: (source) => typescript.moduleUsesOf(source.text),
+  membersAccessed: typescript.membersAccessed,
+};
+
+// A package's __init__.py also offers what it imports at module level: that is the package's interface.
+const pythonReader: LanguageReader = {
+  exportedNames: (source) => python.publicNamesOf(source.text, isPackageInit(source.path)),
+  classMembers: python.classMembersOf,
+  uses: (source) => python.importsOf(source.text, isPackageInit(source.path)),
+  membersAccessed: python.membersAccessed,
+};
+
+// Two passes: every file declares what it exports and re-exports, then every use is recorded.
+function countUses(sources: SourceText[], reader: LanguageReader, modules: { resolve(importer: string, module: string): string | undefined }, uses: UseCounter): void {
+  const files = sources.map((source) => ({
+    source,
+    resolved: reader.uses(source).map((use) => ({ use, target: modules.resolve(source.path, use.module) })).filter((entry): entry is { use: ModuleUse; target: string } => entry.target !== undefined),
+    membersAccessed: reader.membersAccessed(source.text),
+  }));
+  for (const { source, resolved } of files) {
+    uses.declareExports(source.path, reader.exportedNames(source), reader.classMembers(source.text));
+    for (const { use, target } of resolved) {
+      uses.declareReexports(source.path, target, use.reexported, use.reexportsAll);
+    }
+  }
+  for (const { source, resolved, membersAccessed } of files) {
+    for (const { use, target } of resolved) {
+      uses.record(source.path, target, use.usesAllNames ? uses.exportsOf(target) : use.names, membersAccessed);
+    }
+  }
 }
 
 // "Model.create" is a class member; "create" is a top-level name.
@@ -104,30 +164,6 @@ class UseCounter {
 
 const resolvableExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
 
-function countTypescriptUses(sources: SourceText[], uses: UseCounter): void {
-  const modules = new TypescriptModuleIndex(sources.map((source) => source.path));
-  const resolvedUses = sources.map((source) => ({
-    source,
-    uses: typescript.moduleUsesOf(source.text).map((use) => ({ use, target: modules.resolve(source.path, use.specifier) })),
-    membersAccessed: typescript.membersAccessed(source.text),
-  }));
-  for (const { source, uses: fileUses } of resolvedUses) {
-    uses.declareExports(source.path, typescript.exportedNamesOf(source.text), typescript.classMembersOf(source.text));
-    for (const { use, target } of fileUses) {
-      if (target !== undefined) {
-        uses.declareReexports(source.path, target, use.reexported, use.reexportsAll);
-      }
-    }
-  }
-  for (const { source, uses: fileUses, membersAccessed } of resolvedUses) {
-    for (const { use, target } of fileUses) {
-      if (target !== undefined) {
-        uses.record(source.path, target, use.usesAllNames ? uses.exportsOf(target) : use.names, membersAccessed);
-      }
-    }
-  }
-}
-
 class TypescriptModuleIndex {
   private readonly files: Set<string>;
   private readonly bySuffix: SuffixIndex;
@@ -185,32 +221,6 @@ class TypescriptModuleIndex {
 }
 
 // Python -------------------------------------------------------------------------------------------
-
-function countPythonUses(sources: SourceText[], uses: UseCounter): void {
-  const modules = new PythonModuleIndex(sources.map((source) => source.path));
-  const resolvedImports = sources.map((source) => ({
-    source,
-    isPackageInit: source.path === "__init__.py" || source.path.endsWith("/__init__.py"),
-    imports: python.importsOf(source.text).map((pythonImport) => ({ pythonImport, target: modules.resolve(source.path, pythonImport.module) })),
-    membersAccessed: python.membersAccessed(source.text),
-  }));
-  for (const { source, isPackageInit, imports } of resolvedImports) {
-    uses.declareExports(source.path, python.publicNamesOf(source.text, isPackageInit), python.classMembersOf(source.text));
-    for (const { pythonImport, target } of imports) {
-      if (target !== undefined && isPackageInit) {
-        uses.declareReexports(source.path, target, pythonImport.reexported, pythonImport.reexportsAll);
-      }
-    }
-  }
-  for (const { source, imports, membersAccessed } of resolvedImports) {
-    for (const { pythonImport, target } of imports) {
-      if (target !== undefined) {
-        const names = pythonImport.usesAllNames ? uses.exportsOf(target) : [...pythonImport.importedNames, ...pythonImport.attributesUsed];
-        uses.record(source.path, target, names, membersAccessed);
-      }
-    }
-  }
-}
 
 class PythonModuleIndex {
   private readonly byDottedPath = new Map<string, string>();

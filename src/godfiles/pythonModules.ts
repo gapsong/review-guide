@@ -1,19 +1,8 @@
-// Names and imports of Python files, read with regular expressions: module-level definitions, and
-// the import statements with their dotted (or relative) module paths.
+import type { ModuleUse } from "./breadth";
 
-export interface PythonImport {
-  // Absolute dotted path ("a.b") or relative with its leading dots (".b", "..").
-  module: string;
-  // For "from m import x": x may be a name of m or a submodule m.x; resolving decides.
-  importedNames: string[];
-  usesAllNames: boolean;
-  // For "import a.b as n" and "import a.b": the attributes used on it (n.<name>, a.b.<name>).
-  attributesUsed: string[];
-  // A module-level "from m import a as b" offers a as b to whoever imports this module, which is
-  // how a package's __init__.py passes names on; "from m import *" passes all of them.
-  reexported?: { importedName: string; exportedAs: string }[];
-  reexportsAll?: boolean;
-}
+// Names and imports of Python files, read with regular expressions: module-level definitions, and
+// the import statements with their dotted (or relative) module paths. A module is an absolute
+// dotted path ("a.b") or relative with its leading dots (".b", "..").
 
 const identifier = "[A-Za-z_]\\w*";
 
@@ -84,29 +73,32 @@ export function membersAccessed(text: string): Set<string> {
   return new Set([...code.matchAll(new RegExp(`\\.(${identifier})`, "g"))].map((match) => match[1]));
 }
 
-export function importsOf(text: string): PythonImport[] {
+// "from m import x" takes x, which may be a name of m or a submodule m.x (resolving decides);
+// "import a.b as n" and "import a.b" take the attributes used on it (n.<name>, a.b.<name>). In a
+// package's __init__.py a module-level "from m import a as b" passes a on as b, and "import *" all.
+export function importsOf(text: string, isPackageInit: boolean): ModuleUse[] {
   const code = joinContinuedLines(withoutStringsAndComments(text));
-  const imports: PythonImport[] = [];
+  const imports: ModuleUse[] = [];
   const fromImports = new RegExp(`^[ \\t]*from[ \\t]+(\\.*(?:${identifier}(?:\\.${identifier})*)?)[ \\t]+import[ \\t]+(\\([^)]*\\)|[^\\n;]+)`, "gm");
   for (const match of code.matchAll(fromImports)) {
     const list = match[2].replace(/[()]/g, " ");
-    const isModuleLevel = !/^[ \t]/.test(match[0]);
+    const passesOn = isPackageInit && !/^[ \t]/.test(match[0]);
     if (list.trim() === "*") {
-      imports.push({ module: match[1], importedNames: [], usesAllNames: true, attributesUsed: [], reexportsAll: isModuleLevel });
+      imports.push({ module: match[1], names: [], usesAllNames: true, reexportsAll: passesOn });
       continue;
     }
     const entries = list.split(",").map((part) => part.trim()).filter((part) => part !== "").map(aliasOf);
-    const reexported = isModuleLevel ? entries.map((entry) => ({ importedName: entry.name, exportedAs: entry.boundAs })) : undefined;
-    imports.push({ module: match[1], importedNames: entries.map((entry) => entry.name), usesAllNames: false, attributesUsed: [], reexported });
+    const reexported = passesOn ? entries.map((entry) => ({ importedName: entry.name, exportedAs: entry.boundAs })) : undefined;
+    imports.push({ module: match[1], names: entries.map((entry) => entry.name), usesAllNames: false, reexported });
     for (const entry of entries) {
       // "from pkg import sub" may name a submodule; its attributes are found the same way.
-      imports.push({ module: `${match[1]}${match[1].endsWith(".") ? "" : "."}${entry.name}`, importedNames: [], usesAllNames: false, attributesUsed: attributesUsed(entry.boundAs, code), });
+      imports.push({ module: `${match[1]}${match[1].endsWith(".") ? "" : "."}${entry.name}`, names: attributesUsed(entry.boundAs, code), usesAllNames: false });
     }
   }
   const plainImports = new RegExp(`^[ \\t]*import[ \\t]+([^\\n;]+)`, "gm");
   for (const match of code.matchAll(plainImports)) {
     for (const entry of match[1].split(",").map((part) => part.trim()).filter((part) => part !== "").map(aliasOf)) {
-      imports.push({ module: entry.name, importedNames: [], usesAllNames: false, attributesUsed: attributesUsed(entry.boundAs, code) });
+      imports.push({ module: entry.name, names: attributesUsed(entry.boundAs, code), usesAllNames: false });
     }
   }
   return imports;

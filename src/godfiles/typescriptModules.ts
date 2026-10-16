@@ -1,20 +1,7 @@
+import type { ModuleUse } from "./breadth";
+
 // Names and imports of TypeScript and JavaScript files, read with regular expressions. The extension
 // has no TypeScript compiler at run time, and these few forms cover how modules use each other.
-
-// What one file takes from another module: the names it imports, or all of them (export *).
-interface ModuleUse {
-  specifier: string;
-  names: string[];
-  usesAllNames: boolean;
-  // A re-export passes names on: "export { a as b } from" offers a as b, "export * from" offers all.
-  reexported?: Reexport[];
-  reexportsAll?: boolean;
-}
-
-export interface Reexport {
-  importedName: string;
-  exportedAs: string;
-}
 
 const identifier = "[A-Za-z_$][\\w$]*";
 
@@ -208,7 +195,7 @@ function staticImports(code: string): ModuleUse[] {
   const uses: ModuleUse[] = [];
   const pattern = /(?:^|[;\s])import\s+(?:type\s+)?([^'"`;]*?)\s+from\s+['"]([^'"]+)['"]/gm;
   for (const match of code.matchAll(pattern)) {
-    uses.push({ specifier: match[2], names: importClauseNames(match[1], code), usesAllNames: false });
+    uses.push({ module: match[2], names: importClauseNames(match[1], code), usesAllNames: false });
   }
   return uses;
 }
@@ -235,11 +222,11 @@ function reexports(code: string): ModuleUse[] {
   const lists = /^[ \t]*export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm;
   for (const match of code.matchAll(lists)) {
     const entries = listEntries(match[1]);
-    uses.push({ specifier: match[2], names: entries.map((entry) => entry.importedName), usesAllNames: false, reexported: entries });
+    uses.push({ module: match[2], names: entries.map((entry) => entry.importedName), usesAllNames: false, reexported: entries });
   }
   const stars = /^[ \t]*export\s+(?:type\s+)?\*\s*(as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/gm;
   for (const match of code.matchAll(stars)) {
-    uses.push({ specifier: match[2], names: [], usesAllNames: true, reexportsAll: match[1] === undefined });
+    uses.push({ module: match[2], names: [], usesAllNames: true, reexportsAll: match[1] === undefined });
   }
   return uses;
 }
@@ -248,8 +235,8 @@ function requires(code: string): ModuleUse[] {
   const uses: ModuleUse[] = [];
   const pattern = new RegExp(`(?:(const|let|var)\\s+(\\{[^}]*\\}|${identifier})\\s*=\\s*)?require\\(\\s*['"]([^'"]+)['"]\\s*\\)(\\.(${identifier}))?`, "g");
   for (const match of code.matchAll(pattern)) {
-    const [, , binding, specifier, , member] = match;
-    uses.push({ specifier, names: boundNames(binding, member, code), usesAllNames: false });
+    const [, , binding, module, , member] = match;
+    uses.push({ module, names: boundNames(binding, member, code), usesAllNames: false });
   }
   return uses;
 }
@@ -258,8 +245,8 @@ function dynamicImports(code: string): ModuleUse[] {
   const uses: ModuleUse[] = [];
   const pattern = new RegExp(`(?:(const|let|var)\\s+(\\{[^}]*\\}|${identifier})\\s*=\\s*(?:await\\s+)?)?\\bimport\\(\\s*['"]([^'"]+)['"]\\s*\\)`, "g");
   for (const match of code.matchAll(pattern)) {
-    const [, , binding, specifier] = match;
-    uses.push({ specifier, names: boundNames(binding, undefined, code), usesAllNames: false });
+    const [, , binding, module] = match;
+    uses.push({ module, names: boundNames(binding, undefined, code), usesAllNames: false });
   }
   return uses;
 }
