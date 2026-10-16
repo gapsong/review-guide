@@ -87,8 +87,9 @@ async function pythonComplexity(folder: string, files: HeadText[], complexipyPat
   }
   const output = "complexipy.json";
   const failed = await new Promise<{ reason: string; missingTool?: boolean } | undefined>((resolve) => {
-    // -i: report every function and exit 0, whatever its complexity.
-    execFile(complexipyPath, [...copies.keys(), "--output-format", "json", "--output", output, "-q", "-i"], { cwd: folder, shell: false, timeout: 120_000 }, (error, _stdout, stderr) => {
+    // complexipy fails a run when a function is above its allowed complexity (-i does not stop
+    // that), so the limit is set out of reach: here it only reports.
+    execFile(complexipyPath, [...copies.keys(), "--output-format", "json", "--output", output, "-q", "--max-complexity-allowed", "1000000"], { cwd: folder, shell: false, timeout: 120_000 }, (error, _stdout, stderr) => {
       if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
         resolve({ reason: `complexipy was not found ("${complexipyPath}"). Install it, e.g. \`uv tool install complexipy\`, or set reviewGuide.complexipyPath.`, missingTool: true });
       } else {

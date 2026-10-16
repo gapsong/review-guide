@@ -35,6 +35,9 @@ const pythonText = [
   "                pass",
 ].join("\n");
 
+// complexipy fails a run with a function above its default limit of 15 unless the limit is raised.
+const hardPythonText = `def hard(a):\n${Array.from({ length: 20 }, (_, index) => `    if a == ${index}:\n        return ${index}`).join("\n")}\n    return 0\n`;
+
 describe("God files: cognitive complexity of the hardest function (display only)", () => {
   let scratch: string;
 
@@ -75,7 +78,7 @@ fs.writeFileSync(out, JSON.stringify([{ complexity: 1, function_name: "flat", pa
     const results = await measureComplexity([{ path: "app/shop/checkout.py", text: pythonText }], fake);
     assert.deepStrictEqual(results.get("app/shop/checkout.py"), { state: "known", hardest: { name: "Checkout.total", line: 5, score: 3 } });
     const call = JSON.parse(fs.readFileSync(log, "utf8")) as { args: string[]; cwd: string; files: string[] };
-    assert.deepStrictEqual(call.args.slice(1), ["--output-format", "json", "--output", "complexipy.json", "-q", "-i"]);
+    assert.deepStrictEqual(call.args.slice(1), ["--output-format", "json", "--output", "complexipy.json", "-q", "--max-complexity-allowed", "1000000"]);
     assert.ok(call.cwd.includes("review-guide-complexity-") && !fs.existsSync(call.cwd), "a temporary folder, removed afterwards");
     assert.deepStrictEqual(call.files, [pythonText], "a copy of the text it was given (HEAD's), not a file of the working tree");
   });
@@ -92,8 +95,9 @@ fs.writeFileSync(out, JSON.stringify([{ complexity: 1, function_name: "flat", pa
     } catch {
       this.skip();
     }
-    const results = await measureComplexity([{ path: "app/shop/checkout.py", text: pythonText }], "complexipy");
+    const results = await measureComplexity([{ path: "app/shop/checkout.py", text: pythonText }, { path: "app/hard.py", text: hardPythonText }], "complexipy");
     assert.deepStrictEqual(results.get("app/shop/checkout.py"), { state: "known", hardest: { name: "Checkout.total", line: 5, score: 3 } });
+    assert.deepStrictEqual(results.get("app/hard.py"), { state: "known", hardest: { name: "hard", line: 1, score: 20 } }, "a function above complexipy's own limit is reported, not a failure");
   });
 
   it("finds a Python function's line from complexipy's \"Class::method\" name", () => {
