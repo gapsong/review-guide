@@ -43,6 +43,47 @@ export function publicNamesOf(text: string, isPackageInit = false): string[] {
   return [...names].filter((name) => !name.startsWith("_"));
 }
 
+// The public members of every module-level class, by class name: its methods (properties included)
+// and class attributes whose name does not start with "_". Only the class's own indentation level
+// counts, so a nested class or a local variable of a method is not a member.
+export function classMembersOf(text: string): Map<string, string[]> {
+  const lines = withoutStringsAndComments(text).split("\n");
+  const members = new Map<string, string[]>();
+  const classStart = new RegExp(`^class[ \\t]+(${identifier})`);
+  for (let i = 0; i < lines.length; i++) {
+    const match = classStart.exec(lines[i]);
+    if (!match) {
+      continue;
+    }
+    const names = new Set<string>();
+    let bodyIndent: number | undefined;
+    for (i++; i < lines.length && (lines[i].trim() === "" || /^[ \t]/.test(lines[i])); i++) {
+      const indent = /^[ \t]*/.exec(lines[i])![0].length;
+      if (lines[i].trim() === "") {
+        continue;
+      }
+      bodyIndent ??= indent;
+      if (indent !== bodyIndent) {
+        continue;
+      }
+      const member = new RegExp(`^[ \\t]+(?:(?:async[ \\t]+)?def[ \\t]+(${identifier})|(${identifier})[ \\t]*(?::[^=\\n]+)?=(?!=))`).exec(lines[i]);
+      const name = member?.[1] ?? member?.[2];
+      if (name !== undefined && !name.startsWith("_")) {
+        names.add(name);
+      }
+    }
+    i--;
+    members.set(match[1], [...names]);
+  }
+  return members;
+}
+
+// Every <name> this file accesses as .<name>: the members it may use of the classes it imports.
+export function membersAccessed(text: string): Set<string> {
+  const code = withoutStringsAndComments(text);
+  return new Set([...code.matchAll(new RegExp(`\\.(${identifier})`, "g"))].map((match) => match[1]));
+}
+
 export function importsOf(text: string): PythonImport[] {
   const code = joinContinuedLines(withoutStringsAndComments(text));
   const imports: PythonImport[] = [];

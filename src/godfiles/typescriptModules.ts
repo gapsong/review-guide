@@ -57,6 +57,133 @@ export function moduleUsesOf(text: string): ModuleUse[] {
   return [...staticImports(code), ...reexports(code), ...requires(code), ...dynamicImports(code)];
 }
 
+// The public members of every top-level class, by class name (and "default" for a default export):
+// methods, getters, setters, fields and constructor parameter properties that are not private,
+// protected, "#" or "_"-prefixed. They are part of the interface the class offers, so a class with
+// forty public methods is as broad as a module with forty functions.
+export function classMembersOf(text: string): Map<string, string[]> {
+  const code = withoutComments(text);
+  const members = new Map<string, string[]>();
+  const classes = new RegExp(`^[ \\t]*(?:export\\s+)?(default\\s+)?(?:declare\\s+)?(?:abstract\\s+)?class\\s+(${identifier})[^{]*\\{`, "gm");
+  for (const match of code.matchAll(classes)) {
+    const bodyStart = match.index! + match[0].length;
+    const found = publicMembersOf(code.slice(bodyStart, closingBraceOf(code, bodyStart - 1)));
+    members.set(match[2], found);
+    if (match[1]) {
+      members.set("default", found);
+    }
+  }
+  return members;
+}
+
+const memberModifiers = /^(?:(?:public|static|readonly|async|override|declare|accessor|abstract|get|set)\s+)*\*?\s*/;
+
+function publicMembersOf(body: string): string[] {
+  const names = new Set<string>();
+  const record = (head: string) => {
+    const name = memberNameOf(head);
+    if (name !== undefined) {
+      names.add(name);
+    }
+  };
+  let depth = 0;
+  let headStart = 0;
+  let inInitializer = false;
+  let i = 0;
+  while (i < body.length) {
+    const character = body[i];
+    if (character === "'" || character === '"' || character === "`") {
+      i = endOfString(body, i);
+      continue;
+    }
+    if (character === "{" || character === "(" || character === "[") {
+      if (depth === 0 && !inInitializer) {
+        const head = body.slice(headStart, i);
+        if (character === "(" && head.trim() === "constructor") {
+          for (const name of parameterProperties(body.slice(i + 1, closingBraceOf(body, i)))) {
+            names.add(name);
+          }
+        } else {
+          record(head);
+        }
+      }
+      depth++;
+    } else if (character === "}" || character === ")" || character === "]") {
+      depth--;
+      if (depth === 0) {
+        headStart = i + 1;
+      }
+    } else if (depth === 0 && character === "=" && body[i + 1] !== ">" && !inInitializer) {
+      record(body.slice(headStart, i));
+      inInitializer = true;
+    } else if (depth === 0 && (character === ";" || character === "\n")) {
+      if (!inInitializer) {
+        record(body.slice(headStart, i));
+      }
+      inInitializer = false;
+      headStart = i + 1;
+    }
+    i++;
+  }
+  return [...names];
+}
+
+// "static create", "get title", "method<T>" give the member's name; "private x", "#x", "_x",
+// "constructor", a decorator or an index signature give none.
+function memberNameOf(head: string): string | undefined {
+  const trimmed = head.trim();
+  if (/\b(private|protected)\b/.test(trimmed)) {
+    return undefined;
+  }
+  const match = new RegExp(`^(${identifier})\\s*[?!]?\\s*(?:<.*)?$`, "s").exec(trimmed.replace(memberModifiers, ""));
+  if (!match || match[1] === "constructor" || match[1].startsWith("_")) {
+    return undefined;
+  }
+  return match[1];
+}
+
+// constructor(public readonly id: string, private secret: number): id is a public field.
+function parameterProperties(parameters: string): string[] {
+  const names: string[] = [];
+  for (const parameter of parameters.split(",")) {
+    const match = new RegExp(`^\\s*(?:(?:public|readonly|override)\\s+)+(${identifier})`).exec(parameter);
+    if (match && !/\b(private|protected)\b/.test(parameter) && !match[1].startsWith("_")) {
+      names.push(match[1]);
+    }
+  }
+  return names;
+}
+
+// The index of the bracket that closes the one at openIndex; strings are skipped.
+function closingBraceOf(code: string, openIndex: number): number {
+  let depth = 0;
+  let i = openIndex;
+  while (i < code.length) {
+    const character = code[i];
+    if (character === "'" || character === '"' || character === "`") {
+      i = endOfString(code, i);
+      continue;
+    }
+    if (character === "{" || character === "(" || character === "[") {
+      depth++;
+    } else if (character === "}" || character === ")" || character === "]") {
+      depth--;
+      if (depth === 0) {
+        return i;
+      }
+    }
+    i++;
+  }
+  return code.length;
+}
+
+// Every <name> this file accesses as .<name> (or ?.<name>): the members it may use of the classes
+// it imports.
+export function membersAccessed(text: string): Set<string> {
+  const code = withoutComments(text);
+  return new Set([...code.matchAll(new RegExp(`\\.\\s*(${identifier})`, "g"))].map((match) => match[1]));
+}
+
 function staticImports(code: string): ModuleUse[] {
   const uses: ModuleUse[] = [];
   const pattern = /(?:^|[;\s])import\s+(?:type\s+)?([^'"`;]*?)\s+from\s+['"]([^'"]+)['"]/gm;

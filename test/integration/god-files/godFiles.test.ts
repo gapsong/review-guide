@@ -30,13 +30,16 @@ describe("God Files in a real VS Code", () => {
     workspace = vscode.workspace.workspaceFolders![0].uri.fsPath;
     folderUri = vscode.workspace.workspaceFolders![0].uri.toString();
     writeFile("src/shop/broad.ts", broadFile());
-    writeFile("src/ledger/ledger.ts", `export function post(): void {\n${body(300)}\n}\nexport function balance(): number {\n${body(300)}\n  return 0;\n}\n`);
     writeFile("apps/web/page.ts", "import { broad1, broad2, broad3, broad4 } from '../../src/shop/broad';\nimport { post } from '../../src/ledger/ledger';\n");
     writeFile("packages/billing/charge.ts", "import { broad5, broad6, broad7, broad8 } from '../../src/shop/broad';\nimport { balance } from '../../src/ledger/ledger';\n");
     writeFile("src/admin/panel.ts", "import * as shop from '../shop/broad';\nshop.broad9(); shop.broad10(); shop.broad11(); shop.broad12();\n");
     writeFile(".gitignore", "/.codemap/\n");
     git(workspace, "init", "--quiet", "--initial-branch=main");
     commitAll("Start the shop");
+    // The ledger comes in its own commit: a deep module changes for one reason, so it must not
+    // share a commit with files of other areas.
+    writeFile("src/ledger/ledger.ts", `export function post(): void {\n${body(300)}\n}\nexport function balance(): number {\n${body(300)}\n  return 0;\n}\n`);
+    commitAll("Add the ledger");
     for (const partner of ["apps/web/page.ts", "packages/billing/charge.ts", "src/admin/panel.ts"]) {
       appendLine("src/shop/broad.ts");
       appendLine(partner);
@@ -70,10 +73,10 @@ describe("God Files in a real VS Code", () => {
     assert.deepStrictEqual(nodes.map((node) => node.path), ["src/shop/broad.ts", "src/ledger/ledger.ts"]);
     const broad = api.godFilesView.getTreeItem(nodes[0]);
     assert.strictEqual(plain(String(broad.label)), "⚠ 💰🧠 src/shop/broad.ts", "the mark, the codemap badge and the path");
-    assert.strictEqual(broad.description, "⚠️ codemap says deep · god file? · 12 names used by 3 files · 4 commits/90 d · changes with 4 areas · 196 lines");
+    assert.strictEqual(broad.description, "⚠️ codemap says deep · god file? · 12 names used by 3 files · 4 commits/90 d · changes with 3 areas · 196 lines");
     const ledger = api.godFilesView.getTreeItem(nodes[1]);
     assert.strictEqual(ledger.label, "✓ src/ledger/ledger.ts");
-    assert.strictEqual(ledger.description, "deep · 2 names used by 2 files · 1 commit/90 d · changes with 4 areas · 605 lines");
+    assert.strictEqual(ledger.description, "deep · 2 names used by 2 files · 1 commit/90 d · changes with 0 areas · 605 lines");
     assert.ok(api.godFilesView.message?.includes("ranked by breadth and history, never by length"));
     assert.strictEqual(fingerprint(workspace), before, "no byte in the repo (its .git and .codemap included) changed");
     assert.strictEqual(git(workspace, "status", "--porcelain"), "", "no new file in the repo");

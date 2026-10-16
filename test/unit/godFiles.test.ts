@@ -141,13 +141,30 @@ describe("G2: the ranking follows the owner's rule", () => {
     assert.strictEqual(short.items[short.items.length - 1].path, "src/long/table.ts", "the 5000-line file that nobody uses ranks last");
   });
 
-  it("G2: the hint is 'god file?' above 7 names used outside, 'deep' from 300 code lines with at most 7, none when breadth is unknown", () => {
+  it("G2: the hint is 'god file?' above 7 names used outside; 'deep' needs 1 to 7 names, 300 code lines and at most 3 co-change areas; none when breadth is unknown or nothing imports the file", () => {
     assert.strictEqual(godFileRules.broadAboveNamesUsedOutside, 7);
-    assert.strictEqual(hintOf(8, 10), "god file?");
-    assert.strictEqual(hintOf(7, 300), "deep");
-    assert.strictEqual(hintOf(7, 299), undefined);
-    assert.strictEqual(hintOf(0, 5000), "deep");
-    assert.strictEqual(hintOf(undefined, 5000), undefined);
+    assert.strictEqual(godFileRules.deepAtMostCoChangeAreas, 3);
+    assert.strictEqual(hintOf(8, 10, 0), "god file?");
+    assert.strictEqual(hintOf(8, 10, 12), "god file?");
+    assert.strictEqual(hintOf(7, 300, 3), "deep");
+    assert.strictEqual(hintOf(7, 299, 3), undefined, "too short for a deep module");
+    assert.strictEqual(hintOf(7, 300, 4), undefined, "narrow but changing with many areas: many reasons to change");
+    assert.strictEqual(hintOf(0, 5000, 0), undefined, "nothing imports it: an entry point or unused, not a deep module");
+    assert.strictEqual(hintOf(undefined, 5000, 0), undefined);
+  });
+
+  it("G2: a long narrow file that changes with 6 areas gets no deep hint", async () => {
+    const repo = path.join(scratch, "unstable");
+    writeG2Repo(repo);
+    for (const [days, partner] of [[50, "apps/web/page.ts"], [45, "packages/billing/charge.ts"], [35, "src/admin/panel.ts"], [25, "src/shop/broad.ts"]] as const) {
+      const ledger = fs.readFileSync(path.join(repo, "src/ledger/ledger.ts"), "utf8");
+      const partnerText = fs.readFileSync(path.join(repo, partner), "utf8");
+      commitFilesAt(repo, days, { "src/ledger/ledger.ts": `${ledger}// ledger ${days}\n`, [partner]: `${partnerText}// ledger ${days}\n` }, `Change the ledger with ${partner}`);
+    }
+    const ledger = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "src/ledger/ledger.ts");
+    assert.deepStrictEqual(ledger.namesUsedOutside, ["balance", "post"]);
+    assert.deepStrictEqual(ledger.coChangeAreas, ["apps/web", "packages/billing", "src/admin", "src/ledger", "src/long", "src/shop"]);
+    assert.strictEqual(ledger.hint, undefined);
   });
 
   it("G2: candidates start at the minimum of code lines (150 by default)", async () => {
@@ -185,6 +202,47 @@ describe("G3: breadth through imports", () => {
     assert.deepStrictEqual(breadth.get("src/lib/old.js")?.namesUsedOutside, ["legacy", "older"]);
     assert.deepStrictEqual(breadth.get("src/lib/cjs.js")?.namesUsedOutside, ["alpha"]);
     assert.deepStrictEqual(breadth.get("apps/web/a.ts"), { namesUsedOutside: [], filesUsingIt: [] });
+  });
+
+  it("G3: a class with 12 public methods that other files call is broad, not deep: members count as names, members nobody calls and private ones do not", async () => {
+    const methods = Array.from({ length: 12 }, (_, index) => `  method${index + 1}(): void {\n${filler(20, `step${index + 1}`)}\n  }\n`).join("");
+    const model = `export class Model {\n  private secret = 1;\n  protected guarded(): void {}\n  #hidden(): void {}\n  _internal(): void {}\n  constructor(public readonly id: string) {}\n  static create(): Model { return new Model("1"); }\n  get title(): string { return ""; }\n  unused(): void {}\n${methods}}\nexport function helper(): void {}\n`;
+    const sources = [
+      ts("src/github/model.ts", model),
+      ts("src/github/index.ts", "export { Model } from './model';\n"),
+      ts("src/view/tree.ts", "import { Model } from '../github/model';\nconst m = Model.create();\nm.method1(); m.method2(); m.method3(); m.method4(); m.secret; m.guarded(); m._internal(); m.id;\n"),
+      ts("src/commands.ts", "import * as github from './github/model';\nfunction run(m: github.Model) { m.method5(); m.method6(); m.method7(); m.method8(); m.title; }\n"),
+      ts("src/webview.ts", "import type { Model } from './github';\nexport function show(m: Model) { m.method9(); m.method10(); m.method11(); m.method12(); }\n"),
+      ts("src/other.ts", "const x = { method1() {}, unused() {} };\nx.method1(); x.unused();\n"),
+    ];
+    const breadth = measureBreadth(sources);
+    assert.deepStrictEqual(breadth.get("src/github/model.ts"), {
+      namesUsedOutside: ["Model", ...Array.from({ length: 12 }, (_, index) => `Model.method${index + 1}`), "Model.create", "Model.id", "Model.title"].sort(),
+      filesUsingIt: ["src/commands.ts", "src/github/index.ts", "src/view/tree.ts", "src/webview.ts"],
+    }, "a member counts when a file that imports the class accesses it (a public constructor parameter too); private, protected, #, _ and the constructor never; unused ones not; a file that does not import the class not");
+    const scratch = makeTempDir("godfiles-g3-members");
+    try {
+      const repo = path.join(scratch, "repo");
+      initRepo(repo);
+      commitFilesAt(repo, 10, Object.fromEntries(sources.map((source) => [source.path, source.text])));
+      const item = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "src/github/model.ts");
+      assert.strictEqual(item.hint, "god file?", "16 names used outside, the class and 15 of its members");
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("G3: Python: public methods, properties and class attributes other files access count as names; _names do not", () => {
+    const breadth = measureBreadth([
+      py("app/models.py", "class Order:\n    STATES = ['new']\n    _cache = {}\n\n    def __init__(self):\n        pass\n\n    @property\n    def total(self):\n        return 0\n\n    async def ship(self):\n        pass\n\n    def _recompute(self):\n        pass\n\n    def cancel(self):\n        pass\n\nclass Line:\n    def price(self):\n        pass\n"),
+      py("app/views.py", "from app.models import Order\no = Order()\no.total; o.ship(); o._recompute(); Order.STATES; o._cache\n"),
+      py("app/jobs.py", "import app.models as models\nmodels.Line().price()\n"),
+      py("app/unrelated.py", "x.cancel()\n"),
+    ]);
+    assert.deepStrictEqual(breadth.get("app/models.py"), {
+      namesUsedOutside: ["Line", "Line.price", "Order", "Order.STATES", "Order.ship", "Order.total"],
+      filesUsingIt: ["app/jobs.py", "app/views.py"],
+    });
   });
 
   it("G3: an import that two files of the same suffix could mean is not counted for either, unless one shares more folders", () => {

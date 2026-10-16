@@ -28,7 +28,8 @@ export interface GodFileOptions {
 export interface GodFileItem {
   path: string;
   codeLines: number;
-  // undefined: breadth is not measured for this language (shown as "–", never as 0).
+  // undefined: breadth is not measured for this language (shown as "–", never as 0). Top-level names
+  // and public class members as "Class.member" (breadth.ts, isClassMember).
   namesUsedOutside: string[] | undefined;
   filesUsingIt: string[] | undefined;
   commitsInWindow: number;
@@ -84,7 +85,7 @@ function candidateOf(path: string, codeLines: number, breadth: Breadth | undefin
     namesUsedOutside: breadth?.namesUsedOutside,
     filesUsingIt: breadth?.filesUsingIt,
     ...fileHistory,
-    hint: hintOf(breadth?.namesUsedOutside.length, codeLines),
+    hint: hintOf(breadth?.namesUsedOutside.length, codeLines, fileHistory.coChangeAreas.length),
   };
 }
 

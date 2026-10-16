@@ -1,7 +1,8 @@
 import * as path from "path";
-import { importsOf, publicNamesOf } from "./pythonModules";
+import * as python from "./pythonModules";
 import { Language } from "./sourceFiles";
-import { exportedNamesOf, moduleUsesOf, Reexport } from "./typescriptModules";
+import * as typescript from "./typescriptModules";
+import { Reexport } from "./typescriptModules";
 
 // Breadth: how many of a file's top-level names other source files use, and how many files use
 // them. Users are found through their imports, resolved to files of the repo:
@@ -11,6 +12,10 @@ import { exportedNamesOf, moduleUsesOf, Reexport } from "./typescriptModules";
 //
 // Only names the file really defines count: a name imported from it that it does not export is
 // left out, so a wrong guess about an import never makes a file broader.
+//
+// A class's public members are names too: when a file imports the class and accesses .member, the
+// member counts as "Class.member". Otherwise a class with forty public methods would pass as one
+// name, and a broad class as a deep module.
 
 export interface SourceText {
   path: string;
@@ -19,7 +24,8 @@ export interface SourceText {
 }
 
 export interface Breadth {
-  // Names of the file that at least one other source file uses, sorted.
+  // Names of the file that at least one other source file uses, sorted: top-level names, and public
+  // class members as "Class.member" (isClassMember).
   namesUsedOutside: string[];
   // The other source files that use at least one of them, sorted.
   filesUsingIt: string[];
@@ -43,15 +49,22 @@ export function measureBreadth(sources: SourceText[]): Map<string, Breadth> {
 // also a use of the module that defines it, a few hops deep at most.
 const reexportHopsFollowed = 4;
 
+// "Model.create" is a class member; "create" is a top-level name.
+export function isClassMember(nameUsedOutside: string): boolean {
+  return nameUsedOutside.includes(".");
+}
+
 class UseCounter {
   private readonly exported = new Map<string, Set<string>>();
+  private readonly classMembers = new Map<string, Map<string, string[]>>();
   private readonly usedNames = new Map<string, Set<string>>();
   private readonly users = new Map<string, Set<string>>();
   private readonly namedReexports = new Map<string, Map<string, { target: string; importedName: string }>>();
   private readonly starReexports = new Map<string, string[]>();
 
-  declareExports(file: string, names: string[]): void {
+  declareExports(file: string, names: string[], classMembers: Map<string, string[]>): void {
     this.exported.set(file, new Set(names));
+    this.classMembers.set(file, classMembers);
   }
 
   declareReexports(file: string, target: string, reexported: Reexport[] | undefined, reexportsAll: boolean | undefined): void {
@@ -69,24 +82,27 @@ class UseCounter {
     return [...(this.exported.get(file) ?? [])];
   }
 
-  record(user: string, target: string, names: string[], hops = 0): void {
+  // membersAccessed: every .<name> the user file accesses; of an imported class, the public members
+  // among them count.
+  record(user: string, target: string, names: string[], membersAccessed: Set<string>, hops = 0): void {
     if (user === target || hops > reexportHopsFollowed) {
       return;
     }
     const exported = this.exported.get(target) ?? new Set<string>();
     const real = names.filter((name) => exported.has(name));
     if (real.length > 0) {
-      addAll(this.usedNames, target, real);
+      const members = real.flatMap((name) => (this.classMembers.get(target)?.get(name) ?? []).filter((member) => membersAccessed.has(member)).map((member) => `${name}.${member}`));
+      addAll(this.usedNames, target, [...real, ...members]);
       addAll(this.users, target, [user]);
     }
     for (const name of names) {
       const reexport = this.namedReexports.get(target)?.get(name);
       if (reexport) {
-        this.record(user, reexport.target, [reexport.importedName], hops + 1);
+        this.record(user, reexport.target, [reexport.importedName], membersAccessed, hops + 1);
       }
       for (const starTarget of this.starReexports.get(target) ?? []) {
         if (this.exported.get(starTarget)?.has(name) || this.namedReexports.get(starTarget)?.has(name) || this.starReexports.has(starTarget)) {
-          this.record(user, starTarget, [name], hops + 1);
+          this.record(user, starTarget, [name], membersAccessed, hops + 1);
         }
       }
     }
@@ -116,20 +132,21 @@ function countTypescriptUses(sources: SourceText[], uses: UseCounter): void {
   const modules = new TypescriptModuleIndex(sources.map((source) => source.path));
   const resolvedUses = sources.map((source) => ({
     source,
-    uses: moduleUsesOf(source.text).map((use) => ({ use, target: modules.resolve(source.path, use.specifier) })),
+    uses: typescript.moduleUsesOf(source.text).map((use) => ({ use, target: modules.resolve(source.path, use.specifier) })),
+    membersAccessed: typescript.membersAccessed(source.text),
   }));
   for (const { source, uses: fileUses } of resolvedUses) {
-    uses.declareExports(source.path, exportedNamesOf(source.text));
+    uses.declareExports(source.path, typescript.exportedNamesOf(source.text), typescript.classMembersOf(source.text));
     for (const { use, target } of fileUses) {
       if (target !== undefined) {
         uses.declareReexports(source.path, target, use.reexported, use.reexportsAll);
       }
     }
   }
-  for (const { source, uses: fileUses } of resolvedUses) {
+  for (const { source, uses: fileUses, membersAccessed } of resolvedUses) {
     for (const { use, target } of fileUses) {
       if (target !== undefined) {
-        uses.record(source.path, target, use.usesAllNames ? uses.exportsOf(target) : use.names);
+        uses.record(source.path, target, use.usesAllNames ? uses.exportsOf(target) : use.names, membersAccessed);
       }
     }
   }
@@ -198,21 +215,22 @@ function countPythonUses(sources: SourceText[], uses: UseCounter): void {
   const resolvedImports = sources.map((source) => ({
     source,
     isPackageInit: source.path === "__init__.py" || source.path.endsWith("/__init__.py"),
-    imports: importsOf(source.text).map((pythonImport) => ({ pythonImport, target: modules.resolve(source.path, pythonImport.module) })),
+    imports: python.importsOf(source.text).map((pythonImport) => ({ pythonImport, target: modules.resolve(source.path, pythonImport.module) })),
+    membersAccessed: python.membersAccessed(source.text),
   }));
   for (const { source, isPackageInit, imports } of resolvedImports) {
-    uses.declareExports(source.path, publicNamesOf(source.text, isPackageInit));
+    uses.declareExports(source.path, python.publicNamesOf(source.text, isPackageInit), python.classMembersOf(source.text));
     for (const { pythonImport, target } of imports) {
       if (target !== undefined && isPackageInit) {
         uses.declareReexports(source.path, target, pythonImport.reexported, pythonImport.reexportsAll);
       }
     }
   }
-  for (const { source, imports } of resolvedImports) {
+  for (const { source, imports, membersAccessed } of resolvedImports) {
     for (const { pythonImport, target } of imports) {
       if (target !== undefined) {
         const names = pythonImport.usesAllNames ? uses.exportsOf(target) : [...pythonImport.importedNames, ...pythonImport.attributesUsed];
-        uses.record(source.path, target, names);
+        uses.record(source.path, target, names, membersAccessed);
       }
     }
   }

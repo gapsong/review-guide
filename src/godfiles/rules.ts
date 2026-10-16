@@ -9,6 +9,11 @@ export const godFileRules = {
   // A file with a narrow interface is called a deep module only from this many code lines on;
   // a short file with a narrow interface is just a small file.
   deepFromCodeLines: 300,
+  // A deep module has one reason to change. A file whose commits also touch files of more areas than
+  // this changes for more reasons than one, so it gets no deep hint however narrow it is. Calibrated
+  // on fastapi (routing.py, applications.py: 1 area) and vscode-pull-request-github (its narrow
+  // 1,000-line files change with 5 to 10 areas); see REPORT.md.
+  deepAtMostCoChangeAreas: 3,
   // A commit that touches more files than this is a sweep (a rename, a formatter run); its files did
   // not change together for one reason, so it does not count as co-change.
   largestCoChangeCommitFiles: 25,
@@ -26,15 +31,21 @@ export const godFileDefaults = {
 export type GodFileHint = "god file?" | "deep" | undefined;
 
 // Only a hint: Claude's verdict (Judge with Claude) is the real judgment. A file whose breadth is
-// not known gets no hint, because no hint is better than a wrong one.
-export function hintOf(namesUsedOutside: number | undefined, codeLines: number): GodFileHint {
+// not known gets no hint, because no hint is better than a wrong one. "deep" needs all three: a
+// narrow interface (class members included), enough code to hide, and few reasons to change. A file
+// nobody imports (an entry point, or unused) has no interface to be deep behind.
+export function hintOf(namesUsedOutside: number | undefined, codeLines: number, coChangeAreas: number): GodFileHint {
   if (namesUsedOutside === undefined) {
     return undefined;
   }
   if (isBroad(namesUsedOutside)) {
     return "god file?";
   }
-  return codeLines >= godFileRules.deepFromCodeLines ? "deep" : undefined;
+  return isDeep(namesUsedOutside, codeLines, coChangeAreas) ? "deep" : undefined;
+}
+
+export function isDeep(namesUsedOutside: number, codeLines: number, coChangeAreas: number): boolean {
+  return namesUsedOutside >= 1 && !isBroad(namesUsedOutside) && codeLines >= godFileRules.deepFromCodeLines && coChangeAreas <= godFileRules.deepAtMostCoChangeAreas;
 }
 
 export function isBroad(namesUsedOutside: number): boolean {
