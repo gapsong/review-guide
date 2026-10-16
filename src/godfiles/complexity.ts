@@ -53,11 +53,12 @@ export async function measureComplexity(files: HeadText[], complexipyPath: strin
 }
 
 // One file at a time, so a file the parser refuses leaves the others measured. JavaScript is parsed
-// as TypeScript (the package reads .ts files only); TypeScript's syntax is a superset of it.
+// as TSX (the package reads TypeScript files only); its syntax is a superset of JavaScript's.
 async function typescriptComplexity(folder: string, files: HeadText[]): Promise<[string, Complexity][]> {
   const results: [string, Complexity][] = [];
   for (const [index, file] of files.entries()) {
-    const copy = path.join(folder, "ts", String(index), path.posix.basename(file.path).replace(/\.(m|c)?js(x?)$/, ".$1ts$2"));
+    // .tsx, because a .js file of a React app may hold JSX.
+    const copy = path.join(folder, "ts", String(index), path.posix.basename(file.path).replace(/\.(m|c)?jsx?$/, ".tsx"));
     fs.mkdirSync(path.dirname(copy), { recursive: true });
     fs.writeFileSync(copy, file.text);
     try {
@@ -86,28 +87,43 @@ async function pythonComplexity(folder: string, files: HeadText[], complexipyPat
     fs.writeFileSync(path.join(folder, copy), file.text);
   }
   const output = "complexipy.json";
-  const failed = await new Promise<{ reason: string; missingTool?: boolean } | undefined>((resolve) => {
+  const run = await new Promise<{ failed?: { reason: string; missingTool?: boolean }; message: string }>((resolve) => {
     // complexipy fails a run when a function is above its allowed complexity (-i does not stop
     // that), so the limit is set out of reach: here it only reports.
-    execFile(complexipyPath, [...copies.keys(), "--output-format", "json", "--output", output, "-q", "--max-complexity-allowed", "1000000"], { cwd: folder, shell: false, timeout: 120_000 }, (error, _stdout, stderr) => {
+    execFile(complexipyPath, [...copies.keys(), "--output-format", "json", "--output", output, "-q", "--max-complexity-allowed", "1000000"], { cwd: folder, shell: false, timeout: 120_000 }, (error, stdout, stderr) => {
+      const message = firstLine(`${stderr}\n${stdout}`.split("\n").find((line) => /fail|error/i.test(line)) ?? error?.message ?? "");
       if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-        resolve({ reason: `complexipy was not found ("${complexipyPath}"). Install it, e.g. \`uv tool install complexipy\`, or set reviewGuide.complexipyPath.`, missingTool: true });
+        resolve({ failed: { reason: `complexipy was not found ("${complexipyPath}"). Install it, e.g. \`uv tool install complexipy\`, or set reviewGuide.complexipyPath.`, missingTool: true }, message });
       } else {
-        resolve(error ? { reason: `complexipy failed: ${firstLine(stderr || error.message)}` } : undefined);
+        resolve({ failed: error ? { reason: `complexipy failed: ${message}` } : undefined, message });
       }
     });
   });
-  if (failed) {
-    return files.map((file) => [file.path, { state: "unknown", ...failed }]);
+  // A file complexipy cannot parse fails the run, but the others are still in its output.
+  const answer = readAnswer(path.join(folder, output));
+  if (answer === undefined) {
+    return files.map((file) => [file.path, { state: "unknown", ...(run.failed ?? { reason: "complexipy wrote no result." }) }]);
   }
-  const answer = JSON.parse(fs.readFileSync(path.join(folder, output), "utf8")) as ComplexipyResult[];
   return [...copies].map(([copy, file]) => {
-    const functions = answer.filter((result) => result.path === copy).map((result) => {
+    const results = answer.filter((result) => result.path.replace(/\\/g, "/").replace(/^\.\//, "") === copy);
+    if (results.length === 0 && run.failed) {
+      return [file.path, { state: "unknown", reason: `complexipy could not read the file: ${run.message}` }];
+    }
+    const functions = results.map((result) => {
       const parts = result.function_name.split("::");
       return { name: parts.join("."), line: pythonLineOf(file.text, parts), score: result.complexity };
     });
     return [file.path, hardestOf(functions)];
   });
+}
+
+function readAnswer(file: string): ComplexipyResult[] | undefined {
+  try {
+    const answer: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    return Array.isArray(answer) ? (answer as ComplexipyResult[]) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // The highest score; on a tie the first in the file.

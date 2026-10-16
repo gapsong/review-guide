@@ -5,7 +5,7 @@ import { withBadge } from "../codemap/badge";
 import { watchHead } from "../codemap/workspaceChangeMarkers";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
 import { LanguageServer, measureBreadth, SymbolNode } from "../godfiles/breadth";
-import { measureComplexity } from "../godfiles/complexity";
+import { Complexity, measureComplexity } from "../godfiles/complexity";
 import { defaultGodFileOptions, godFileRules, GodFileItem, GodFileOptions, GodFileReport, hintOf, measureGodFiles, readFilesAt } from "../godfiles/godFiles";
 import { languageOf } from "../godfiles/sourceFiles";
 import { CodemapTarget, commandLink, uriOfTarget } from "./codemapTarget";
@@ -215,7 +215,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
         }
         for (const state of ready) {
           if (!isCancelled()) {
-            await Promise.all([this.measureBreadthOfShown(state, isCancelled), this.measureComplexityOfShown(state)]);
+            await Promise.all([this.measureBreadthOfShown(state, isCancelled), this.measureComplexityOfShown(state, isCancelled)]);
           }
         }
       });
@@ -235,13 +235,15 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     }
   }
 
-  // Cognitive complexity of the HEAD texts; a missing complexipy is named once per window.
-  private async measureComplexityOfShown(state: Extract<FolderGodFiles, { state: "ready" }>): Promise<void> {
-    const { report } = state;
-    const texts = await readFilesAt(state.folder.uri.fsPath, report.commit, report.items.slice(0, shownFiles).map((item) => item.path));
-    const results = await measureComplexity(texts, complexipyPath());
-    for (const [repoPath, complexity] of results) {
-      this.update(state, repoPath, { complexity });
+  // Cognitive complexity of the HEAD texts; a missing complexipy is named once per window. It never
+  // fails the round: a failure shows as "–" with its reason.
+  private async measureComplexityOfShown(state: Extract<FolderGodFiles, { state: "ready" }>, isCancelled: () => boolean): Promise<void> {
+    const shown = state.report.items.slice(0, shownFiles).map((item) => item.path);
+    const results = await readFilesAt(state.folder.uri.fsPath, state.report.commit, shown)
+      .then((texts) => (isCancelled() ? new Map<string, Complexity>() : measureComplexity(texts, complexipyPath())))
+      .catch((error: unknown) => new Map<string, Complexity>(shown.map((repoPath) => [repoPath, { state: "unknown", reason: `Measuring failed: ${error instanceof Error ? error.message : String(error)}` }])));
+    for (const repoPath of shown) {
+      this.update(state, repoPath, { complexity: results.get(repoPath) ?? (isCancelled() ? { state: "pending" } : { state: "unknown", reason: "Git could not read the file at HEAD." }) });
     }
     const missing = [...results.values()].find((complexity) => complexity.state === "unknown" && complexity.missingTool);
     if (missing?.state === "unknown" && !this.toldHowToInstallComplexipy) {

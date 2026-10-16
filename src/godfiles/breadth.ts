@@ -78,6 +78,11 @@ export async function measureBreadth(repoPath: string, server: LanguageServer, o
       }
       const references = await inTime(server.references(repoPath, declaration.line, declaration.character));
       answered ||= references.length > 0;
+      // The declaration is among its own references; when no reference maps back to this file
+      // (a workspace opened through a link the server resolved), the paths cannot be trusted.
+      if (references.length > 0 && !references.some((reference) => reference.path === repoPath)) {
+        return { state: "unknown", reason: "The language server's references do not map back to the files of this workspace folder." };
+      }
       for (const reference of references) {
         if (reference.path !== undefined && reference.path !== repoPath && options.measured.has(reference.path) && !(await importLines(reference.path)).has(reference.line)) {
           names.set(declaration.name, (names.get(declaration.name) ?? new Set<string>()).add(reference.path));
@@ -127,9 +132,11 @@ function declarationsOf(symbols: SymbolNode[], lines: string[], importLines: Set
   return declarations;
 }
 
-// "private x", "protected get y()": the modifier stands before the name on its line.
+// "private x", "protected get y()": the modifier stands before the name, after the previous
+// member or parameter ("constructor(private a: A, public b: B)" hides a, not b).
 function isHidden(member: SymbolNode, lines: string[]): boolean {
-  return /\b(private|protected)\b/.test((lines[member.line] ?? "").slice(0, member.character));
+  const before = (lines[member.line] ?? "").slice(0, member.character);
+  return /\b(private|protected)\b[^,;({]*$/.test(before);
 }
 
 // "Model.create" is a class member; "create" is a top-level name.

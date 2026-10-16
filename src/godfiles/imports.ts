@@ -10,8 +10,9 @@ import { Language } from "./sourceFiles";
 //   views.py    ──from ..shop import payment─────────────►   shop/payment.py       (relative)
 
 export interface ImportStatement {
-  // A TypeScript specifier ("./x", "@/lib/x") or a Python module, dotted or relative (".x", "..").
-  module: string;
+  // A TypeScript specifier ("./x", "@/lib/x") or a Python module, dotted or relative (".x", "..");
+  // undefined for a statement that only passes names on ("export { a };", "__all__ = [...]").
+  module: string | undefined;
   // Python "from m import a": a may be the submodule m.a; it is tried before m.
   submodules: string[];
   // The 0-based lines of an import or export ... from statement. undefined for require() and
@@ -52,9 +53,13 @@ export function importedFiles(sources: ScannedSource[]): Map<string, string[]> {
   return new Map(sources.map((source) => {
     const files = new Set<string>();
     for (const statement of importsOf(source.text, source.language)) {
+      if (statement.module === undefined) {
+        continue;
+      }
+      const module = statement.module;
       const target = source.language === "typescript"
-        ? typescript.resolve(source.path, statement.module)
-        : [...statement.submodules, statement.module].map((module) => python.resolve(source.path, module)).find((file) => file !== undefined);
+        ? typescript.resolve(source.path, module)
+        : [...statement.submodules, module].map((candidate) => python.resolve(source.path, candidate)).find((file) => file !== undefined);
       if (target !== undefined && target !== source.path) {
         files.add(target);
       }
@@ -65,19 +70,26 @@ export function importedFiles(sources: ScannedSource[]): Map<string, string[]> {
 
 // TypeScript and JavaScript ------------------------------------------------------------------------
 
+// The statement forms, so that "export const label = 'copy from'" or a function body before a
+// re-export is never taken for an import:
+//   import x from "m"   import x, { a,\n b } from "m"   import * as n from "m"   import type { T } from "m"
+//   import "m"          export { a } from "m"           export * from "m"         export * as n from "m"
+//   export { a, b };    (a barrel's re-export of what it imported: lines only, no module)
+const typescriptStatements = [
+  /(?<![\w$.])import\s+(?:type\s+)?(?:[\w$]+\s*(?:,\s*)?)?(?:\{[^{}'"`;]*\}|\*\s*as\s+[\w$]+)?\s*from\s*(['"])([^'"\n]+)\1/g,
+  /(?<![\w$.])import\s*(['"])([^'"\n]+)\1/g,
+  /(?<![\w$.])export\s+(?:type\s+)?(?:\*(?:\s*as\s+[\w$]+)?|\{[^{}'"`;]*\})\s*from\s*(['"])([^'"\n]+)\1/g,
+  /(?<![\w$.])export\s*\{[^{}'"`;]*\}(?!\s*from)/g,
+];
+
 function typescriptImports(code: string): ImportStatement[] {
   const statements: ImportStatement[] = [];
-  // import x from "m"; import { a,\n b } from "m"; import "m"; export { a } from "m"; export * from "m"
-  const declarations = /(?:^|[;\n])[ \t]*((?:import|export)\b[^;'"`]*?(?:\bfrom\s*)?['"]([^'"\n]+)['"])/g;
-  for (const match of code.matchAll(declarations)) {
-    const head = match[1];
-    if (!/^import\s*['"]/.test(head) && !/\bfrom\s*['"]/.test(head)) {
-      continue;
+  for (const pattern of typescriptStatements) {
+    for (const match of code.matchAll(pattern)) {
+      statements.push({ module: match[2], submodules: [], lines: { first: lineAt(code, match.index!), last: lineAt(code, match.index! + match[0].length) } });
     }
-    const start = match.index! + match[0].length - head.length;
-    statements.push({ module: match[2], submodules: [], lines: { first: lineAt(code, start), last: lineAt(code, start + head.length) } });
   }
-  for (const match of code.matchAll(/\b(?:require|import)\(\s*['"]([^'"\n]+)['"]\s*\)/g)) {
+  for (const match of code.matchAll(/(?<![\w$.])(?:require|import)\(\s*['"]([^'"\n]+)['"]\s*\)/g)) {
     statements.push({ module: match[1], submodules: [] });
   }
   return statements;
@@ -151,6 +163,10 @@ function pythonImports(code: string): ImportStatement[] {
     const names = match[2].replace(/[()\\]/g, " ").split(",").map((part) => part.trim().split(/\s+as\s+/)[0]).filter((name) => /^\w+$/.test(name));
     const submodules = names.map((name) => `${module}${module.endsWith(".") ? "" : "."}${name}`);
     statements.push({ module, submodules, lines: linesOf(code, match.index!, match[0].length) });
+  }
+  // "__all__ = [...]" names what the module passes on; a language server finds references there.
+  for (const match of code.matchAll(/^__all__[ \t]*(?::[^=\n]*)?\+?=[ \t]*[[(][^\])]*[\])]/gm)) {
+    statements.push({ module: undefined, submodules: [], lines: linesOf(code, match.index!, match[0].length) });
   }
   // Not the "import" of a "from" statement continued on this line.
   const plainImports = /^(?<!\\\n)[ \t]*import[ \t]+((?:[^\n;\\]|\\\n)+)/gm;
@@ -251,9 +267,11 @@ function sharedFolderCount(first: string, second: string): number {
 // Comments (and in Python strings, so a docstring's "import x" is not an import) become blanks of
 // the same length; newlines stay, so offsets and lines stay where they were. TypeScript strings are
 // kept: the specifier is one, and "src/**/*.ts" holds a "/*" that opens no comment.
-function blankComments(text: string, language: "typescript" | "python"): string {
-  let code = "";
-  let i = 0;
+function blankComments(source: string, language: "typescript" | "python"): string {
+  // A byte order mark and the \r of CRLF become blanks too: "\\\r\n" continues a line like "\\\n".
+  const text = source.replace(/\\\r\n/g, " \\\n").replace(/\r(?=\n)/g, " ");
+  let code = text.startsWith("\uFEFF") ? " " : "";
+  let i = code.length;
   while (i < text.length) {
     const character = text[i];
     const commentEnd = language === "typescript" ? typescriptCommentEnd(text, i) : character === "#" ? lineEnd(text, i) : undefined;

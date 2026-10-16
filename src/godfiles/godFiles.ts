@@ -189,16 +189,17 @@ async function measuredSourcesAt(repoFolder: string, commit: string, options: Go
   return files;
 }
 
-// The texts of files at a commit, for the complexity tools (they never read the working tree).
+// The texts of files at a commit, for the complexity tools (they never read the working tree). A
+// path git cannot name (not at the commit, or not valid UTF-8 in the repo) is left out.
 export async function readFilesAt(repoFolder: string, commit: string, repoPaths: string[]): Promise<{ path: string; text: string }[]> {
   const readable = repoPaths.filter((repoPath) => !repoPath.includes("\n"));
   const blobs = await readBlobs(repoFolder, readable.map((repoPath) => `${commit}:${repoPath}`));
-  return readable.map((repoPath, index) => ({ path: repoPath, text: blobs[index].toString("utf8") }));
+  return readable.flatMap((repoPath, index) => (blobs[index] ? [{ path: repoPath, text: blobs[index].toString("utf8") }] : []));
 }
 
 async function readSources(repoFolder: string, files: TrackedFile[]): Promise<ScannedSource[]> {
   const blobs = await readBlobs(repoFolder, files.map((file) => file.objectId));
-  return files.map((file, index) => ({ path: file.path, language: languageOf(file.path)!, text: blobs[index].toString("utf8") }));
+  return files.map((file, index) => ({ path: file.path, language: languageOf(file.path)!, text: blobs[index]?.toString("utf8") ?? "" }));
 }
 
 // History ------------------------------------------------------------------------------------------
@@ -302,9 +303,10 @@ function readGit(repoFolder: string, args: string[]): Promise<string> {
   });
 }
 
-// The content of many blobs in one git process: "git cat-file --batch" answers each object id on
-// stdin with "<id> blob <size>\n<content>\n". An object can also be named "<commit>:<path>".
-function readBlobs(repoFolder: string, objectIds: string[]): Promise<Buffer[]> {
+// The content of many blobs in one git process: "git cat-file --batch" answers each object on
+// stdin with "<id> blob <size>\n<content>\n", or "<name> missing\n" (undefined here). An object can
+// also be named "<commit>:<path>".
+function readBlobs(repoFolder: string, objectNames: string[]): Promise<(Buffer | undefined)[]> {
   return new Promise((resolve, reject) => {
     const child = spawn("git", [...readOnlyConfig, "cat-file", "--batch"], { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment } });
     const chunks: Buffer[] = [];
@@ -318,16 +320,27 @@ function readBlobs(repoFolder: string, objectIds: string[]): Promise<Buffer[]> {
         return;
       }
       const output = Buffer.concat(chunks);
-      const blobs: Buffer[] = [];
+      const blobs: (Buffer | undefined)[] = [];
       let offset = 0;
-      for (let index = 0; index < objectIds.length; index++) {
+      for (let index = 0; index < objectNames.length; index++) {
         const headerEnd = output.indexOf(0x0a, offset);
-        const size = Number(/^\S+ blob (\d+)$/.exec(output.subarray(offset, headerEnd).toString("utf8"))![1]);
+        const header = headerEnd === -1 ? "" : output.subarray(offset, headerEnd).toString("utf8");
+        const blob = / blob (\d+)$/.exec(header);
+        if (!blob) {
+          if (headerEnd === -1) {
+            reject(new Error(`git cat-file answered ${index} of ${objectNames.length} objects.`));
+            return;
+          }
+          blobs.push(undefined);
+          offset = headerEnd + 1;
+          continue;
+        }
+        const size = Number(blob[1]);
         blobs.push(output.subarray(headerEnd + 1, headerEnd + 1 + size));
         offset = headerEnd + 1 + size + 1;
       }
       resolve(blobs);
     });
-    child.stdin.end(objectIds.map((id) => `${id}\n`).join(""));
+    child.stdin.end(objectNames.map((name) => `${name}\n`).join(""));
   });
 }

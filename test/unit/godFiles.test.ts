@@ -3,7 +3,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { Breadth, LanguageServer, measureBreadth, SymbolNode } from "../../src/godfiles/breadth";
-import { areaOf, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles } from "../../src/godfiles/godFiles";
+import { areaOf, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles, readFilesAt } from "../../src/godfiles/godFiles";
 import { importedFiles, importLinesOf } from "../../src/godfiles/imports";
 import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
@@ -243,6 +243,18 @@ describe("G3: the module-level import scan (knows N areas)", () => {
     assert.deepStrictEqual([...importLinesOf(sources[6].text, "python")].sort(), [0, 1, 2, 3, 4]);
   });
 
+  it("G3: a string with \"from\", a declaration before a re-export or a template is no import line; a re-export without from and __all__ are", () => {
+    const typescriptLines = (text: string) => [...importLinesOf(text, "typescript")].sort((first, second) => first - second);
+    assert.deepStrictEqual(typescriptLines("export const label = \"copy from\";\nexport function f(a = \"from\") {}\n"), []);
+    assert.deepStrictEqual(typescriptLines("export enum Color {\n  Red,\n  Green,\n}\nexport * from \"./x\";\n"), [4]);
+    assert.deepStrictEqual(typescriptLines("export function run() {\n  a()\n}\nexport { c } from \"./c\"\n"), [3]);
+    assert.deepStrictEqual(typescriptLines("import { x } from \"./a\";\nexport { x };\nexport default x;\n"), [0, 1], "a barrel that imports and then exports");
+    assert.deepStrictEqual(typescriptLines("\uFEFFimport { x } from \"./a\";\r\nimport type {\r\n  T,\r\n} from \"./t\";\r\n"), [0, 1, 2, 3], "a byte order mark and CRLF");
+    const pythonLines = (text: string) => [...importLinesOf(text, "python")].sort((first, second) => first - second);
+    assert.deepStrictEqual(pythonLines("from .a import b\n__all__ = [\n    \"b\",\n]\nx = 1\n"), [0, 1, 2, 3]);
+    assert.deepStrictEqual(pythonLines("from a \\\r\n    import b\r\nx = 1\r\n"), [0, 1], "a CRLF continuation");
+  });
+
   it("G3: an import that two files of the same suffix could mean is not resolved, unless one shares more folders", () => {
     const imported = importedFiles([
       ts("packages/a/src/util/log.ts", "export function log() {}\n"),
@@ -324,6 +336,20 @@ describe("G3: breadth from the language server (a fake one)", () => {
     assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", server, options), { state: "known", names: ["add", "cents"], files: ["apps/web/f.ts", "apps/web/g.ts"], complete: true });
   });
 
+  it("G3: \"constructor(private a: A, public b: B)\" hides a, not b", async () => {
+    const lines = ["export class Api {", "  constructor(private readonly http: Http, public dialog: Dialog) {}", "  private cache = 1; size = 2;", "}"];
+    const server = fakeServer([fakeFile("src/lib/money.ts", lines, [symbol("Api", 0, [symbol("http", 1), symbol("dialog", 1), symbol("cache", 2), symbol("size", 2)])])], {
+      "src/lib/money.ts:1": [{ path: "apps/web/f.ts", line: 4 }],
+      "src/lib/money.ts:2": [{ path: "apps/web/f.ts", line: 5 }],
+    });
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", server, options), { state: "known", names: ["Api.dialog", "Api.size"], files: ["apps/web/f.ts"], complete: true });
+  });
+
+  it("G3: references that never map back to the file itself make breadth unknown, not 0", async () => {
+    const elsewhere: LanguageServer = { ...fakeServer([fakeFile("src/lib/money.ts", ["export const cents = 1;"], [symbol("cents", 0)])], {}), references: async () => [{ path: undefined, line: 0 }] };
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", elsewhere, options), { state: "unknown", reason: "The language server's references do not map back to the files of this workspace folder." });
+  });
+
   it("G3: unknown breadth is never 0: no symbol provider, no reference provider, a timeout and a failure each give a reason; a cancel gives nothing", async () => {
     const go = fakeServer([fakeFile("cmd/main.go", ["package main", "func Run() {}"], undefined)], {});
     const unknown = await measureBreadth("cmd/main.go", go, options);
@@ -384,6 +410,12 @@ describe("G4: history from one git log pass", () => {
     assert.strictEqual(measured.commitCount, report.commitCount);
     assert.strictEqual(itemOf(measured, "src/core/motor.ts").commits, 2, "the rename that also changed the file is not followed");
     assert.strictEqual(fingerprint(blobless), before, "nothing was fetched into its .git");
+  });
+
+  it("reads files at a commit, and leaves out a path git cannot name instead of hanging", async () => {
+    const texts = await readFilesAt(repo, "HEAD", ["src/core/helper.ts", "nope.py", "src/core/motor.ts"]);
+    assert.deepStrictEqual(texts.map((text) => text.path), ["src/core/helper.ts", "src/core/motor.ts"]);
+    assert.strictEqual(texts[0].text, "export const h = 1;\n");
   });
 
   it("G4: a shallow clone says so: its commit counts are a floor, not the history", async () => {

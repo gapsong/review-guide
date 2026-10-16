@@ -51,12 +51,14 @@ describe("God files: cognitive complexity of the hardest function (display only)
     const results = await measureComplexity([
       { path: "src/shop/checkout.ts", text: typescriptText },
       { path: "src/shop/legacy.js", text: typescriptText.replace(/: number(\[\])?/g, "") },
+      { path: "src/app/App.js", text: "export function App(props) {\n  return props.on ? <div>{props.a && props.b}</div> : null;\n}\n" },
       { path: "src/shop/empty.ts", text: "export const a = 1;\n" },
       { path: "src/shop/broken.ts", text: "export function (\n" },
       { path: "cmd/main.go", text: "package main\n" },
     ], "complexipy");
     assert.deepStrictEqual(results.get("src/shop/checkout.ts"), { state: "known", hardest: { name: "Checkout.total", line: 5, score: 8 } });
     assert.deepStrictEqual(results.get("src/shop/legacy.js"), { state: "known", hardest: { name: "Checkout.total", line: 5, score: 8 } }, "JavaScript is parsed as TypeScript");
+    assert.deepStrictEqual(results.get("src/app/App.js"), { state: "known", hardest: { name: "App", line: 1, score: 2 } }, "JSX in a .js file");
     assert.deepStrictEqual(results.get("src/shop/empty.ts"), { state: "known", hardest: undefined });
     const broken = results.get("src/shop/broken.ts");
     assert.ok(broken?.state === "unknown" && broken.reason.startsWith("The TypeScript parser refused the file"), JSON.stringify(broken));
@@ -81,6 +83,22 @@ fs.writeFileSync(out, JSON.stringify([{ complexity: 1, function_name: "flat", pa
     assert.deepStrictEqual(call.args.slice(1), ["--output-format", "json", "--output", "complexipy.json", "-q", "--max-complexity-allowed", "1000000"]);
     assert.ok(call.cwd.includes("review-guide-complexity-") && !fs.existsSync(call.cwd), "a temporary folder, removed afterwards");
     assert.deepStrictEqual(call.files, [pythonText], "a copy of the text it was given (HEAD's), not a file of the working tree");
+  });
+
+  it("Python: a file complexipy cannot parse fails the run, but the other files keep their numbers", async () => {
+    const fake = path.join(scratch, "fake-complexipy-partial.js");
+    fs.writeFileSync(fake, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+const files = args.filter((a) => a.endsWith(".py"));
+console.log("Failed to process " + files[1] + ": invalid syntax");
+fs.writeFileSync(args[args.indexOf("--output") + 1], JSON.stringify([{ complexity: 2, function_name: "flat", path: "./" + files[0] }]));
+process.exit(1);
+`, { mode: 0o755 });
+    const results = await measureComplexity([{ path: "app/a.py", text: pythonText }, { path: "app/b.py", text: "print 'old'\n" }], fake);
+    assert.deepStrictEqual(results.get("app/a.py"), { state: "known", hardest: { name: "flat", line: 1, score: 2 } });
+    const failed = results.get("app/b.py");
+    assert.ok(failed?.state === "unknown" && failed.reason.includes("invalid syntax"), JSON.stringify(failed));
   });
 
   it("Python: a missing complexipy shows \"–\" with how to install it, never a 0", async () => {
