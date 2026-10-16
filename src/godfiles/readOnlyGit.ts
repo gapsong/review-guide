@@ -2,21 +2,20 @@ import { execFile, spawn } from "child_process";
 
 // Git for the measurement: it reads, and it can never reach the network. protocol.allow=never
 // refuses every transport, and GIT_NO_LAZY_FETCH stops a partial clone from fetching a missing
-// object on its own, which would write into the repo's .git. A missing object is an error then,
-// shown to the owner, never a silent fetch.
+// object, which would write into the repo's .git; a missing object is an error instead.
 
 const readOnlyEnvironment = { GIT_TERMINAL_PROMPT: "0", GIT_NO_LAZY_FETCH: "1", GIT_OPTIONAL_LOCKS: "0" };
 const readOnlyConfig = ["-c", "protocol.allow=never", "-c", "core.quotePath=false"];
 
-export function readGit(repoFolder: string, args: string[], signal?: AbortSignal): Promise<string> {
+export function readGit(repoFolder: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       "git",
       [...readOnlyConfig, ...args],
-      { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment }, maxBuffer: 1024 * 1024 * 1024, signal },
+      { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment }, maxBuffer: 1024 * 1024 * 1024 },
       (error, stdout, stderr) => {
         if (error) {
-          reject(signal?.aborted ? new MeasurementCancelled() : new Error(`git ${args.join(" ")} failed: ${stderr.trim() || error.message}`));
+          reject(new Error(`git ${args.join(" ")} failed: ${stderr.trim() || error.message}`));
         } else {
           resolve(stdout);
         }
@@ -27,17 +26,17 @@ export function readGit(repoFolder: string, args: string[], signal?: AbortSignal
 
 // The content of many blobs in one git process: "git cat-file --batch" answers each object id on
 // stdin with "<id> blob <size>\n<content>\n".
-export function readBlobs(repoFolder: string, objectIds: string[], signal?: AbortSignal): Promise<Buffer[]> {
+export function readBlobs(repoFolder: string, objectIds: string[]): Promise<Buffer[]> {
   return new Promise((resolve, reject) => {
-    const child = spawn("git", [...readOnlyConfig, "cat-file", "--batch"], { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment }, signal });
+    const child = spawn("git", [...readOnlyConfig, "cat-file", "--batch"], { cwd: repoFolder, env: { ...process.env, ...readOnlyEnvironment } });
     const chunks: Buffer[] = [];
     const errors: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
-    child.on("error", (error) => reject(signal?.aborted ? new MeasurementCancelled() : new Error(`git cat-file could not run: ${error.message}`)));
+    child.on("error", (error) => reject(new Error(`git cat-file could not run: ${error.message}`)));
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(signal?.aborted ? new MeasurementCancelled() : new Error(`git cat-file failed with exit code ${code}: ${Buffer.concat(errors).toString("utf8").trim()}`));
+        reject(new Error(`git cat-file failed with exit code ${code}: ${Buffer.concat(errors).toString("utf8").trim()}`));
         return;
       }
       try {
@@ -65,10 +64,4 @@ function splitBatchOutput(output: Buffer, count: number): Buffer[] {
     offset = headerEnd + 1 + size + 1;
   }
   return blobs;
-}
-
-export class MeasurementCancelled extends Error {
-  constructor() {
-    super("The measurement of god files was cancelled.");
-  }
 }

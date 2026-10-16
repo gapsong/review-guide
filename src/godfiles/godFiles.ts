@@ -22,7 +22,6 @@ export interface GodFileOptions {
   minCodeLines: number;
   // Globs of repo paths to leave out (setting reviewGuide.godFiles.exclude).
   exclude: string[];
-  signal?: AbortSignal;
 }
 
 export interface GodFileItem {
@@ -55,12 +54,12 @@ export interface GodFileReport {
 export const defaultGodFileOptions: GodFileOptions = { days: godFileDefaults.days, minCodeLines: godFileDefaults.minCodeLines, exclude: [] };
 
 export async function measureGodFiles(repoFolder: string, options: GodFileOptions): Promise<GodFileReport> {
-  const commit = await headCommitOf(repoFolder, options.signal);
+  const commit = await headCommitOf(repoFolder);
   const sourcePaths = await measuredSourcesAt(repoFolder, commit, options);
-  const sources = await readSources(repoFolder, sourcePaths, options.signal);
+  const sources = await readSources(repoFolder, sourcePaths);
   const breadth = measureBreadth(sources);
-  const history = await readHistory(repoFolder, commit, options.days, new Set(sourcePaths.map((file) => file.path)), await isPartialClone(repoFolder), options.signal);
-  const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"], options.signal)).trim() === "true";
+  const history = await readHistory(repoFolder, commit, options.days, new Set(sourcePaths.map((file) => file.path)));
+  const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"])).trim() === "true";
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
     .filter((source) => source.codeLines >= options.minCodeLines)
@@ -103,9 +102,9 @@ function rankedItems(candidates: Candidate[]): GodFileItem[] {
   return ranked.map(({ candidate, score }) => ({ ...candidate, score }));
 }
 
-async function headCommitOf(repoFolder: string, signal?: AbortSignal): Promise<string> {
+async function headCommitOf(repoFolder: string): Promise<string> {
   try {
-    return (await readGit(repoFolder, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], signal)).trim();
+    return (await readGit(repoFolder, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])).trim();
   } catch {
     throw new Error("The workspace folder has no commit yet, so there is no history to measure.");
   }
@@ -119,7 +118,7 @@ interface TrackedFile {
 // Regular files at HEAD only: a symbolic link or a submodule holds no code of this repo.
 async function measuredSourcesAt(repoFolder: string, commit: string, options: GodFileOptions): Promise<TrackedFile[]> {
   const excludeGlobs = options.exclude.map(globToRegExp);
-  const tree = await readGit(repoFolder, ["ls-tree", "-r", "-z", "--full-tree", commit], options.signal);
+  const tree = await readGit(repoFolder, ["ls-tree", "-r", "-z", "--full-tree", commit]);
   const files: TrackedFile[] = [];
   for (const line of tree.split("\0")) {
     const match = /^(\d+) blob (\S+)\t(.*)$/s.exec(line);
@@ -130,13 +129,7 @@ async function measuredSourcesAt(repoFolder: string, commit: string, options: Go
   return files;
 }
 
-async function readSources(repoFolder: string, files: TrackedFile[], signal?: AbortSignal): Promise<SourceText[]> {
-  const blobs = await readBlobs(repoFolder, files.map((file) => file.objectId), signal);
+async function readSources(repoFolder: string, files: TrackedFile[]): Promise<SourceText[]> {
+  const blobs = await readBlobs(repoFolder, files.map((file) => file.objectId));
   return files.map((file, index) => ({ path: file.path, language: languageOf(file.path)!, text: blobs[index].toString("utf8") }));
-}
-
-async function isPartialClone(repoFolder: string): Promise<boolean> {
-  const promisorRemotes = await readGit(repoFolder, ["config", "--get-regexp", "^remote\\..*\\.promisor$"]).catch(() => "");
-  const partialClone = await readGit(repoFolder, ["config", "--get", "extensions.partialClone"]).catch(() => "");
-  return promisorRemotes.includes("true") || partialClone.trim() !== "";
 }

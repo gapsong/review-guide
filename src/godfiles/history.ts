@@ -33,13 +33,10 @@ export interface Commit {
 
 const daySeconds = 24 * 60 * 60;
 
-export async function readHistory(repoFolder: string, headCommit: string, days: number, measuredPaths: Set<string>, isPartialClone: boolean, signal?: AbortSignal): Promise<History> {
-  const headTimeSeconds = Number((await readGit(repoFolder, ["show", "-s", "--format=%ct", headCommit], signal)).trim());
+export async function readHistory(repoFolder: string, headCommit: string, days: number, measuredPaths: Set<string>): Promise<History> {
+  const headTimeSeconds = Number((await readGit(repoFolder, ["show", "-s", "--format=%ct", headCommit])).trim());
   const windowStartSeconds = headTimeSeconds - days * daySeconds;
-  // Finding a rename that changed the file too needs the file's old content; a partial clone may
-  // not have it and must not fetch it, so there only exact renames count.
-  const renames = isPartialClone ? "-M100%" : "-M";
-  const log = await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", renames, "--format=%x1e%H %ct", `--since=@${windowStartSeconds}`, headCommit], signal);
+  const log = await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", "-M", "--format=%x1e%H %ct", `--since=@${windowStartSeconds}`, headCommit]);
   const commits = parseLog(log).filter((commit) => commit.committedAtSeconds >= windowStartSeconds);
   return historyOf(commits, measuredPaths);
 }

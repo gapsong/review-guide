@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { gitFoldersOf } from "../git/gitFolders";
 import { GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
-import { MeasurementCancelled } from "../godfiles/readOnlyGit";
 import { godFileDefaults } from "../godfiles/rules";
 
 // The god files of every workspace folder that is a git repo, kept fresh: measured the first time
@@ -13,7 +12,7 @@ export type FolderGodFiles =
   | { folder: vscode.WorkspaceFolder; state: "ready"; report: GodFileReport }
   | { folder: vscode.WorkspaceFolder; state: "failed"; message: string };
 
-export interface GodFileSettings extends Omit<GodFileOptions, "signal"> {
+export interface GodFileSettings extends GodFileOptions {
   maxItems: number;
 }
 
@@ -106,34 +105,22 @@ export class WorkspaceGodFiles implements vscode.Disposable {
     }
   }
 
+  // Measuring takes well under a second, so the view shows a progress bar and there is nothing to cancel.
   private async measureAll(): Promise<void> {
     const settings = this.settings();
-    await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: "Review Guide: measuring god files", cancellable: true },
-      async (progress, cancellation) => {
-        const abort = new AbortController();
-        const listener = cancellation.onCancellationRequested(() => abort.abort());
-        try {
-          for (const folder of this.repoFolders) {
-            progress.report({ message: folder.name });
-            await this.measureFolder(folder, { ...settings, signal: abort.signal });
-          }
-        } finally {
-          listener.dispose();
-        }
-      },
-    );
+    await vscode.window.withProgress({ location: { viewId: "reviewGuide.godFiles" } }, async () => {
+      for (const folder of this.repoFolders) {
+        await this.measureFolder(folder, settings);
+      }
+    });
   }
 
   private async measureFolder(folder: vscode.WorkspaceFolder, options: GodFileOptions): Promise<void> {
-    const key = folder.uri.toString();
     this.setState({ folder, state: "measuring" });
     try {
       this.setState({ folder, state: "ready", report: await measureGodFiles(folder.uri.fsPath, options) });
     } catch (error) {
-      const message = error instanceof MeasurementCancelled ? "Measuring was cancelled. Press Refresh to measure again." : error instanceof Error ? error.message : String(error);
-      this.states.set(key, { folder, state: "failed", message });
-      this.changed.fire();
+      this.setState({ folder, state: "failed", message: error instanceof Error ? error.message : String(error) });
     }
   }
 
