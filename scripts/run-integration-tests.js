@@ -43,6 +43,7 @@ async function runAllSuites() {
     { name: "smoke" },
     { name: "codemap", withWorkspaceFolder: true },
     { name: "codemap-view", withWorkspaceFolder: true },
+    { name: "god-files", withWorkspaceFolder: true },
     { name: "github-login" },
     { name: "open-pr", withWorkspaceFolder: true },
     { name: "restart-part1", userDataDir: sharedUserData },

@@ -42,7 +42,7 @@ export class WorkspaceGodFiles implements vscode.Disposable {
   private running: Promise<void> | undefined;
   private measureRequested: { ignoreCache: boolean } | undefined;
 
-  constructor(storageFolder: string, private readonly settings: () => GodFileSettings = godFileSettings) {
+  constructor(readonly storageFolder: string, private readonly settings: () => GodFileSettings = godFileSettings) {
     this.cache = new GodFileReportCache(storageFolder);
     this.subscriptions = [
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.restartIfStarted()),
