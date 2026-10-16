@@ -64,9 +64,12 @@ export function moduleUsesOf(text: string): ModuleUse[] {
 export function classMembersOf(text: string): Map<string, string[]> {
   const code = withoutComments(text);
   const members = new Map<string, string[]>();
-  const classes = new RegExp(`^[ \\t]*(?:export\\s+)?(default\\s+)?(?:declare\\s+)?(?:abstract\\s+)?class\\s+(${identifier})[^{]*\\{`, "gm");
+  const classes = new RegExp(`^[ \\t]*(?:export\\s+)?(default\\s+)?(?:declare\\s+)?(?:abstract\\s+)?class\\s+(${identifier})`, "gm");
   for (const match of code.matchAll(classes)) {
-    const bodyStart = match.index! + match[0].length;
+    const bodyStart = classBodyStart(code, match.index! + match[0].length);
+    if (bodyStart === undefined) {
+      continue;
+    }
     const found = publicMembersOf(code.slice(bodyStart, closingBraceOf(code, bodyStart - 1)));
     members.set(match[2], found);
     if (match[1]) {
@@ -77,6 +80,25 @@ export function classMembersOf(text: string): Map<string, string[]> {
 }
 
 const memberModifiers = /^(?:(?:public|static|readonly|async|override|declare|accessor|abstract|get|set)\s+)*\*?\s*/;
+
+// The index after the "{" that opens the class body: the first "{" outside the type arguments of
+// "extends Base<{ a: 1 }>" (a class declaration has no other braces before its body).
+function classBodyStart(code: string, afterName: number): number | undefined {
+  let angleDepth = 0;
+  for (let i = afterName; i < code.length; i++) {
+    const character = code[i];
+    if (character === "<") {
+      angleDepth++;
+    } else if (character === ">") {
+      angleDepth--;
+    } else if (character === "{" && angleDepth <= 0) {
+      return i + 1;
+    } else if (character === ";") {
+      return undefined;
+    }
+  }
+  return undefined;
+}
 
 function publicMembersOf(body: string): string[] {
   const names = new Set<string>();
@@ -128,10 +150,10 @@ function publicMembersOf(body: string): string[] {
   return [...names];
 }
 
-// "static create", "get title", "method<T>" give the member's name; "private x", "#x", "_x",
-// "constructor", a decorator or an index signature give none.
+// "static create", "get title", "method<T>", "items: T" give the member's name; "private x", "#x",
+// "_x", "constructor", a decorator or an index signature give none.
 function memberNameOf(head: string): string | undefined {
-  const trimmed = head.trim();
+  const trimmed = head.split(":")[0].trim();
   if (/\b(private|protected)\b/.test(trimmed)) {
     return undefined;
   }

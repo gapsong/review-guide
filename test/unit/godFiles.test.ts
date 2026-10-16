@@ -8,6 +8,7 @@ import { defaultGodFileOptions, GodFileItem, GodFileReport, measureGodFiles } fr
 import { historyOf, parseLog } from "../../src/godfiles/history";
 import { areaOf, godFileRules, hintOf } from "../../src/godfiles/rules";
 import { globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
+import { classMembersOf } from "../../src/godfiles/typescriptModules";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
 
@@ -243,6 +244,13 @@ describe("G3: breadth through imports", () => {
       namesUsedOutside: ["Line", "Line.price", "Order", "Order.STATES", "Order.ship", "Order.total"],
       filesUsingIt: ["app/jobs.py", "app/views.py"],
     });
+  });
+
+  it("G3: class members are found behind type arguments with braces, decorators, generics, getters and typed fields; private, protected and # never", () => {
+    const members = classMembersOf("@injectable()\nexport default class Svc<T extends object> extends Base<{ a: 1 }> implements I {\n  @dec() public items: T[] = [];\n  handler = (x: number) => { return x; };\n  private readonly map = new Map<string, { b: 2 }>();\n  static readonly VERSION = \"1\";\n  get size(): number { return 0 }\n  set size(v: number) {}\n  async run<U>(a: U): Promise<void> {}\n  *gen() {}\n  opt?: string;\n  def!: string;\n  [key: string]: unknown;\n  protected prot() {}\n  #priv() {}\n  tpl = `a { b } ${\"c\"}`;\n  constructor(private a: number, public readonly b: string, protected c: number, readonly d: number, e: number) { super(); }\n}\nclass Later { later() {} }\nexport { Later };\n");
+    assert.deepStrictEqual(members.get("Svc")?.sort(), ["VERSION", "b", "d", "def", "gen", "handler", "items", "opt", "run", "size", "tpl"]);
+    assert.deepStrictEqual(members.get("default"), members.get("Svc"), "a default export is reached as default");
+    assert.deepStrictEqual(members.get("Later"), ["later"]);
   });
 
   it("G3: an import that two files of the same suffix could mean is not counted for either, unless one shares more folders", () => {
