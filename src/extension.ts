@@ -88,8 +88,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     showError,
   );
 
-  // Reports are cached per repo and HEAD in the extension's storage, never in the repo.
-  const godFiles = new WorkspaceGodFiles(path.join(storagePath, "god-files"));
+  const godFiles = new WorkspaceGodFiles();
   const godFilesView = new GodFilesView(godFiles, codemaps);
   // Judge with Claude: read-only, in the same HEAD copies as "Check my words", only on the owner's click.
   const godFileJudges = new GodFileJudges({ storageFolder: storagePath, runClaude: claudeRunner(claudeSettings), language: explanationLanguage });

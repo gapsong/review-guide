@@ -1,13 +1,12 @@
 import * as vscode from "vscode";
 import { gitFoldersOf } from "../git/gitFolders";
 import { GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
-import { MeasurementCancelled, readGit } from "../godfiles/readOnlyGit";
-import { GodFileReportCache } from "../godfiles/reportCache";
+import { MeasurementCancelled } from "../godfiles/readOnlyGit";
 import { godFileDefaults } from "../godfiles/rules";
 
 // The god files of every workspace folder that is a git repo, kept fresh: measured the first time
 // the view is shown, again when HEAD moves (a commit, a checkout, a pull) or a setting changes,
-// and on Refresh. Reports are cached per repo and HEAD commit in the extension's storage.
+// and on Refresh. Measuring takes well under a second, so nothing is cached.
 
 export type FolderGodFiles =
   | { folder: vscode.WorkspaceFolder; state: "measuring" }
@@ -29,7 +28,6 @@ export function godFileSettings(): GodFileSettings {
 }
 
 export class WorkspaceGodFiles implements vscode.Disposable {
-  private readonly cache: GodFileReportCache;
   private readonly states = new Map<string, FolderGodFiles>();
   private repoFolders: vscode.WorkspaceFolder[] = [];
   private readonly changed = new vscode.EventEmitter<void>();
@@ -40,10 +38,9 @@ export class WorkspaceGodFiles implements vscode.Disposable {
   private debounce: NodeJS.Timeout | undefined;
   // One measurement at a time; a request during one runs one more after it.
   private running: Promise<void> | undefined;
-  private measureRequested: { ignoreCache: boolean } | undefined;
+  private measureRequested = false;
 
-  constructor(readonly storageFolder: string, private readonly settings: () => GodFileSettings = godFileSettings) {
-    this.cache = new GodFileReportCache(storageFolder);
+  constructor(private readonly settings: () => GodFileSettings = godFileSettings) {
     this.subscriptions = [
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.restartIfStarted()),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -58,7 +55,7 @@ export class WorkspaceGodFiles implements vscode.Disposable {
   start(): void {
     if (!this.started) {
       this.started = true;
-      void this.findRepos().then(() => this.measure(false));
+      void this.findRepos().then(() => this.measure());
     }
   }
 
@@ -74,16 +71,15 @@ export class WorkspaceGodFiles implements vscode.Disposable {
     return this.states.get(folderUri);
   }
 
-  // Refresh: measured again, the cache aside, so the button always shows a fresh run.
   async refresh(): Promise<void> {
     this.started = true;
     await this.findRepos();
-    await this.measure(true);
+    await this.measure();
   }
 
   // Resolves when the reports are up to date; for tests.
-  async measure(ignoreCache: boolean): Promise<void> {
-    this.measureRequested = { ignoreCache: ignoreCache || this.measureRequested?.ignoreCache === true };
+  async measure(): Promise<void> {
+    this.measureRequested = true;
     this.running ??= this.measureWhileRequested().finally(() => {
       this.running = undefined;
     });
@@ -99,19 +95,18 @@ export class WorkspaceGodFiles implements vscode.Disposable {
 
   private restartIfStarted(): void {
     if (this.started) {
-      void this.findRepos().then(() => this.measure(false));
+      void this.findRepos().then(() => this.measure());
     }
   }
 
   private async measureWhileRequested(): Promise<void> {
     while (this.measureRequested) {
-      const { ignoreCache } = this.measureRequested;
-      this.measureRequested = undefined;
-      await this.measureAll(ignoreCache);
+      this.measureRequested = false;
+      await this.measureAll();
     }
   }
 
-  private async measureAll(ignoreCache: boolean): Promise<void> {
+  private async measureAll(): Promise<void> {
     const settings = this.settings();
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: "Review Guide: measuring god files", cancellable: true },
@@ -121,7 +116,7 @@ export class WorkspaceGodFiles implements vscode.Disposable {
         try {
           for (const folder of this.repoFolders) {
             progress.report({ message: folder.name });
-            await this.measureFolder(folder, { ...settings, signal: abort.signal }, ignoreCache);
+            await this.measureFolder(folder, { ...settings, signal: abort.signal });
           }
         } finally {
           listener.dispose();
@@ -130,18 +125,11 @@ export class WorkspaceGodFiles implements vscode.Disposable {
     );
   }
 
-  private async measureFolder(folder: vscode.WorkspaceFolder, options: GodFileOptions, ignoreCache: boolean): Promise<void> {
+  private async measureFolder(folder: vscode.WorkspaceFolder, options: GodFileOptions): Promise<void> {
     const key = folder.uri.toString();
-    const repoFolder = folder.uri.fsPath;
     this.setState({ folder, state: "measuring" });
     try {
-      const head = await headOf(repoFolder);
-      const cached = ignoreCache || head === undefined ? undefined : this.cache.reportOf(repoFolder, head, options);
-      const report = cached ?? await measureGodFiles(repoFolder, options);
-      if (!cached) {
-        this.cache.save(repoFolder, report, options);
-      }
-      this.setState({ folder, state: "ready", report });
+      this.setState({ folder, state: "ready", report: await measureGodFiles(folder.uri.fsPath, options) });
     } catch (error) {
       const message = error instanceof MeasurementCancelled ? "Measuring was cancelled. Press Refresh to measure again." : error instanceof Error ? error.message : String(error);
       this.states.set(key, { folder, state: "failed", message });
@@ -184,7 +172,7 @@ export class WorkspaceGodFiles implements vscode.Disposable {
       const watcher = vscode.workspace.createFileSystemWatcher(pattern);
       const headMoved = () => {
         clearTimeout(this.debounce);
-        this.debounce = setTimeout(() => void this.measure(false), 1000);
+        this.debounce = setTimeout(() => void this.measure(), 1000);
       };
       watcher.onDidCreate(headMoved);
       watcher.onDidChange(headMoved);
@@ -192,10 +180,6 @@ export class WorkspaceGodFiles implements vscode.Disposable {
       return watcher;
     });
   }
-}
-
-async function headOf(repoFolder: string): Promise<string | undefined> {
-  return readGit(repoFolder, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).then((output) => output.trim(), () => undefined);
 }
 
 function disposeAll(disposables: vscode.Disposable[]): void {

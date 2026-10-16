@@ -1,11 +1,7 @@
 import * as assert from "assert";
-import * as fs from "fs";
-import * as path from "path";
 import { CodemapEntry } from "../../src/codemap/codemap";
-import { defaultGodFileOptions, GodFileItem, GodFileReport } from "../../src/godfiles/godFiles";
-import { GodFileReportCache } from "../../src/godfiles/reportCache";
+import { GodFileItem, GodFileReport } from "../../src/godfiles/godFiles";
 import { breadthText, contradictsCodemap, godFileTooltip, numbersLine, rankReason } from "../../src/ui/godFileText";
-import { makeTempDir } from "../support/gitFixture";
 
 const broad: GodFileItem = {
   path: "src/shop/checkout.py",
@@ -63,33 +59,6 @@ describe("G5: what the God Files view says about a file", () => {
   it("G5: a path from the repo cannot become a link in the tooltip", () => {
     const tooltip = godFileTooltip({ item: { ...broad, path: "src/[x](command:evil).py" }, report, rank: 1, entry: undefined, actions: [] });
     assert.ok(!tooltip.includes("](command:evil)"), tooltip);
-  });
-});
-
-describe("G5: the report cache in the extension's storage", () => {
-  let scratch: string;
-
-  before(() => {
-    scratch = makeTempDir("godfiles-cache");
-  });
-
-  after(() => fs.rmSync(scratch, { recursive: true, force: true }));
-
-  it("G5: keeps one report per repo, HEAD commit and settings, and the newest few only", () => {
-    const cache = new GodFileReportCache(path.join(scratch, "storage"));
-    const repo = path.join(scratch, "repo");
-    assert.strictEqual(cache.reportOf(repo, "abc", defaultGodFileOptions), undefined);
-    cache.save(repo, report, defaultGodFileOptions);
-    // JSON leaves an unknown breadth out, and reading it back gives undefined again.
-    assert.deepStrictEqual(cache.reportOf(repo, "abc", defaultGodFileOptions), JSON.parse(JSON.stringify(report)));
-    assert.strictEqual(cache.reportOf(repo, "abc", defaultGodFileOptions)!.items[1].namesUsedOutside, undefined);
-    assert.strictEqual(cache.reportOf(repo, "abc", { ...defaultGodFileOptions, days: 30 }), undefined, "other settings, other report");
-    assert.strictEqual(cache.reportOf(repo, "def", defaultGodFileOptions), undefined, "another commit, another report");
-    for (const commit of ["c1", "c2", "c3", "c4", "c5"]) {
-      cache.save(repo, { ...report, commit }, defaultGodFileOptions);
-    }
-    const files = fs.readdirSync(path.join(scratch, "storage", fs.readdirSync(path.join(scratch, "storage"))[0]));
-    assert.strictEqual(files.length, 4);
   });
 });
 

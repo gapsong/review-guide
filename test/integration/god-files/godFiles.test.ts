@@ -80,8 +80,6 @@ describe("God Files in a real VS Code", () => {
     assert.ok(api.godFilesView.message?.includes("ranked by breadth and history, never by length"));
     assert.strictEqual(fingerprint(workspace), before, "no byte in the repo (its .git and .codemap included) changed");
     assert.strictEqual(git(workspace, "status", "--porcelain"), "", "no new file in the repo");
-    const reports = fs.readdirSync(api.godFiles.storageFolder, { recursive: true }).map(String).filter((name) => name.endsWith(".json"));
-    assert.ok(reports.some((name) => name.includes(git(workspace, "rev-parse", "HEAD"))), `the report is cached per HEAD in the extension's storage: ${reports.join(", ")}`);
   });
 
   it("G5, G6: the tooltip explains each number, the owner's rule, the rank, and warns that the codemap calls a broad file deep", () => {
