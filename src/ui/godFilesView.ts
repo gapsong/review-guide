@@ -114,7 +114,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
       { title: "Open at the longest function", link: commandLink(godFileCommands.open, target) },
       { title: "Details and Judge with Claude", link: commandLink(godFileCommands.showDetails, target) },
     ];
-    const markdown = godFileTooltip({ item: element.item, report, rank: element.rank, entry: this.codemaps.entryOf(uriOfTarget(element)), actions });
+    const markdown = godFileTooltip({ item: element.item, report, entry: this.codemaps.entryOf(uriOfTarget(element)), actions });
     const tooltip = new vscode.MarkdownString(markdown, true);
     tooltip.isTrusted = { enabledCommands: [godFileCommands.open, godFileCommands.showDetails] };
     return tooltip;

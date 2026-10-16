@@ -1,4 +1,4 @@
-// The score of a candidate: the mean of its percentile ranks among all candidates on four signals.
+// The score of a candidate: the mean of its percentile ranks among all candidates on three signals.
 // Code lines are not a signal: the owner's rule says length alone never makes a god file.
 
 export interface RankSignals {
@@ -6,13 +6,12 @@ export interface RankSignals {
   // its mean instead of counting as 0.
   namesUsedOutside: number | undefined;
   coChangeAreas: number;
-  commitsInWindow: number;
-  coChangePartners: number;
+  commits: number;
 }
 
 export type SignalName = keyof RankSignals;
 
-export const signalNames: SignalName[] = ["namesUsedOutside", "coChangeAreas", "commitsInWindow", "coChangePartners"];
+export const signalNames: SignalName[] = ["namesUsedOutside", "coChangeAreas", "commits"];
 
 export interface Ranked<T> {
   candidate: T;

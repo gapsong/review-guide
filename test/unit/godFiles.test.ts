@@ -306,8 +306,7 @@ describe("G3: breadth through imports", () => {
       assert.strictEqual(go.namesUsedOutside, undefined);
       assert.strictEqual(go.filesUsingIt, undefined);
       assert.strictEqual(go.hint, undefined);
-      assert.strictEqual(go.percentiles.namesUsedOutside, undefined, "unknown breadth is left out of the score");
-      assert.strictEqual(go.commitsInWindow, 2);
+      assert.strictEqual(go.commits, 2);
       assert.strictEqual(report.items[0].path, "cmd/server/main.go", "it ranks on its history");
       assert.deepStrictEqual(itemOf(report, "src/app.ts").namesUsedOutside, []);
     } finally {
@@ -341,23 +340,20 @@ describe("G4: history from one git log pass", () => {
 
   after(() => fs.rmSync(scratch, { recursive: true, force: true }));
 
-  it("G4: counts commits in 30 and in 90 days before HEAD, under the file's current path across a rename", () => {
+  it("G4: counts commits in the 90 days before HEAD, under the file's current path across a rename", () => {
     const motor = itemOf(report, "src/core/motor.ts");
-    assert.strictEqual(motor.commitsInWindow, 5, "80, 25, the sweep, the rename and the last commit; not the one at 120 days");
-    assert.strictEqual(motor.commitsInRecentDays, 4);
+    assert.strictEqual(motor.commits, 5, "80, 25, the sweep, the rename and the last commit; not the one at 120 days");
     assert.strictEqual(report.days, 90);
   });
 
-  it("G4: co-change partners and areas come from commits of at most 25 files; a larger commit is a sweep", () => {
+  it("G4: co-change areas come from the measured files of commits of at most 25 files; a larger commit is a sweep", () => {
     const motor = itemOf(report, "src/core/motor.ts");
-    assert.deepStrictEqual(motor.coChangePartners, ["apps/api/routes.ts", "packages/ui/button.ts", "src/core/helper.ts"], "no file of the sweep, no README, no test");
-    assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui", "src/core"]);
-    assert.strictEqual(godFileRules.largestCoChangeCommitFiles, 25);
+    assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui", "src/core"], "no area of the sweep's services, none for the README or the test");
   });
 
   it("G4: the window is measured from HEAD's commit time, so the same commit always gives the same numbers", async () => {
     const shorter = await measureGodFiles(repo, { ...defaultGodFileOptions, days: 7 });
-    assert.strictEqual(itemOf(shorter, "src/core/motor.ts").commitsInWindow, 2);
+    assert.strictEqual(itemOf(shorter, "src/core/motor.ts").commits, 2);
     assert.strictEqual(shorter.commitCount, 2);
   });
 
@@ -374,8 +370,8 @@ describe("G4: history from one git log pass", () => {
     const log = "\x1eaaa 300\0\nM\0src/b.ts\0A\0src/c.ts\0\x1ebbb 200\0\nR100\0src/a.ts\0src/b.ts\0\x1eccc 100\0\nM\0src/a.ts\0";
     const commits = parseLog(log);
     assert.deepStrictEqual(commits.map((commit) => commit.paths), [["src/b.ts", "src/c.ts"], ["src/b.ts"], ["src/b.ts"]]);
-    const history = historyOf(commits, new Set(["src/b.ts", "src/c.ts"]), 250);
-    assert.deepStrictEqual(history.files.get("src/b.ts"), { commitsInWindow: 3, commitsInRecentDays: 1, coChangePartners: ["src/c.ts"], coChangeAreas: ["src"] });
+    const history = historyOf(commits, new Set(["src/b.ts", "src/c.ts"]));
+    assert.deepStrictEqual(history.files.get("src/b.ts"), { commits: 3, coChangeAreas: ["src"] });
   });
 });
 

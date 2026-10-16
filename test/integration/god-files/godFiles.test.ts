@@ -82,11 +82,11 @@ describe("God Files in a real VS Code", () => {
     assert.strictEqual(git(workspace, "status", "--porcelain"), "", "no new file in the repo");
   });
 
-  it("G5, G6: the tooltip explains each number, the owner's rule, the rank, and warns that the codemap calls a broad file deep", () => {
+  it("G5, G6: the tooltip explains each number and the owner's rule, and warns that the codemap calls a broad file deep", () => {
     const node = fileNodes()[0];
     const item = api.godFilesView.resolveTreeItem(api.godFilesView.getTreeItem(node), node);
     const tooltip = (item.tooltip as vscode.MarkdownString).value.replace(/\\(.)/g, "$1");
-    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used by 3 files:", "4 commits in 90 days", "Why it ranks #1 of 2", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.showDetails"]) {
+    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used by 3 files:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.showDetails"]) {
       assert.ok(tooltip.includes(part), `${part}\n---\n${tooltip}`);
     }
   });
@@ -109,7 +109,7 @@ describe("God Files in a real VS Code", () => {
     assert.notStrictEqual(newCommit, oldCommit);
     await waitFor(() => reportCommit() === newCommit, "the report is for the new HEAD", 20_000);
     const ledger = fileNodes().find((node) => node.path === "src/ledger/ledger.ts")!;
-    assert.strictEqual(ledger.item.commitsInWindow, 2);
+    assert.strictEqual(ledger.item.commits, 2);
   });
 
   it("G7: Judge with Claude runs only on the command, shows the judgment escaped, and its code links open checked lines", async () => {

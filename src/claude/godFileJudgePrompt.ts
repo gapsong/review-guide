@@ -50,8 +50,7 @@ export function numbersText(item: GodFileItem, days: number): string {
 path: ${item.path}
 code lines: ${item.codeLines}
 ${breadth}
-commits in ${days} days: ${item.commitsInWindow} (in the last ${godFileRules.recentDays} days: ${item.commitsInRecentDays})
-files it changed with (${item.coChangePartners.length}, commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangePartners.join(", ") || "none"}
-areas of those files (${item.coChangeAreas.length}): ${item.coChangeAreas.join(", ") || "none"}
+commits in ${days} days: ${item.commits}
+areas it changed with (${item.coChangeAreas.length}, commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
 `;
 }

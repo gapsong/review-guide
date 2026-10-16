@@ -17,8 +17,6 @@ export const godFileRules = {
   // A commit that touches more files than this is a sweep (a rename, a formatter run); its files did
   // not change together for one reason, so it does not count as co-change.
   largestCoChangeCommitFiles: 25,
-  // The second, shorter window shown next to the main one.
-  recentDays: 30,
 };
 
 // The settings' defaults (package.json, reviewGuide.godFiles.*).

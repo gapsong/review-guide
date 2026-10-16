@@ -1,7 +1,7 @@
 import { Breadth, measureBreadth, SourceText } from "./breadth";
 import { countCodeLines } from "./codeLines";
 import { History, noHistory, readHistory } from "./history";
-import { rankCandidates, SignalName } from "./ranking";
+import { rankCandidates } from "./ranking";
 import { readBlobs, readGit } from "./readOnlyGit";
 import { GodFileHint, godFileDefaults, hintOf } from "./rules";
 import { globToRegExp, isMeasuredSource, languageOf } from "./sourceFiles";
@@ -11,7 +11,7 @@ import { globToRegExp, isMeasuredSource, languageOf } from "./sourceFiles";
 // well-designed deep module.
 //
 //   HEAD ── git ls-tree + cat-file ──► source files ──► code lines, breadth (imports)
-//   HEAD ── one git log pass ────────► commits, co-change partners and areas
+//   HEAD ── one git log pass ────────► commits, co-change areas
 //                                       └──► candidates (≥ minCodeLines) ──► score ──► report
 //
 // Deterministic and read-only: only HEAD and its history count, never the working tree, and git
@@ -32,13 +32,10 @@ export interface GodFileItem {
   // and public class members as "Class.member" (breadth.ts, isClassMember).
   namesUsedOutside: string[] | undefined;
   filesUsingIt: string[] | undefined;
-  commitsInWindow: number;
-  commitsInRecentDays: number;
-  coChangePartners: string[];
+  commits: number;
   coChangeAreas: string[];
-  // 0 to 1, the mean of the percentiles; and each percentile, for the tooltip's "why it ranks here".
+  // 0 to 1: the mean of the file's percentiles on names used outside, co-change areas and commits.
   score: number;
-  percentiles: Partial<Record<SignalName, number>>;
   hint: GodFileHint;
 }
 
@@ -79,7 +76,7 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
   };
 }
 
-type Candidate = Omit<GodFileItem, "score" | "percentiles">;
+type Candidate = Omit<GodFileItem, "score">;
 
 function candidateOf(path: string, codeLines: number, breadth: Breadth | undefined, history: History): Candidate {
   const fileHistory = history.files.get(path) ?? noHistory;
@@ -99,12 +96,11 @@ function rankedItems(candidates: Candidate[]): GodFileItem[] {
     (candidate) => ({
       namesUsedOutside: candidate.namesUsedOutside?.length,
       coChangeAreas: candidate.coChangeAreas.length,
-      commitsInWindow: candidate.commitsInWindow,
-      coChangePartners: candidate.coChangePartners.length,
+      commits: candidate.commits,
     }),
     (candidate) => candidate.path,
   );
-  return ranked.map(({ candidate, score, percentiles }) => ({ ...candidate, score, percentiles }));
+  return ranked.map(({ candidate, score }) => ({ ...candidate, score }));
 }
 
 async function headCommitOf(repoFolder: string, signal?: AbortSignal): Promise<string> {

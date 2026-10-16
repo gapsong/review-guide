@@ -14,11 +14,8 @@ import { readGit } from "./readOnlyGit";
 // result cached for a commit stays true, and a test repo gives the same numbers every day.
 
 export interface FileHistory {
-  commitsInWindow: number;
-  commitsInRecentDays: number;
-  // Other measured source files changed in the same commits, sorted.
-  coChangePartners: string[];
-  // The areas of those partners (rules.ts, areaOf), sorted.
+  commits: number;
+  // The areas (rules.ts, areaOf) of the other measured source files changed in the same commits, sorted.
   coChangeAreas: string[];
 }
 
@@ -44,7 +41,7 @@ export async function readHistory(repoFolder: string, headCommit: string, days: 
   const renames = isPartialClone ? "-M100%" : "-M";
   const log = await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", renames, "--format=%x1e%H %ct", `--since=@${windowStartSeconds}`, headCommit], signal);
   const commits = parseLog(log).filter((commit) => commit.committedAtSeconds >= windowStartSeconds);
-  return historyOf(commits, measuredPaths, headTimeSeconds - godFileRules.recentDays * daySeconds);
+  return historyOf(commits, measuredPaths);
 }
 
 // The log, newest first. A rename ("R100 old new") maps the old path to the new one for every
@@ -79,17 +76,14 @@ export function parseLog(log: string): Commit[] {
   return commits;
 }
 
-export function historyOf(commits: Commit[], measuredPaths: Set<string>, recentStartSeconds: number): History {
-  const counts = new Map<string, { all: number; recent: number; partners: Set<string> }>();
+export function historyOf(commits: Commit[], measuredPaths: Set<string>): History {
+  const counts = new Map<string, { all: number; partners: Set<string> }>();
   for (const commit of commits) {
     const measured = commit.paths.filter((filePath) => measuredPaths.has(filePath));
     const isSweep = commit.paths.length > godFileRules.largestCoChangeCommitFiles;
     for (const filePath of measured) {
-      const count = counts.get(filePath) ?? { all: 0, recent: 0, partners: new Set<string>() };
+      const count = counts.get(filePath) ?? { all: 0, partners: new Set<string>() };
       count.all++;
-      if (commit.committedAtSeconds >= recentStartSeconds) {
-        count.recent++;
-      }
       if (!isSweep) {
         for (const partner of measured) {
           if (partner !== filePath) {
@@ -102,15 +96,9 @@ export function historyOf(commits: Commit[], measuredPaths: Set<string>, recentS
   }
   const files = new Map<string, FileHistory>();
   for (const [filePath, count] of counts) {
-    const partners = [...count.partners].sort();
-    files.set(filePath, {
-      commitsInWindow: count.all,
-      commitsInRecentDays: count.recent,
-      coChangePartners: partners,
-      coChangeAreas: [...new Set(partners.map(areaOf))].sort(),
-    });
+    files.set(filePath, { commits: count.all, coChangeAreas: [...new Set([...count.partners].map(areaOf))].sort() });
   }
   return { commitCount: commits.length, files };
 }
 
-export const noHistory: FileHistory = { commitsInWindow: 0, commitsInRecentDays: 0, coChangePartners: [], coChangeAreas: [] };
+export const noHistory: FileHistory = { commits: 0, coChangeAreas: [] };
