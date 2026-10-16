@@ -5,7 +5,6 @@ import { checkedJudgment, GodFileJudges } from "../../src/analysis/godFileJudge"
 import { claudeRunner, RunClaude } from "../../src/claude/claudeCli";
 import { godFileJudgeSchema } from "../../src/claude/schemas";
 import { defaultGodFileOptions, GodFileReport, measureGodFiles } from "../../src/godfiles/godFiles";
-import { renderJudgePanel } from "../../src/ui/godFileJudgeHtml";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
 
@@ -113,25 +112,6 @@ describe("G7: Judge with Claude", () => {
     assert.throws(() => checkedJudgment({ ...answer, readingPath: [{ name: 7, line: 1, why: "x" }] }, 10), /a step's name is not a text/);
     assert.throws(() => checkedJudgment("I would rather not.", 10), /not an object/);
     assert.deepStrictEqual(godFileJudgeSchema.properties.verdict.enum, ["god_file", "deep_module", "hub", "ok"]);
-  });
-
-  it("G7: the panel escapes every text of the judgment, runs only its nonce script, and links only to checked lines of the file", () => {
-    const stored = { path: "src/shop/broad.ts", commit: "a".repeat(40), judgment: checkedJudgment(validAnswer(), 10), judgedAt: "2026-10-16T12:00:00Z", durationMilliseconds: 61000 };
-    const item = report.items[0];
-    const { html, locations } = renderJudgePanel({ item, commit: stored.commit, stored, work: "idle", error: undefined }, "NONCE123", "vscode-resource:");
-    assert.ok(html.includes("script-src 'nonce-NONCE123'"));
-    assert.ok(html.includes("default-src 'none'"));
-    assert.strictEqual((html.match(/<script/g) ?? []).length, 1, "only the panel's own script");
-    assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    assert.ok(!/href="(?!#")/.test(html), "no link target other than #");
-    assert.ok(!html.includes("javascript:alert(1)\""), "a model's link text is never an attribute");
-    assert.deepStrictEqual(locations, [{ path: item.path, line: 1 }, { path: item.path, line: 5 }, { path: item.path, line: 1 }, { path: item.path, line: 3 }]);
-    assert.strictEqual((html.match(/data-location="\d+"/g) ?? []).length, 4, "the line outside the file has no link");
-    assert.ok(html.includes("Judge again"));
-    const idle = renderJudgePanel({ item, commit: stored.commit, stored: undefined, work: "idle", error: undefined }, "N", "c").html;
-    assert.ok(idle.includes("Judge with Claude"));
-    const running = renderJudgePanel({ item, commit: stored.commit, stored: undefined, work: "judging", error: undefined }, "N", "c").html;
-    assert.ok(running.includes("<button disabled>Judging…</button>"));
   });
 });
 

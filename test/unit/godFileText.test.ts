@@ -1,7 +1,9 @@
 import * as assert from "assert";
+import { checkedJudgment } from "../../src/analysis/godFileJudge";
 import { CodemapEntry } from "../../src/codemap/codemap";
 import { GodFileItem } from "../../src/godfiles/godFiles";
-import { breadthText, contradictsCodemap, godFileTooltip, numbersLine } from "../../src/ui/godFileText";
+import { renderExplainPanel } from "../../src/ui/explainHtml";
+import { breadthText, contradictsCodemap, godFileTooltip, judgeHtml, judgeStyles, numbersLine } from "../../src/ui/godFileText";
 
 const broad: GodFileItem = {
   path: "src/shop/checkout.py",
@@ -52,6 +54,35 @@ describe("G5: what the God Files view says about a file", () => {
   it("G5: a path from the repo cannot become a link in the tooltip", () => {
     const tooltip = godFileTooltip({ item: { ...broad, path: "src/[x](command:evil).py" }, entry: undefined, actions: [] });
     assert.ok(!tooltip.includes("](command:evil)"), tooltip);
+  });
+});
+
+describe("G7: the Judge view of the Explain panel", () => {
+  const judgment = checkedJudgment({
+    verdict: "god_file",
+    verdictWhy: "It does <script>alert(1)</script> three jobs.",
+    responsibilities: [{ name: "Pricing", startLine: 1, endLine: 4 }, { name: "Shipping", startLine: 5, endLine: 99999 }],
+    readingPath: [{ name: "broad1", line: 1, why: "Start." }, { name: "broad5", line: 99999, why: "Gone." }, { name: "<b>broad9</b>", line: 3, why: "[x](javascript:alert(1))" }],
+    keepOrSplit: { decision: "split", why: "Three reasons." },
+  }, 10);
+  const stored = { path: broad.path, commit: "a".repeat(40), judgment, judgedAt: "2026-10-16T12:00:00Z", durationMilliseconds: 61000 };
+  const header = { path: broad.path, entry: undefined, hasExplanation: false, explanationOlder: false, change: undefined, otherPage: undefined, mode: "judge" as const, canJudge: true };
+  const panel = (model: Parameters<typeof judgeHtml>[0]) => renderExplainPanel(header, "NONCE123", "vscode-resource:", judgeHtml(model), judgeStyles);
+
+  it("G7: escapes every text of the judgment, runs only its nonce script, and links only to checked lines of the file", () => {
+    const html = panel({ item: broad, commit: stored.commit, stored, judging: false });
+    assert.ok(html.includes("script-src 'nonce-NONCE123'") && html.includes("default-src 'none'"));
+    assert.strictEqual((html.match(/<script/g) ?? []).length, 1, "only the panel's own script");
+    assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;") && html.includes("&lt;b&gt;broad9&lt;/b&gt;"));
+    assert.ok(!/href=/.test(html), "no link target at all");
+    const messages = [...html.matchAll(/data-review-guide="([^"]*)"/g)].map((match) => JSON.parse(match[1].replace(/&quot;/g, "\"")));
+    assert.deepStrictEqual(messages.filter((message) => message.type === "openLine").map((message) => message.line), [1, 5, 1, 3], "the lines outside the file have no link");
+    assert.ok(html.includes("Judge again") && html.includes("⚖️ Judge"));
+  });
+
+  it("G7: offers the run before the first judgment and shows it running", () => {
+    assert.ok(panel({ item: broad, commit: stored.commit, stored: undefined, judging: false }).includes(">Judge with Claude</button>"));
+    assert.ok(panel({ item: broad, commit: stored.commit, stored: undefined, judging: true }).includes(" disabled data-review-guide"));
   });
 });
 

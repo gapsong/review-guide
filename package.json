@@ -208,11 +208,6 @@
         "command": "reviewGuide.godFiles.judge",
         "title": "Judge with Claude",
         "category": "Review Guide"
-      },
-      {
-        "command": "reviewGuide.godFiles.showDetails",
-        "title": "Show Details",
-        "category": "Review Guide"
       }
     ],
     "menus": {
@@ -331,11 +326,6 @@
           "command": "reviewGuide.godFiles.judge",
           "when": "view == reviewGuide.godFiles && viewItem == godFile",
           "group": "0_judge@1"
-        },
-        {
-          "command": "reviewGuide.godFiles.showDetails",
-          "when": "view == reviewGuide.godFiles && viewItem == godFile",
-          "group": "0_judge@2"
         }
       ],
       "commandPalette": [
@@ -437,10 +427,6 @@
         },
         {
           "command": "reviewGuide.godFiles.judge",
-          "when": "false"
-        },
-        {
-          "command": "reviewGuide.godFiles.showDetails",
           "when": "false"
         }
       ],

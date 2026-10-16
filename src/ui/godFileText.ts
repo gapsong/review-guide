@@ -1,11 +1,14 @@
+import { StoredJudgment } from "../analysis/godFileJudge";
 import { spacedBadgeOf } from "../codemap/badge";
 import { CodemapEntry } from "../codemap/codemap";
 import { isClassMember } from "../godfiles/breadth";
 import { godFileRules, GodFileItem, isBroad } from "../godfiles/godFiles";
 import { escapeMarkdown, TooltipLink } from "./codemapTooltip";
+import { button } from "./explainHtml";
+import { escapeHtml } from "./markdown";
 
-// What the God Files view says about one file: the line of numbers, and the tooltip that explains
-// each number. Pure, so it can be tested without VS Code.
+// What the God Files view says about one file: the line of numbers, the tooltip that explains each
+// number, and the "Judge" view of the Explain panel. Pure, so it can be tested without VS Code.
 
 export const ownersRule = "A big file is fine only as a well-designed deep module: few names used outside, one reason to change.";
 
@@ -105,4 +108,56 @@ function formatted(value: number): string {
 
 function plural(count: number, one: string, many: string): string {
   return count === 1 ? one : many;
+}
+
+export interface JudgeModel {
+  item: GodFileItem;
+  commit: string;
+  stored: StoredJudgment | undefined;
+  judging: boolean;
+}
+
+const verdictTitles: Record<StoredJudgment["judgment"]["verdict"], string> = { god_file: "God file", deep_module: "Deep module", hub: "Hub", ok: "OK" };
+
+// The "Judge" view below the Explain panel's header. Every text of Claude's judgment is escaped; no
+// part of it becomes markup, a script or a link target. A code link is a button that opens a line of
+// this file, and only a line checked to be inside it (checkedJudgment), so the model never names
+// what a click opens.
+export function judgeHtml(model: JudgeModel): string {
+  const { stored } = model;
+  const action = model.judging
+    ? `${button("Judging…", { type: "judgeWithClaude" }, "", " disabled")} <span class="muted">One read-only Claude Code run in a copy of HEAD; it takes a minute or two.</span>`
+    : `${button(stored ? "Judge again" : "Judge with Claude", { type: "judgeWithClaude" })} <span class="muted">${stored ? `Judged ${escapeHtml(stored.judgedAt.slice(0, 10))} in ${Math.round(stored.durationMilliseconds / 1000)} s.` : "Claude reads the file in a copy of HEAD, read-only, and only when you press the button."}</span>`;
+  const lineLink = (label: string, line: number | undefined) => (line === undefined ? escapeHtml(label) : button(label, { type: "openLine", line }, "link"));
+  const judgment = stored?.judgment;
+  const sections = judgment ? `<h3>Verdict: <span class="verdict verdict-${judgment.verdict}">${escapeHtml(verdictTitles[judgment.verdict])}</span></h3>
+<p>${escapeHtml(judgment.verdictWhy)}</p>
+<h3>Responsibilities</h3>
+<ul>${judgment.responsibilities.map((part) => `<li><strong>${escapeHtml(part.name)}</strong> ${lineLink(lineRange(part.startLine, part.endLine), part.startLine)}</li>`).join("")}</ul>
+<h3>Reading path</h3>
+<ol>${judgment.readingPath.map((step) => `<li>${lineLink(step.name, step.line)}: ${escapeHtml(step.why)}</li>`).join("")}</ol>
+<h3>${judgment.keepOrSplit.decision === "split" ? "Split" : "Keep whole"}</h3>
+<p>${escapeHtml(judgment.keepOrSplit.why)}</p>` : "";
+  return `<main>
+<p class="muted">${escapeHtml(numbersLine(model.item))} · at ${escapeHtml(model.commit.slice(0, 7))}</p>
+<p><em>${escapeHtml(ownersRule)}</em></p>
+<p>${action}</p>
+${sections}
+</main>`;
+}
+
+export const judgeStyles = `
+body { padding: 0 14px 16px; }
+main { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); line-height: 1.55; color: var(--vscode-foreground); max-width: 72ch; }
+h3 { font-size: 0.85em; margin: 18px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); }
+.verdict-god_file { color: var(--vscode-errorForeground); }
+.verdict-deep_module { color: var(--vscode-testing-iconPassed); }
+button:disabled { opacity: 0.6; cursor: default; }
+`;
+
+function lineRange(start: number | undefined, end: number | undefined): string {
+  if (start === undefined) {
+    return "";
+  }
+  return end === undefined || end === start ? `line ${start}` : `lines ${start}-${end}`;
 }

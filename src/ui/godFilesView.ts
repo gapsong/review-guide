@@ -23,7 +23,6 @@ export const godFileCommands = {
   refresh: "reviewGuide.godFiles.refresh",
   open: "reviewGuide.godFiles.open",
   judge: "reviewGuide.godFiles.judge",
-  showDetails: "reviewGuide.godFiles.showDetails",
 };
 
 export type FolderGodFiles =
@@ -142,10 +141,10 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
       const target = targetOfNode(element);
       const actions = [
         { title: "Open at the longest function", link: commandLink(godFileCommands.open, target) },
-        { title: "Details and Judge with Claude", link: commandLink(godFileCommands.showDetails, target) },
+        { title: "Judge with Claude", link: commandLink(godFileCommands.judge, target) },
       ];
       const tooltip = new vscode.MarkdownString(godFileTooltip({ item: element.item, entry: this.codemaps.entryOf(uriOfTarget(element)), actions }), true);
-      tooltip.isTrusted = { enabledCommands: [godFileCommands.open, godFileCommands.showDetails] };
+      tooltip.isTrusted = { enabledCommands: [godFileCommands.open, godFileCommands.judge] };
       item.tooltip = tooltip;
     }
     return item;

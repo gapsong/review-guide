@@ -86,7 +86,7 @@ describe("God Files in a real VS Code", () => {
     const node = fileNodes()[0];
     const item = api.godFilesView.resolveTreeItem(api.godFilesView.getTreeItem(node), node);
     const tooltip = (item.tooltip as vscode.MarkdownString).value.replace(/\\(.)/g, "$1");
-    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used by 3 files:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.showDetails"]) {
+    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used by 3 files:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.judge"]) {
       assert.ok(tooltip.includes(part), `${part}\n---\n${tooltip}`);
     }
   });
@@ -112,18 +112,20 @@ describe("God Files in a real VS Code", () => {
     assert.strictEqual(ledger.item.commits, 2);
   });
 
-  it("G7: Judge with Claude runs only on the command, shows the judgment escaped, and its code links open checked lines", async () => {
+  it("G7: Judge with Claude runs on the command in the Explain panel, shows the judgment escaped, and its code links open checked lines", async () => {
     const node = fileNodes()[0];
-    await vscode.commands.executeCommand("reviewGuide.godFiles.showDetails", node);
-    const target = { folderUri, path: node.path };
-    assert.ok(api.godFileJudgePanels.htmlOf(target)?.includes("Judge with Claude"), "details alone do not judge");
+    const uri = vscode.Uri.file(path.join(workspace, node.path));
+    await vscode.commands.executeCommand("reviewGuide.codemap.explain", { folderUri, path: node.path });
+    assert.ok(api.explainPanels.htmlOf(uri)?.includes("⚖️ Judge"), "the Explain panel offers Judge for a measured file");
+    await api.explainPanels.receive(uri, { type: "judge" });
+    assert.ok(api.explainPanels.htmlOf(uri)?.includes(">Judge with Claude</button>"), "showing the view does not judge");
     await vscode.commands.executeCommand("reviewGuide.godFiles.judge", node);
-    const html = api.godFileJudgePanels.htmlOf(target)!;
-    assert.ok(html.includes("Verdict: <span class=\"verdict god_file\">God file</span>"), html);
+    const html = api.explainPanels.htmlOf(uri)!;
+    assert.ok(html.includes("God file</span>"), html);
     assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
     assert.ok(html.includes("Judge again"));
-    await api.godFileJudgePanels.receive(target, { type: "openLocation", index: 3 });
-    await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath === path.join(workspace, "src/shop/broad.ts") && vscode.window.activeTextEditor.selection.active.line === 2, "the reading path's third step opens line 3");
+    await api.explainPanels.receive(uri, { type: "openLine", line: 3 });
+    await waitFor(() => vscode.window.activeTextEditor?.document.uri.fsPath === uri.fsPath && vscode.window.activeTextEditor.selection.active.line === 2, "the reading path's third step opens line 3");
   });
 
   function fileNodes(): FileNode[] {
