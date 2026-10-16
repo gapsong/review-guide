@@ -69,13 +69,14 @@ Review Guide turns it into a reading order:
 
 ## Quickstart
 
-Review Guide is not on the Marketplace yet; build it from source.
+Review Guide is not on the Marketplace yet.
+Download `review-guide.vsix` from the [latest release](https://github.com/gapsong/review-guide/releases/latest) and run `code --install-extension review-guide.vsix`, or build it from source.
 
 Requirements:
 
-- VS Code 1.95 or newer, git, Node.js 22 or newer.
-- [Claude Code](https://claude.com/claude-code) installed and logged in.
-  The extension runs your own `claude` with your own subscription; no API key is needed.
+- VS Code 1.95 or newer and git (Node.js 22 or newer only to build from source).
+- [Claude Code](https://claude.com/claude-code) installed and logged in with your own account (subscription or API key).
+  The extension starts your local, unmodified `claude`; it never sees, stores or forwards your login.
 
 ```
 git clone https://github.com/gapsong/review-guide
@@ -192,3 +193,6 @@ Too many other changes were tiered critical as well (25, target at most 10); the
 ## License
 
 MIT
+
+Review Guide is an independent project and is not affiliated with or endorsed by Anthropic.
+Claude and Claude Code are trademarks of Anthropic.
