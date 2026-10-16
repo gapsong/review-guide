@@ -131,6 +131,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2. Then `ownershipPrompt.ts` and `explanationStyle.ts` for the chat (F15, F16).
 5. `src/state/reviewState.ts` and `src/state/ownership.ts`: read / understood, the step back after a push, the 3am check.
 6. For "Own it" (WP1): `src/codemap/entryOwnership.ts` (the state of an entry, the D1 switch, the 3am line), `src/analysis/entryCheck.ts` (one check, one chat turn), `src/claude/entryCheckPrompt.ts`, `src/git/headCopy.ts`, then `src/ui/ownItHtml.ts`.
+7. For God Files: `src/godfiles/godFiles.ts` (the one interface and its steps), `src/godfiles/rules.ts` (every threshold and the area rule), `src/godfiles/breadth.ts` (imports to names used outside), `src/godfiles/history.ts` (the one git log pass), then `src/analysis/godFileJudge.ts` and `src/ui/godFileJudgeHtml.ts` for Judge with Claude.
 
 `DECISIONS.md` lists every place where I read the spec one way and why (22 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
 
