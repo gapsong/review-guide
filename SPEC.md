@@ -337,10 +337,11 @@ It will be made public later, so every file must make sense to a stranger.
 
 ## Publishing
 
-- Developed in the private repo gapsong/review-guide, made public later.
+- Public on GitHub (gapsong/review-guide) since 0.4.0; the .vsix ships as a release asset, not on the Marketplace yet.
 - License: MIT.
 - Public users run their own local Claude Code CLI; nobody gets a login from the extension.
-  Before going public, check the Claude Code terms word for word that this is allowed for a public extension.
+  Checked word for word against Claude Code's legal and compliance page (October 2026): an end user signing in to the unmodified Claude Code binary with their own subscription is allowed.
+  The extension must never collect, store or pass on Claude credentials, and names Claude Code only in plain text, without Anthropic logos or anything that suggests endorsement.
 
 ## Later versions
 
