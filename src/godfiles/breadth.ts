@@ -45,10 +45,6 @@ export function measureBreadth(sources: SourceText[]): Map<string, Breadth> {
   return breadth;
 }
 
-// Re-exports are followed: a name imported from a barrel (index.ts, a package's __init__.py) is
-// also a use of the module that defines it, a few hops deep at most.
-const reexportHopsFollowed = 4;
-
 // "Model.create" is a class member; "create" is a top-level name.
 export function isClassMember(nameUsedOutside: string): boolean {
   return nameUsedOutside.includes(".");
@@ -83,11 +79,13 @@ class UseCounter {
   }
 
   // membersAccessed: every .<name> the user file accesses; of an imported class, the public members
-  // among them count.
-  record(user: string, target: string, names: string[], membersAccessed: Set<string>, hops = 0): void {
-    if (user === target || hops > reexportHopsFollowed) {
+  // among them count. Re-exports are followed: a name imported from a barrel (index.ts, a package's
+  // __init__.py) is also a use of the module that defines it; visited stops a cycle of barrels.
+  record(user: string, target: string, names: string[], membersAccessed: Set<string>, visited = new Set<string>()): void {
+    if (user === target || visited.has(target)) {
       return;
     }
+    visited.add(target);
     const exported = this.exported.get(target) ?? new Set<string>();
     const real = names.filter((name) => exported.has(name));
     if (real.length > 0) {
@@ -98,11 +96,11 @@ class UseCounter {
     for (const name of names) {
       const reexport = this.namedReexports.get(target)?.get(name);
       if (reexport) {
-        this.record(user, reexport.target, [reexport.importedName], membersAccessed, hops + 1);
+        this.record(user, reexport.target, [reexport.importedName], membersAccessed, new Set(visited));
       }
       for (const starTarget of this.starReexports.get(target) ?? []) {
         if (this.exported.get(starTarget)?.has(name) || this.namedReexports.get(starTarget)?.has(name) || this.starReexports.has(starTarget)) {
-          this.record(user, starTarget, [name], membersAccessed, hops + 1);
+          this.record(user, starTarget, [name], membersAccessed, new Set(visited));
         }
       }
     }

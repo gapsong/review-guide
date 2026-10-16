@@ -37,7 +37,7 @@ export function isMeasuredSource(repoPath: string, excludeGlobs: RegExp[]): bool
     && !excludeGlobs.some((glob) => glob.test(repoPath));
 }
 
-export function isTest(repoPath: string): boolean {
+function isTest(repoPath: string): boolean {
   const parts = repoPath.split("/");
   const name = parts[parts.length - 1];
   return parts.slice(0, -1).some((folder) => testFolders.has(folder))
@@ -47,7 +47,7 @@ export function isTest(repoPath: string): boolean {
     || name === "conftest.py";
 }
 
-export function isGeneratedOrVendored(repoPath: string): boolean {
+function isGeneratedOrVendored(repoPath: string): boolean {
   const parts = repoPath.split("/");
   const name = parts[parts.length - 1];
   return parts.slice(0, -1).some((folder) => generatedFolders.has(folder))

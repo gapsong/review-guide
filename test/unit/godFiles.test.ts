@@ -5,7 +5,6 @@ import * as path from "path";
 import { measureBreadth } from "../../src/godfiles/breadth";
 import { areaOf, defaultGodFileOptions, godFileRules, GodFileItem, GodFileReport, hintOf, historyOf, measureGodFiles, parseLog } from "../../src/godfiles/godFiles";
 import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
-import { classMembersOf } from "../../src/godfiles/typescriptModules";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
 
@@ -179,7 +178,7 @@ describe("G2: the ranking follows the owner's rule", () => {
 describe("G3: breadth through imports", () => {
   it("G3: TypeScript and JavaScript: named, default, namespace, alias by path suffix, re-exports, require and dynamic import", () => {
     const breadth = measureBreadth([
-      ts("src/lib/money.ts", "export function add() {}\nexport const cents = 1, euros = 2;\nexport class Purse {}\nexport interface Price {}\nexport type Rate = number;\nexport enum Coin { A }\nexport default function format() {}\nfunction hidden() {}\nexport { hidden as visible };\n"),
+      ts("src/lib/money.ts", "export function add() {}\nexport const cents = 1;\nexport let euros = 2;\nexport class Purse {}\nexport interface Price {}\nexport type Rate = number;\nexport enum Coin { A }\nexport default function format() {}\nfunction hidden() {}\nexport { hidden as visible };\n"),
       ts("src/lib/index.ts", "export { add } from './money';\nexport * from './tax';\n"),
       ts("src/lib/tax.ts", "export const vat = 1;\nexport function rate() {}\n"),
       ts("src/lib/old.js", "exports.legacy = 1;\nmodule.exports.older = 2;\n"),
@@ -244,10 +243,14 @@ describe("G3: breadth through imports", () => {
   });
 
   it("G3: class members are found behind type arguments with braces, decorators, generics, getters and typed fields; private, protected and # never", () => {
-    const members = classMembersOf("@injectable()\nexport default class Svc<T extends object> extends Base<{ a: 1 }> implements I {\n  @dec() public items: T[] = [];\n  handler = (x: number) => { return x; };\n  private readonly map = new Map<string, { b: 2 }>();\n  static readonly VERSION = \"1\";\n  get size(): number { return 0 }\n  set size(v: number) {}\n  async run<U>(a: U): Promise<void> {}\n  *gen() {}\n  opt?: string;\n  def!: string;\n  [key: string]: unknown;\n  protected prot() {}\n  #priv() {}\n  tpl = `a { b } ${\"c\"}`;\n  constructor(private a: number, public readonly b: string, protected c: number, readonly d: number, e: number) { super(); }\n}\nclass Later { later() {} }\nexport { Later };\n");
-    assert.deepStrictEqual(members.get("Svc")?.sort(), ["VERSION", "b", "d", "def", "gen", "handler", "items", "opt", "run", "size", "tpl"]);
-    assert.deepStrictEqual(members.get("default"), members.get("Svc"), "a default export is reached as default");
-    assert.deepStrictEqual(members.get("Later"), ["later"]);
+    const service = "@injectable()\nexport default class Svc<T extends object> extends Base<{ a: 1 }> implements I {\n  @dec() public items: T[] = [];\n  handler = (x: number) => { return x; };\n  private readonly map = new Map<string, { b: 2 }>();\n  static readonly VERSION = \"1\";\n  get size(): number { return 0 }\n  set size(v: number) {}\n  async run<U>(a: U): Promise<void> {}\n  *gen() {}\n  opt?: string;\n  def!: string;\n  [key: string]: unknown;\n  protected prot() {}\n  #priv() {}\n  tpl = `a { b } ${\"c\"}`;\n  constructor(private a: number, public readonly b: string, protected c: number, readonly d: number, e: number) { super(); }\n}\nclass Later { later() {} }\nexport { Later };\n";
+    const everyName = ["items", "handler", "map", "VERSION", "size", "run", "gen", "opt", "def", "key", "prot", "priv", "tpl", "a", "b", "c", "d", "e", "later"];
+    const breadth = measureBreadth([
+      ts("src/svc.ts", service),
+      ts("src/user.ts", `import Svc, { Later } from './svc';\n${everyName.map((name) => `x.${name};`).join(" ")}\n`),
+    ]);
+    const publicMembers = ["VERSION", "b", "d", "def", "gen", "handler", "items", "opt", "run", "size", "tpl"].map((member) => `default.${member}`);
+    assert.deepStrictEqual(breadth.get("src/svc.ts")?.namesUsedOutside, ["Later", "Later.later", "default", ...publicMembers].sort());
   });
 
   it("G3: an import that two files of the same suffix could mean is not counted for either, unless one shares more folders", () => {

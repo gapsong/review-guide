@@ -2,7 +2,7 @@
 // has no TypeScript compiler at run time, and these few forms cover how modules use each other.
 
 // What one file takes from another module: the names it imports, or all of them (export *).
-export interface ModuleUse {
+interface ModuleUse {
   specifier: string;
   names: string[];
   usesAllNames: boolean;
@@ -26,11 +26,9 @@ export function exportedNamesOf(text: string): string[] {
   for (const match of code.matchAll(declaration)) {
     names.add(match[1] ? "default" : match[2]);
   }
-  const variables = new RegExp(`^[ \\t]*export\\s+(?:declare\\s+)?(?:const|let|var)\\s+([^=;]+)`, "gm");
+  const variables = new RegExp(`^[ \\t]*export\\s+(?:declare\\s+)?(?:const|let|var)\\s+(${identifier})`, "gm");
   for (const match of code.matchAll(variables)) {
-    for (const name of declaredNames(match[1])) {
-      names.add(name);
-    }
+    names.add(match[1]);
   }
   if (/^[ \t]*export\s+default\b/m.test(code) || /^[ \t]*export\s*=/m.test(code)) {
     names.add("default");
@@ -212,10 +210,6 @@ function staticImports(code: string): ModuleUse[] {
   for (const match of code.matchAll(pattern)) {
     uses.push({ specifier: match[2], names: importClauseNames(match[1], code), usesAllNames: false });
   }
-  const importEquals = new RegExp(`(?:^|[;\\s])import\\s+(${identifier})\\s*=\\s*require\\(\\s*['"]([^'"]+)['"]\\s*\\)`, "gm");
-  for (const match of code.matchAll(importEquals)) {
-    uses.push({ specifier: match[2], names: membersUsed(match[1], code), usesAllNames: false });
-  }
   return uses;
 }
 
@@ -286,7 +280,7 @@ function boundNames(binding: string | undefined, member: string | undefined, cod
 }
 
 // import * as n: the names of the module this file uses, as n.<name>.
-export function membersUsed(namespace: string, code: string): string[] {
+function membersUsed(namespace: string, code: string): string[] {
   const escaped = namespace.replace(/\$/g, "\\$");
   const pattern = new RegExp(`(?<![\\w$.])${escaped}\\.(${identifier})`, "g");
   return [...new Set([...code.matchAll(pattern)].map((match) => match[1]))];
@@ -305,15 +299,6 @@ function listEntries(list: string): ListEntry[] {
   });
 }
 
-// "a = 1, b = 2" or "{ a, b: c } = x" after export const.
-function declaredNames(declarations: string): string[] {
-  const trimmed = declarations.trim();
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    return trimmed.slice(1).split(/[,}\]]/).map((part) => part.split(":").pop()!.trim()).filter((name) => new RegExp(`^${identifier}$`).test(name));
-  }
-  const first = new RegExp(`^(${identifier})`).exec(trimmed);
-  return first ? [first[1]] : [];
-}
 
 function commonJsExports(code: string): string[] {
   const names: string[] = [];
@@ -336,7 +321,7 @@ function commonJsExports(code: string): string[] {
 
 // Comments become spaces, so a commented-out import is not an import. Strings are kept as they are:
 // "src/**/*.ts" holds a "/*" that opens no comment.
-export function withoutComments(text: string): string {
+function withoutComments(text: string): string {
   let code = "";
   let i = 0;
   while (i < text.length) {

@@ -148,7 +148,7 @@ function allNamesOf(text: string, code: string): string[] | undefined {
 
 // Strings and comments become blanks of the same length, so positions stay the same and no
 // import inside a docstring counts. Newlines are kept, so line starts stay line starts.
-export function withoutStringsAndComments(text: string): string {
+function withoutStringsAndComments(text: string): string {
   let code = "";
   let i = 0;
   while (i < text.length) {
