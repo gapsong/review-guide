@@ -57,6 +57,9 @@ export interface GodFileItem {
   coChangeAreas: string[];
   // The other areas whose files this file imports, sorted.
   knownAreas: string[];
+  // The other measured files that import this one, sorted: when the language server finds no use of
+  // its names, they show the use is dynamic (m.router over a list of modules), not missing.
+  importedBy: string[];
   // 0 to 1: the mean of the file's percentiles on known areas, co-change areas and commits.
   score: number;
   // Measured by the view, from the language server, for the files it shows; "pending" until then.
@@ -84,12 +87,18 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
   const sourcePaths = await measuredSourcesAt(repoFolder, commit, options);
   const sources = await readSources(repoFolder, sourcePaths);
   const imports = importedFiles(sources);
+  const importers = new Map<string, string[]>();
+  for (const [importer, targets] of imports) {
+    for (const target of targets) {
+      importers.set(target, [...(importers.get(target) ?? []), importer]);
+    }
+  }
   const history = await readHistory(repoFolder, commit, new Set(sourcePaths.map((file) => file.path)));
   const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"])).trim() === "true";
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
     .filter((source) => source.codeLines >= options.minCodeLines)
-    .map((source) => candidateOf(source.path, source.codeLines, imports.get(source.path) ?? [], history.files.get(source.path)));
+    .map((source) => candidateOf(source.path, source.codeLines, { imports: imports.get(source.path) ?? [], importedBy: importers.get(source.path) ?? [] }, history.files.get(source.path)));
   return {
     commit,
     minCodeLines: options.minCodeLines,
@@ -139,11 +148,11 @@ export function areaOf(repoPath: string): string {
 
 type Candidate = Omit<GodFileItem, "score">;
 
-function candidateOf(path: string, codeLines: number, imported: string[], history: FileHistory | undefined): Candidate {
+function candidateOf(path: string, codeLines: number, imports: { imports: string[]; importedBy: string[] }, history: FileHistory | undefined): Candidate {
   const { commits, coChangeAreas } = history ?? { commits: 0, coChangeAreas: [] };
   const ownArea = areaOf(path);
-  const knownAreas = [...new Set(imported.map(areaOf))].filter((area) => area !== ownArea).sort();
-  return { path, codeLines, commits, coChangeAreas, knownAreas, breadth: { state: "pending" }, complexity: { state: "pending" } };
+  const knownAreas = [...new Set(imports.imports.map(areaOf))].filter((area) => area !== ownArea).sort();
+  return { path, codeLines, commits, coChangeAreas, knownAreas, importedBy: [...imports.importedBy].sort(), breadth: { state: "pending" }, complexity: { state: "pending" } };
 }
 
 // The score: the mean of the candidate's percentile ranks among all candidates on three signals,

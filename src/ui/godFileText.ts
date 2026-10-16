@@ -84,7 +84,9 @@ function breadthMeaning(item: GodFileItem): string {
     return `not measured: ${breadth.reason} This file ranks on its history and imports.`;
   }
   if (breadth.names.length === 0) {
-    return "no other source file uses its names (tests do not count): an entry point, or unused.";
+    return item.importedBy.length === 0
+      ? "no other source file imports it or uses its names (tests do not count): an entry point, loaded by name, or unused."
+      : `${item.importedBy.length} other ${plural(item.importedBy.length, "file imports", "files import")} it (${shortList(item.importedBy)}), but the language server found no use of its names: a use it cannot follow, such as \`m.router\` over a list of modules.`;
   }
   const files = `${breadth.files.length}${breadth.complete ? "" : "+"} other ${plural(breadth.files.length, "file", "files")}`;
   const stopped = breadth.complete ? "" : ` Counting stopped above ${godFileRules.broadAboveNamesUsedOutside}.`;

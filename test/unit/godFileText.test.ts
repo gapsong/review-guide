@@ -13,6 +13,7 @@ const broad: GodFileItem = {
   commits: 66,
   coChangeAreas: Array.from({ length: 9 }, (_, index) => `area${index}`),
   knownAreas: ["apps/api", "billing", "src/core", "users"],
+  importedBy: ["apps/api/routes.py", "billing/charge.py"],
   score: 0.9,
   breadth: { state: "known", names: names(23), files: ["apps/api/routes.py", "billing/charge.py"], complete: true },
   complexity: { state: "known", hardest: { name: "Checkout.total", line: 120, score: 31 } },
@@ -44,6 +45,14 @@ describe("G5: what the God Files view says about a file", () => {
     for (const part of ["**23 names used outside:**", "used by 2 other files", "**66 commits in 90 days:**", "**Changes with 9 areas**", "**Knows 4 areas** (apps/api, billing, src/core, users)", "never part of the score", "**Hardest function:** Checkout.total, cognitive complexity 31 (line 120)", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
       assert.ok(shown.includes(part), `${part}\n---\n${tooltip}`);
     }
+  });
+
+  it("G3, G5: no name used outside says whether other files import the file, so a dynamic use is not called unused", () => {
+    const noNames: GodFileItem = { ...broad, breadth: { state: "known", names: [], files: [], complete: true } };
+    const imported = unescaped(godFileTooltip({ item: { ...noNames, importedBy: ["app/main.py"] }, entry: undefined, actions: [] }));
+    assert.ok(imported.includes("1 other file imports it (app/main.py), but the language server found no use of its names: a use it cannot follow, such as `m.router` over a list of modules."), imported);
+    const unused = unescaped(godFileTooltip({ item: { ...noNames, importedBy: [] }, entry: undefined, actions: [] }));
+    assert.ok(unused.includes("no other source file imports it or uses its names"), unused);
   });
 
   it("G5: the tooltip says when complexity is not measured, and why", () => {

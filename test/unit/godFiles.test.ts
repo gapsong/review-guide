@@ -191,6 +191,18 @@ describe("G2: the ranking follows the owner's rule", () => {
     assert.strictEqual(report.items[0].path, "app/main.py");
   });
 
+  it("G2: a route module that the app imports and uses only as m.router over a tuple of modules is imported, even with no name use", async () => {
+    const repo = path.join(scratch, "routes");
+    initRepo(repo);
+    commitFilesAt(repo, 10, {
+      "app/routes/users.py": `from fastapi import APIRouter\n\nrouter = APIRouter()\n${filler(200)}\n`,
+      "app/main.py": "from app.routes import users, orders\n\nrouters = [m.router for m in (users, orders)]\n",
+      "app/routes/orders.py": "router = 1\n",
+    });
+    const report = await measureGodFiles(repo, defaultGodFileOptions);
+    assert.deepStrictEqual(itemOf(report, "app/routes/users.py").importedBy, ["app/main.py"]);
+  });
+
   it("G2: candidates start at the minimum of code lines (150 by default)", async () => {
     const repo = path.join(scratch, "threshold");
     initRepo(repo);
