@@ -157,28 +157,27 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
 ## God files
 
 Where does owning this repo hurt most? The rule: **a big file is fine only as a well-designed deep module.**
-So the God Files view (Review Guide side bar) ranks files by how much of them other files use and how often they had to change, never by length:
+The God Files view (Review Guide side bar) ranks files by how much of them other files use and how often they had to change, never by length:
 
 ```
-GOD FILES                                                              [refresh]
-├─ ⚠ src/shop/checkout.py   god file? · 23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines
-├─ ✓ src/billing/ledger.py  deep · 3 names used by 30 files · 4 commits/90 d · changes with 1 area · 780 lines
+GOD FILES                                                         [refresh]
+├─ ⚠ src/shop/checkout.py   god file? · 23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines
+├─ ✓ src/billing/ledger.py  deep · 3 names used outside · 4 commits/90 d · changes with 1 area · 780 lines
 └─ …                       click: open at the longest function · right-click: Judge with Claude
 ```
 
-<img alt="The God Files view on a clone of microsoft/vscode-pull-request-github" src="docs/assets/god-files-view.png" width="900">
+<img alt="The God Files view on this repo" src="docs/assets/god-files-view.png" width="900">
 
-How to read the numbers:
-- **names used by files**: the file's top-level names that other source files import, plus the public members of its classes that importing files access (`Model.merge`), for TypeScript, JavaScript and Python; other languages show "–". Many names means a broad interface: callers depend on its insides. A class with forty public methods is as broad as a module with forty functions.
-- **commits/90 d**: commits in the last 90 days before HEAD. Each one is a reason it had to change.
-- **changes with N areas**: the areas (`apps/api`, `packages/ui`, `shop`) of the files that changed in the same commits. Many areas means many unrelated reasons. Sweeps (commits of more than 25 files) do not count.
-- **lines**: code lines, shown but never part of the score. A long file with few names used outside and one reason to change is a deep module, and that is good.
-- The hint is only a hint: `god file?` above 7 names used outside; `deep` needs all three of 1 to 7 names used outside, at least 300 code lines and changes with at most 3 areas. A file nothing imports (an entry point, or unused) gets no hint. The tooltip explains each number and why the file ranks where it does, splits the names into top-level names and class members, shows the codemap badge, and warns when your codemap calls a broad file `deep: true`. A shallow clone is named in the view's message: its commit counts are a floor.
-- Tests, generated and vendored code are left out. The numbers come from your last commit and its history only: uncommitted edits do not count, nothing is sent anywhere and nothing is written into the repo.
+- **names used outside**: the file's top-level names that other source files import, plus the public members of its classes they access (`Model.merge`), for TypeScript, JavaScript and Python. Other languages show "–".
+- **commits/90 d**: commits in the 90 days before HEAD; each is a reason the file had to change.
+- **changes with N areas**: the areas (`apps/api`, `packages/ui`, `shop`) of the files that changed in the same commits. Sweeps (commits of more than 25 files) do not count.
+- **lines**: code lines, shown but never part of the score.
+- The hint is only a hint: `god file?` above 7 names used outside; `deep` needs 1 to 7 names used outside, at least 300 code lines and at most 3 areas. A file nothing imports gets no hint. The tooltip explains each number, and warns when your codemap calls a broad file `deep: true`.
+- Tests, generated and vendored code are left out. Only your last commit and its history count; nothing is sent anywhere or written into the repo.
 
-**Judge with Claude** (right-click a file, or the button in its details): one read-only Claude Code run on a clean copy of your last commit. Claude reads the file and gets the commit subjects and the numbers as files. It answers with a verdict (god file, deep module, hub, ok) and why, the file's responsibilities with their lines, the commits grouped into themes, which names used outside are justified, a reading path of 3 to 5 functions, and "keep whole" or, for a god file, a split that changes no behaviour. It runs only when you ask, and the judgment is kept for that file and commit.
+**Judge with Claude** (right-click a file): one read-only Claude Code run on a clean copy of your last commit. It answers with a verdict (god file, deep module, hub, ok) and why, the file's responsibilities with their lines, a reading path of 3 to 5 functions, and keep whole or split. The judgment shows in the Explain panel's "Judge" view and is kept for that file and commit.
 
-<img alt="Judge with Claude on src/github/githubRepository.ts (haiku)" src="docs/assets/god-files-judge.png" width="900">
+<img alt="Judge with Claude on src/godfiles/breadth.ts of this repo (haiku)" src="docs/assets/god-files-judge.png" width="900">
 
 ## Safety
 
@@ -196,7 +195,7 @@ How to read the numbers:
   The GitHub token stays in VS Code's secret storage.
 - Everything Claude writes is escaped before it is shown; the panel renders Markdown without passing any HTML through.
 - Your read marks and explanations are stored locally and are only sent to your local Claude.
-- "Judge with Claude" in the God Files view is read-only too, starts only when you press it, and runs in the same copy of your last commit; it gets no shell and no git, only the commit subjects and the numbers as files (S1 tests it on a file whose comments tell Claude to attack). The measurement itself uses no Claude and no network.
+- "Judge with Claude" in the God Files view is read-only too, starts only when you ask, and runs in the same copy of your last commit with no shell and no git; the prompt carries the commit subjects and the numbers (S1 tests it on a file whose comments tell Claude to attack). The measurement itself uses no Claude and no network.
 - "Check my words" and the codemap chat are read-only too, and run in a copy of your last commit in the extension's storage, not in your folder: an ignored `.env`, untracked files and the `.codemap` folder never reach Claude (S1 tests this with a real `.env`). Your `mine` and the chat are only sent to your local Claude.
 
 ## Development
