@@ -1,8 +1,7 @@
 import { spacedBadgeOf } from "../codemap/badge";
 import { CodemapEntry } from "../codemap/codemap";
 import { isClassMember } from "../godfiles/breadth";
-import { GodFileItem, GodFileReport } from "../godfiles/godFiles";
-import { godFileRules, isBroad } from "../godfiles/rules";
+import { godFileRules, GodFileItem, GodFileReport, isBroad } from "../godfiles/godFiles";
 import { escapeMarkdown, TooltipLink } from "./codemapTooltip";
 
 // What the God Files view says about one file: the line of numbers, and the tooltip that explains

@@ -5,9 +5,9 @@ import { RunClaude } from "../claude/claudeCli";
 import { godFileJudgePrompt, numbersText } from "../claude/godFileJudgePrompt";
 import { godFileJudgeSchema } from "../claude/schemas";
 import { cleanRelativePath } from "../codemap/repoPath";
+import { runGit } from "../git/git";
 import { folderKey, HeadCopies } from "../git/headCopy";
 import { GodFileItem, GodFileReport } from "../godfiles/godFiles";
-import { readGit } from "../godfiles/readOnlyGit";
 
 // "Judge with Claude" for one file of the God Files view, without VS Code: one read-only Claude call
 // in a copy of the repo's HEAD (the same copies "Check my words" reads), started only by the owner.
@@ -104,9 +104,9 @@ export class GodFileJudges {
   private async writeContext(repoFolder: string, item: GodFileItem, report: GodFileReport): Promise<string> {
     const contextFolder = path.join(this.options.storageFolder, "god-file-context", folderKey(repoFolder), pathKey(item.path));
     fs.mkdirSync(contextFolder, { recursive: true });
-    const headTimeSeconds = Number((await readGit(repoFolder, ["show", "-s", "--format=%ct", report.commit])).trim());
+    const headTimeSeconds = Number((await runGit(["show", "-s", "--format=%ct", report.commit], { cwd: repoFolder })).trim());
     const since = headTimeSeconds - report.days * 24 * 60 * 60;
-    const subjects = await readGit(repoFolder, ["--literal-pathspecs", "log", "--no-merges", "--format=%h %ad %s", "--date=short", `--since=@${since}`, report.commit, "--", item.path]);
+    const subjects = await runGit(["--literal-pathspecs", "log", "--no-merges", "--format=%h %ad %s", "--date=short", `--since=@${since}`, report.commit, "--", item.path], { cwd: repoFolder });
     fs.writeFileSync(path.join(contextFolder, "history.txt"), `# Commits of the last ${report.days} days before ${report.commit.slice(0, 7)} that touched ${item.path}, newest first\n${subjects}`);
     fs.writeFileSync(path.join(contextFolder, "numbers.txt"), numbersText(item, report.days));
     return contextFolder;

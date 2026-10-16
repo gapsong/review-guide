@@ -1,5 +1,4 @@
-import { GodFileItem } from "../godfiles/godFiles";
-import { godFileRules } from "../godfiles/rules";
+import { godFileRules, GodFileItem } from "../godfiles/godFiles";
 
 // "Judge with Claude": one read-only pass about one file of the God Files view. It runs in a copy
 // of the repo at HEAD and gets no shell and no git, so the extension hands over the commit

@@ -3,11 +3,8 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { measureBreadth } from "../../src/godfiles/breadth";
-import { countCodeLines } from "../../src/godfiles/codeLines";
-import { defaultGodFileOptions, GodFileItem, GodFileReport, measureGodFiles } from "../../src/godfiles/godFiles";
-import { historyOf, parseLog } from "../../src/godfiles/history";
-import { areaOf, godFileRules, hintOf } from "../../src/godfiles/rules";
-import { globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
+import { areaOf, defaultGodFileOptions, godFileRules, GodFileItem, GodFileReport, hintOf, historyOf, measureGodFiles, parseLog } from "../../src/godfiles/godFiles";
+import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
 import { classMembersOf } from "../../src/godfiles/typescriptModules";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
@@ -371,7 +368,7 @@ describe("G4: history from one git log pass", () => {
     const commits = parseLog(log);
     assert.deepStrictEqual(commits.map((commit) => commit.paths), [["src/b.ts", "src/c.ts"], ["src/b.ts"], ["src/b.ts"]]);
     const history = historyOf(commits, new Set(["src/b.ts", "src/c.ts"]));
-    assert.deepStrictEqual(history.files.get("src/b.ts"), { commits: 3, coChangeAreas: ["src"] });
+    assert.deepStrictEqual(history.get("src/b.ts"), { commits: 3, coChangeAreas: ["src"] });
   });
 });
 

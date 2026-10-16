@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { gitFoldersOf } from "../git/gitFolders";
-import { GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
-import { godFileDefaults } from "../godfiles/rules";
+import { godFileDefaults, GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
 
 // The god files of every workspace folder that is a git repo, kept fresh: measured the first time
 // the view is shown, again when HEAD moves (a commit, a checkout, a pull) or a setting changes,
