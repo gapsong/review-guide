@@ -92,15 +92,13 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 
 ## God Files (2026-10-16)
 
-- [x] G1 measurement from HEAD and history only: deterministic, read-only, no network; tests, generated and vendored code left out; exclude setting
-- [x] G2 ranking by breadth and history, never by length; hints `god file?` and `deep`
-- [x] G3 breadth through imports for TypeScript/JavaScript and Python (namespace imports, aliases by suffix, re-exports followed); "–" for other languages
-- [x] G4 one git log pass: commits in 30/90 days, co-change partners and areas, sweeps of more than 25 files left out, renames
-- [x] G5 God Files view: numbers line, tooltip, click to the longest function, Refresh, measures again when HEAD moves, cache per HEAD in the extension's storage
+- [x] G1 measurement from HEAD and history only: deterministic, read-only, no network; tests, generated and vendored code and the exclude globs left out
+- [x] G2 ranking by breadth, areas and commits, never by length; hints `god file?` and `deep`
+- [x] G3 breadth through imports for TypeScript/JavaScript and Python, class members included; "–" for other languages
+- [x] G4 one git log pass: commits in 90 days and co-change areas, sweeps left out, renames (exact only in a blobless clone)
+- [x] G5 God Files view: numbers line, tooltip, click to the longest function, Refresh, measures again when HEAD moves
 - [x] G6 codemap badge in the row, warning for `deep: true` on a broad file
-- [x] G7 Judge with Claude: on demand, read-only in the HEAD copy, schema-checked, escaped panel with checked links, cached per file and HEAD
-- [x] S1 extended with the judge run (real claude, haiku)
-- [x] Mutation checks (a) length as the score, (b) `--restricted` dropped, (c) sweeps as co-change: each turns its test red
-- [x] Speed measured: 0.66 s on 2,000 files and 3,000 commits (REPORT.md)
+- [x] G7 Judge with Claude: on demand, read-only in the HEAD copy, schema-checked, the Explain panel's escaped "Judge" view, kept per file and HEAD
+- [x] S1 extended with the judge run (real claude, haiku); mutation checks (a)-(d) each turn a test red; speed in REPORT.md
 - [ ] Not built (v1 scope): writing into the codemap, Explorer badges, breadth for other languages, split PRs
-- [ ] Not fixed: Python docstrings count as code lines; block comments opened after code on the same line are not followed (both only shown, never scored)
+- [ ] Not fixed: Python docstrings count as code lines (shown only, never scored)

@@ -4,37 +4,32 @@ Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9), 2026-10
 
 ## God files (2026-10-16)
 
-- **Built:** the measurement (`src/godfiles/`, one interface `measureGodFiles`), the God Files view in the Review Guide side bar, and "Judge with Claude". G1-G7 are in SPEC.md; deviations from the design are in DECISIONS.md ("God files: where the build differs from its design").
-- **S1 extended** and run with the real claude (haiku): the real judge, on a file whose comments tell Claude to edit it, start a shell, fetch a URL and copy the ignored `.env` into its answer. The repo and the HEAD copy stayed byte for byte the same, the local web server got 0 requests, and the `.env` text is not in the judgment.
-- **Mutation checks**, each reverted afterwards:
-  - (a) score by code lines only: the two G2 tests and the G3 "other languages still rank" test turn red;
-  - (b) `--restricted` dropped from the Claude call: the G7/S1 argument test and the cache test turn red (the fake `claude` refuses the call);
-  - (c) commits of more than 25 files counted as co-change: the G4 sweep test turns red.
+- **Built:** the measurement (`src/godfiles/`, one interface `measureGodFiles`), the God Files view in the Review Guide side bar, and "Judge with Claude" as the Explain panel's "Judge" view. G1-G7 are in SPEC.md; deviations from the design are in DECISIONS.md.
+- **S1 extended** and run with the real claude (haiku): the real judge on a file whose comments tell Claude to edit it, start a shell, fetch a URL and copy the ignored `.env` into its answer. The repo and the HEAD copy stayed byte for byte the same, the local web server got 0 requests, and the `.env` text is not in the judgment.
+- **Mutation checks**, each reverted afterwards: (a) score by code lines: the two G2 ranking tests turn red; (b) `--restricted` dropped: the two G7 judge tests turn red, with every other Claude call's tests; (c) commits of more than 25 files counted as co-change: the G4 areas test turns red; (d) class members dropped from breadth: the three G3 class-member tests turn red.
 
 | # | Status | Proven by (test file: test name) |
 |---|---|---|
-| G1 | pass | `test/unit/godFiles.test.ts`: "G1: gives the same report twice, changes no byte of the repo, and ignores the working tree", "G1: leaves out tests, generated and vendored code, and the globs of the exclude setting", "G1: decides which paths are tests, generated or vendored"; `test/integration/god-files`: "G5: shows the files … and writes nothing into the repo" |
-| G2 | pass | `test/unit/godFiles.test.ts`: "G2: ranks a broad file (12 names used by other files, co-changing across 3 areas) above a 600-line module with 2 names used outside, which carries the deep hint", "G2: length alone never lifts a file …", the hint and threshold tests |
-| G3 | pass | `test/unit/godFiles.test.ts`: the TypeScript/JavaScript test (named, default, namespace, alias by suffix, re-exports, require, dynamic import), the ambiguous-suffix test, the two Python tests (imports, `__all__`, relative, package re-exports followed), "G3: other languages show no breadth ('–', never 0) and still rank on history"; `test/unit/godFileText.test.ts`: "G3, G5: shows unknown breadth as "–", never as 0" |
-| G4 | pass | `test/unit/godFiles.test.ts`: the four "G4" tests (30/90 days across a rename, sweeps of more than 25 files, the window from HEAD's commit time, the log parser) |
-| G5 | pass | `test/unit/godFileText.test.ts`: numbers line, tooltip, escaping, the report cache; `test/integration/god-files`: the view's rows and message, the tooltip, "a click opens the file at its longest function", "measures again by itself when HEAD moves" |
-| G6 | pass | `test/unit/godFileText.test.ts`: "G6: shows the codemap label and warns when the codemap says deep but the file measures broad"; `test/integration/god-files`: the badge and the warning in the row and the tooltip |
-| G7 | pass | `test/unit/godFileJudge.test.ts`: one read-only run in the HEAD copy with history.txt and numbers.txt (flags checked, repo unchanged), cache per file and HEAD without a Claude call, HEAD moved, the schema check, the escaped panel with checked links only; `test/integration/god-files`: "G7: Judge with Claude runs only on the command …" |
+| G1 | pass | `test/unit/godFiles.test.ts`: the three "G1" tests (same report twice and no byte changed, tests and generated code and the exclude globs left out, the path rules); `test/integration/god-files`: "G5: shows the files … and writes nothing into the repo" |
+| G2 | pass | `test/unit/godFiles.test.ts`: "G2: ranks a broad file … above a 600-line module …", "G2: length alone never lifts a file …", the hint, six-areas and threshold tests |
+| G3 | pass | `test/unit/godFiles.test.ts`: the TypeScript/JavaScript, class-member, ambiguous-suffix and Python tests, "G3: other languages show no breadth ('–', never 0) and still rank on history"; `test/unit/godFileText.test.ts`: "G3, G5: shows unknown breadth as \"–\", never as 0" |
+| G4 | pass | `test/unit/godFiles.test.ts`: the "G4" tests (90 days before HEAD's commit time across a rename, sweeps, blobless clone, shallow clone) |
+| G5 | pass | `test/unit/godFileText.test.ts`: numbers line, tooltip, escaping; `test/integration/god-files`: rows and message, tooltip, "a click opens the file at its longest function", "measures again by itself when HEAD moves" |
+| G6 | pass | `test/unit/godFileText.test.ts`: "G6: shows the codemap label and warns …"; `test/integration/god-files`: the badge and the warning in the row and the tooltip |
+| G7 | pass | `test/unit/godFileJudge.test.ts`: one read-only run in the HEAD copy (flags, prompt, repo unchanged), kept per file and HEAD, HEAD moved, the schema check; `test/unit/godFileText.test.ts`: the escaped "Judge" view with checked lines only; `test/integration/god-files`: "G7: Judge with Claude runs on the command in the Explain panel …" |
 | S1+ | pass | `test/safety/readOnlyClaude.test.ts`: "S1: judging a file full of instructions changes nothing, starts no shell, reaches no web and never sees the .env" (real claude, haiku) |
 
-**Speed** (`node scripts/measure-god-files.js`, wall clock of `measureGodFiles` on an arm64 Linux machine, median of 3 runs; target at most 10 s):
+**Speed** (wall clock of `measureGodFiles` on an arm64 Linux machine under load, median of 3 runs; target at most 10 s). The generated fixture is a TypeScript and Python monorepo written with `git fast-import`; fastapi and vscode-pull-request-github are blobless clones.
 
-| Repo | Source files measured | Commits in 90 days | Candidates | Seconds |
+| Repo | Source files | Commits in 90 days | Candidates | Seconds |
 |---|---|---|---|---|
-| generated fixture (TypeScript + Python monorepo, `git fast-import`) | 2,000 | 3,000 | 990 | 0.79 |
-| fastapi/fastapi at bb7f3142 (full clone) | 538 | 307 | 28 | 0.20 |
-| microsoft/vscode-pull-request-github at 8cbae844 (full clone) | 220 | 111 | 80 | 0.19 |
-
-Measured again after the review's change (class members count, `deep` needs few areas); the earlier build took 0.66 / 0.14 / 0.12 s. Cancel: an AbortSignal rejects with `MeasurementCancelled` within 0.2 s on vscode-pull-request-github, and no git process stays behind; the breadth pass itself is synchronous and runs to its end.
+| generated fixture | 2,000 | 3,000 | 990 | 0.76 (before the slimming: 0.84, same machine and load) |
+| fastapi/fastapi at bb7f3142 | 538 | 307 | 28 | 0.23 |
+| microsoft/vscode-pull-request-github at 8cbae844 | 220 | 111 | 80 | 0.22 |
 
 **Realism** (top of the list, read by hand):
-- vscode-pull-request-github: `src/github/githubRepository.ts` (79 names used by 24 files, 13 commits, 11 areas), `folderRepositoryManager.ts` (98 names used by 60 files) and `pullRequestModel.ts` (97 names used by 54 files, 7 areas) lead as `god file?`. Before the review the last one measured "5 names used by 54 files" and got `deep`, because its exported class counted as one name; its public methods are names other files use (DECISIONS.md). `pullRequestOverview.ts` (14 names, 22 commits, 10 areas) is `god file?` too; `commands.ts` (3 names, 8 areas) and `extension.ts` (0 names) get no hint any more. Hints before → after the review: `deep` 38 → 8, `god file?` 16 → 43, none 26 → 29 of 80 candidates. A real haiku judgment of `githubRepository.ts` took 46-48 s and called it a god file with a dozen responsibilities (screenshot in `docs/assets/god-files-judge.png`, taken before the review; the row now reads 79 names).
-- fastapi: `fastapi/applications.py` (4,136 lines) measures 14 names used by 340 files: `FastAPI` and 13 of its methods (`get`, `post`, `include_router`, …), so it is `god file?` now, not `deep`; `routing.py` (26 names, `APIRouter`'s decorators) the same. That is the rule as written: a class whose callers use 13 of its methods has a broad interface, even when it is broad on purpose (the judge's `hub` verdict is for that). Hints before → after: `deep` 12 → 7, `god file?` 7 → 10, none 9 → 11 of 28. Following the package's re-exports stays necessary (DECISIONS.md). Python docstrings count as code lines (cheap rules); this changes no rank, because length is not in the score.
+- vscode-pull-request-github: `src/github/githubRepository.ts` (79 names used outside, 13 commits, 11 areas), `folderRepositoryManager.ts` (98 names) and `pullRequestModel.ts` (97 names, 7 areas) lead as `god file?`; `pullRequestOverview.ts` (14 names, 22 commits, 10 areas) too. Hints: `deep` 8, `god file?` 43, none 29 of 80 candidates (before the class-member review: 38, 16 and 26).
+- fastapi: `fastapi/applications.py` measures 14 names used outside (`FastAPI` and 13 of its methods), so it is `god file?`, as is `routing.py` (26 names). A class whose callers use 13 of its methods has a broad interface even when it is broad on purpose; the judge's `hub` verdict is for that. Hints: `deep` 7, `god file?` 10, none 11 of 28.
 
 ## WP1 "Own it" (2026-10-09)
 
@@ -133,7 +128,7 @@ Real run: the extension in VS Code, Pylance for Python symbols, the real GitHub 
 4. `src/claude/overviewPrompt.ts`: the pass 1 prompt. This is what decides Q1/Q2. Then `ownershipPrompt.ts` and `explanationStyle.ts` for the chat (F15, F16).
 5. `src/state/reviewState.ts` and `src/state/ownership.ts`: read / understood, the step back after a push, the 3am check.
 6. For "Own it" (WP1): `src/codemap/entryOwnership.ts` (the state of an entry, the D1 switch, the 3am line), `src/analysis/entryCheck.ts` (one check, one chat turn), `src/claude/entryCheckPrompt.ts`, `src/git/headCopy.ts`, then `src/ui/ownItHtml.ts`.
-7. For God Files: `src/godfiles/godFiles.ts` (the one interface and its steps), `src/godfiles/rules.ts` (every threshold and the area rule), `src/godfiles/breadth.ts` (imports to names used outside), `src/godfiles/history.ts` (the one git log pass), then `src/analysis/godFileJudge.ts` and `src/ui/godFileJudgeHtml.ts` for Judge with Claude.
+7. For God Files: `src/godfiles/godFiles.ts` (the interface, every threshold, the score and the one git log pass), `src/godfiles/breadth.ts` (imports to names used outside), then `src/analysis/godFileJudge.ts` and `judgeHtml` in `src/ui/godFileText.ts` for Judge with Claude.
 
 `DECISIONS.md` lists every place where I read the spec one way and why (22 entries). `TASKS.md` is the checklist, including 3 small known issues that are not fixed.
 
