@@ -159,11 +159,8 @@ function percentileOf(value: number, values: number[]): number {
 }
 
 async function headCommitOf(repoFolder: string): Promise<string> {
-  try {
-    return (await readGit(repoFolder, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"])).trim();
-  } catch {
-    throw new Error("The workspace folder has no commit yet, so there is no history to measure.");
-  }
+  const noCommit = () => Promise.reject(new Error("The workspace folder has no commit yet, so there is no history to measure."));
+  return (await readGit(repoFolder, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).catch(noCommit)).trim();
 }
 
 interface TrackedFile {
@@ -217,7 +214,10 @@ interface Commit {
 async function readHistory(repoFolder: string, headCommit: string, measuredPaths: Set<string>): Promise<{ commitCount: number; files: Map<string, FileHistory> }> {
   const headTimeSeconds = Number((await readGit(repoFolder, ["show", "-s", "--format=%ct", headCommit])).trim());
   const since = `--since=@${headTimeSeconds - godFileRules.days * 24 * 60 * 60}`;
-  const commits = parseLog(await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", "-M", "--format=%x1e%H", since, headCommit]));
+  // A partial (blobless) clone lacks the old contents that finding an edited rename needs, and must
+  // not fetch them, so there only exact renames count (seen on blobless clones of public repos).
+  const isPartialClone = (await readGit(repoFolder, ["config", "--get-regexp", "^remote\\..*\\.promisor$"]).catch(() => "")).includes("true");
+  const commits = parseLog(await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", isPartialClone ? "-M100%" : "-M", "--format=%x1e%H", since, headCommit]));
   return { commitCount: commits.length, files: historyOf(commits, measuredPaths) };
 }
 

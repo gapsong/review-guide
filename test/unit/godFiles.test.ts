@@ -335,6 +335,16 @@ describe("G4: history from one git log pass", () => {
     assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui", "src/core"], "no area of the sweep's services, none for the README or the test");
   });
 
+  it("G4: a blobless clone is measured without fetching; only exact renames count there", async () => {
+    const blobless = path.join(scratch, "blobless");
+    execFileSync("git", ["-c", "uploadpack.allowFilter=true", "clone", "--quiet", "--no-local", "--filter=blob:none", `file://${repo}`, blobless]);
+    const before = fingerprint(blobless);
+    const measured = await measureGodFiles(blobless, defaultGodFileOptions);
+    assert.strictEqual(measured.commitCount, report.commitCount);
+    assert.strictEqual(itemOf(measured, "src/core/motor.ts").commits, 2, "the rename that also changed the file is not followed");
+    assert.strictEqual(fingerprint(blobless), before, "nothing was fetched into its .git");
+  });
+
   it("G4: a shallow clone says so: its commit counts are a floor, not the history", async () => {
     const shallow = path.join(scratch, "shallow");
     execFileSync("git", ["clone", "--quiet", "--depth", "1", `file://${repo}`, shallow]);
