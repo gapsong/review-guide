@@ -104,7 +104,7 @@ describe("God Files in a real VS Code", () => {
     const before = fingerprint(workspace);
     const broad = api.godFilesView.getTreeItem(nodeOf("src/shop/broad.ts"));
     assert.strictEqual(plain(String(broad.label)), "⚠ 💰🧠 src/shop/broad.ts", "the mark, the codemap badge and the path");
-    assert.match(String(broad.description), /^⚠️ codemap says deep · god file\? · 8\+ names used outside · 4 commits\/90 d · changes with 4 areas · knows 0 areas · \d+ lines$/, "apps/web, packages/billing, src/admin, and src/shop of its barrel");
+    assert.match(String(broad.description), /^⚠️ codemap says deep · god file\? · 8\+ names used outside · 4 commits\/90 d · changes with 3 areas · knows 0 areas · \d+ lines$/, "apps/web, packages/billing and src/admin; not src/shop, its own area (the barrel)");
     const ledger = api.godFilesView.getTreeItem(nodeOf("src/ledger/ledger.ts"));
     assert.strictEqual(ledger.label, "✓ src/ledger/ledger.ts");
     assert.strictEqual(ledger.description, "deep · 2 names used outside · 1 commit/90 d · changes with 0 areas · knows 0 areas · 605 lines");

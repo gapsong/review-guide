@@ -68,8 +68,8 @@ function numberLines(item: GodFileItem): string[] {
   return [
     `- **${breadthText(item)}:** ${escapeMarkdown(breadthMeaning(item))}`,
     `- **${item.commits} ${plural(item.commits, "commit", "commits")} in ${godFileRules.days} days:** each commit is a reason it had to change.`,
-    `- **Changes with ${item.coChangeAreas.length} ${plural(item.coChangeAreas.length, "area", "areas")}**${item.coChangeAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.coChangeAreas))})` : ""}: files that changed in the same commits; many areas mean many unrelated reasons. Commits of more than ${godFileRules.largestCoChangeCommitFiles} files are sweeps and do not count.`,
-    `- **Knows ${item.knownAreas.length} ${plural(item.knownAreas.length, "area", "areas")}**${item.knownAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.knownAreas))})` : ""}: the other areas it imports from; the more it knows, the more changes elsewhere reach it.`,
+    `- **Changes with ${item.coChangeAreas.length} other ${plural(item.coChangeAreas.length, "area", "areas")}**${item.coChangeAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.coChangeAreas))})` : ""}: areas of the files that changed in the same commits, its own area left out; many areas mean many unrelated reasons. Commits of more than ${godFileRules.largestCoChangeCommitFiles} files are sweeps and do not count.`,
+    `- **Knows ${item.knownAreas.length} other ${plural(item.knownAreas.length, "area", "areas")}**${item.knownAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.knownAreas))})` : ""}: the other areas it imports from; the more it knows, the more changes elsewhere reach it.`,
     `- **${formatted(item.codeLines)} code lines:** shown, but never part of the score.`,
     `- **Hardest function:** ${escapeMarkdown(complexityText(item))}`,
   ];
@@ -120,13 +120,13 @@ function complexityText(item: GodFileItem): string {
 function hintMeaning(item: GodFileItem, hint: ReturnType<typeof hintOf>, usedNames: number): string {
   const { broadAboveNamesUsedOutside: broad, deepFromCodeLines, deepAtMostCoChangeAreas, deepAtMostKnownAreas } = godFileRules;
   if (hint === "deep") {
-    return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines, changes with at most ${deepAtMostCoChangeAreas} areas and knows at most ${deepAtMostKnownAreas}: it looks like a deep module.`;
+    return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines, changes with at most ${deepAtMostCoChangeAreas} other areas and knows at most ${deepAtMostKnownAreas}: it looks like a deep module.`;
   }
   const why = hint === "god file?" ? `More than ${broad} names used outside (members of classes, exported objects and namespaces included): maybe several modules in one file.`
     : item.breadth.state !== "known" ? "No hint without a measured breadth."
       : usedNames === 0 ? "No hint: nothing uses it, so it has no interface to be deep behind."
         : item.codeLines < deepFromCodeLines ? "No hint."
-          : item.coChangeAreas.length > deepAtMostCoChangeAreas ? `No hint: a narrow interface, but it changes with more than ${deepAtMostCoChangeAreas} areas, so it has more reasons to change than a deep module.`
+          : item.coChangeAreas.length > deepAtMostCoChangeAreas ? `No hint: a narrow interface, but it changes with more than ${deepAtMostCoChangeAreas} other areas, so it has more reasons to change than a deep module.`
             : `No hint: a narrow interface, but it knows more than ${deepAtMostKnownAreas} other areas.`;
   return `${why} Judge with Claude for a verdict.`;
 }

@@ -7,12 +7,12 @@ Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9), 2026-10
 - **Built:** the ranking (`src/godfiles/godFiles.ts`, `measureGodFiles`: git and HEAD only), the module-level import scan (`imports.ts`: known areas and import lines), breadth from the language server (`breadth.ts`, `measureBreadth` behind a small `LanguageServer` seam; VS Code's side is in `src/ui/godFilesView.ts`), cognitive complexity (`complexity.ts`), the God Files view in the Review Guide side bar, and "Judge with Claude" as the Explain panel's "Judge" view. G1-G7 are in SPEC.md; deviations from the design are in DECISIONS.md.
 - **Second build (same day): breadth from the language server.** The name-level regex parsers (`typescriptModules.ts`, `pythonModules.ts`) are gone. Python breadth is tested through the fake language server of the unit tests: the integration tests run VS Code without Pylance. A manual run with Pylance installed into the test VS Code measured fastapi (below).
 - **S1 extended** and run with the real claude (haiku): the real judge on a file whose comments tell Claude to edit it, start a shell, fetch a URL and copy the ignored `.env` into its answer. The repo and the HEAD copy stayed byte for byte the same, the local web server got 0 requests, and the `.env` text is not in the judgment. The S1 test is unchanged by the second build and passes.
-- **Mutation checks**, each reverted afterwards: (a) score by code lines: the two G2 ranking tests turn red; (b) `--restricted` dropped: the two G7 judge tests turn red, with every other Claude call's tests; (c) commits of more than 25 files counted as co-change: the G4 areas test turns red; (d) class members dropped from the declarations: the G3 class test turns red; (e) same-file references counted as uses: four G3 tests turn red; (f) unknown breadth shown as 0, and no symbol provider measured as 0 names: a G5 text test and a G3 test turn red; (g) imports from other areas ignored: the G2 "knows 11 areas" test turns red.
+- **Mutation checks**, each reverted afterwards: (a) score by code lines: the two G2 ranking tests turn red; (b) `--restricted` dropped: the two G7 judge tests turn red, with every other Claude call's tests; (c) commits of more than 25 files counted as co-change: the G4 areas test turns red; (d) class members dropped from the declarations: the G3 class test turns red; (e) same-file references counted as uses: four G3 tests turn red; (f) unknown breadth shown as 0, and no symbol provider measured as 0 names: a G5 text test and a G3 test turn red; (g) imports from other areas ignored: the G2 "knows 11 areas" test turns red; (i) the old area rule (first folder, or two below a container folder): the area-rule test and the G2 src-layout monorepo test turn red; (j) the file's own area counted in "changes with": the G2 five-other-areas test, the monorepo test and the G4 co-change test turn red.
 
 | # | Status | Proven by (test file: test name) |
 |---|---|---|
 | G1 | pass | `test/unit/godFiles.test.ts`: the three "G1" tests (same report twice and no byte changed, tests and generated code and the exclude globs left out, the path rules); `test/integration/god-files`: "G5: shows the files … and writes nothing into the repo" |
-| G2 | pass | `test/unit/godFiles.test.ts`: "G2: ranks a broad file … above a 600-line module …", "G2: length alone never lifts a file …", the hint test, the six-areas test, "G2: a file that imports from 11 other areas …" |
+| G2 | pass | `test/unit/godFiles.test.ts`: "G2: ranks a broad file … above a 600-line module …", "G2: length alone never lifts a file …", the hint test, the five-other-areas test, "G2: a file that imports from 11 other areas …", "G2: in a src-layout monorepo …" |
 | G3 | pass | `test/unit/godFiles.test.ts`: the import-scan tests and the "breadth from the language server (a fake one)" tests (12 used methods, same-file and test references, barrel, `module.attr`, alias and namespace import, unknown never 0); `test/integration/god-files`: "G3: breadth comes from the TypeScript server …" (class members through a barrel, a namespace import and an alias; the barrel has no names; tests are not users) |
 | G4 | pass | `test/unit/godFiles.test.ts`: the "G4" tests (90 days before HEAD's commit time across a rename, sweeps, blobless clone, shallow clone) |
 | G5 | pass | `test/unit/godFileText.test.ts`: numbers line (5 numbers, "8+", "–", "…"), tooltip with the hardest function, escaping; `test/unit/godFileComplexity.test.ts`: the package in process, complexipy on HEAD copies without a shell, missing complexipy, the real complexipy when installed; `test/integration/god-files`: rows, tooltip, "a click opens the file at its hardest function", "measures again by itself when HEAD moves" |
@@ -33,6 +33,38 @@ complexipy itself takes 0.03 s on the whole `fastapi/` package. No cache was nee
 **Realism** (top of the list, read by hand):
 - vscode-pull-request-github: `src/github/folderRepositoryManager.ts`, `pullRequestOverview.ts`, `githubRepository.ts` and `pullRequestModel.ts` are `god file?` (8+ names, 7 to 11 co-change areas). `src/extension.ts` ranks first on history and imports (knows 9 areas) and has 0 names used outside: an entry point, no hint. `src/commands.ts` (2,068 lines, 3 names used outside) gets no `deep`: it changes with 8 areas and knows 6.
 - fastapi with Pylance: `fastapi/routing.py` and `applications.py` are `god file?` (`FastAPI` and its methods are used by 339 files), `openapi/utils.py`, `encoders.py` and `openapi/docs.py` are `deep` (1 to 3 names), and the scripts have 0 names used outside. Its hardest function is `get_request_handler` (cognitive complexity 178).
+
+**Areas in monorepos** (2026-10-16): the area rule now skips `src` and a folder alone in its parent, and "changes with" leaves out the file's own area (DECISIONS.md). History numbers before → after at the same commits (blobless clones; breadth needs a VS Code window and is unchanged by this, so a hint can only move through the `deep` limits on areas):
+
+| vscode-pull-request-github 8cbae844 | commits | changes with | knows |
+|---|---|---|---|
+| 1 `src/extension.ts` | 8 | 10 → 9 | 9 |
+| 2 `src/github/folderRepositoryManager.ts` | 9 | 10 → 9 | 6 |
+| 3 `src/github/pullRequestOverview.ts` | 22 | 10 → 9 | 4 |
+| 4 `src/commands.ts` | 9 | 8 → 7 | 6 |
+| 5 `src/view/prsTreeDataProvider.ts` | 7 | 8 → 7 | 6 |
+| 6 `src/github/githubRepository.ts` | 13 | 11 → 10 | 3 |
+| 7 `src/github/issueOverview.ts` | 7 | 7 → 6 | 4 |
+| 8 `src/github/pullRequestModel.ts` | 12 | 7 → 6 | 3 |
+| 9 `src/github/createPRViewProvider.ts` | 4 | 7 → 6 | 4 |
+| 10 `src/github/repositoriesManager.ts` | 5 | 10 → 9 | 3 |
+
+The order of the top 10 is the same; in the top 20, `src/issues/stateManager.ts` replaces `src/view/reviewsManager.ts`. No file in the top 20 passes the `deep` area limits before or after (0 → 0), so the `deep` hints cannot change; `god file?` depends on breadth only.
+
+| fastapi bb7f3142 | before (commits · changes with) | after |
+|---|---|---|
+| 1 | `fastapi/routing.py` 13 · 1 | `scripts/sponsors.py` 3 · 1 |
+| 2 | `scripts/sponsors.py` 3 · 2 | `fastapi/security/api_key.py` 1 · 1 |
+| 3 | `fastapi/dependencies/utils.py` 5 · 1 | `scripts/notify_translations.py` 1 · 1 |
+| 4 | `scripts/translate.py` 5 · 1 | `fastapi/routing.py` 13 · 0 |
+| 5 | `fastapi/applications.py` 4 · 1 | `fastapi/dependencies/utils.py` 5 · 0 |
+| 6 | `fastapi/dependencies/models.py` 3 · 1 | `scripts/translate.py` 5 · 0 |
+| 7 | `fastapi/openapi/utils.py` 3 · 1 | `fastapi/applications.py` 4 · 0 |
+| 8 | `fastapi/telemetry/_runtime.py` 3 · 1 | `fastapi/dependencies/models.py` 3 · 0 |
+| 9 | `scripts/notify_translations.py` 1 · 2 | `fastapi/openapi/utils.py` 3 · 0 |
+| 10 | `fastapi/telemetry/_api.py` 2 · 1 | `fastapi/telemetry/_asgi.py` 3 · 0 |
+
+All 28 candidates know 0 areas before and after (the package is one area, `fastapi`, because `docs_src/`, `docs/` and `scripts/` are its sibling folders). The top 20 holds the same files, and the same 10 of them pass the `deep` area limits, so the hint counts stay. The order got worse: the package's own co-changes no longer count, so files with one co-change outside (`scripts/sponsors.py`, `security/api_key.py`) rank above `routing.py`. Excluding `docs_src/**` and `scripts/**` brings `routing.py`, `dependencies/utils.py` and `applications.py` back to the top 3.
 
 ## WP1 "Own it" (2026-10-09)
 

@@ -53,7 +53,7 @@ export interface GodFileItem {
   path: string;
   codeLines: number;
   commits: number;
-  // The areas (areaOf) of the other measured source files changed in the same commits, sorted.
+  // The other areas (areaRuleFor) of the measured source files changed in the same commits, sorted.
   coChangeAreas: string[];
   // The other areas whose files this file imports, sorted.
   knownAreas: string[];
@@ -95,10 +95,11 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
   }
   const history = await readHistory(repoFolder, commit, new Set(sourcePaths.map((file) => file.path)));
   const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"])).trim() === "true";
+  const areaOf = areaRuleFor(sourcePaths.map((file) => file.path));
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
     .filter((source) => source.codeLines >= options.minCodeLines)
-    .map((source) => candidateOf(source.path, source.codeLines, { imports: imports.get(source.path) ?? [], importedBy: importers.get(source.path) ?? [] }, history.files.get(source.path)));
+    .map((source) => candidateOf(source.path, source.codeLines, { imports: imports.get(source.path) ?? [], importedBy: importers.get(source.path) ?? [] }, history.files.get(source.path), areaOf));
   return {
     commit,
     minCodeLines: options.minCodeLines,
@@ -133,26 +134,44 @@ export function isBroad(namesUsedOutside: number): boolean {
   return namesUsedOutside > godFileRules.broadAboveNamesUsedOutside;
 }
 
-// Folders that only hold other parts: in a monorepo, apps/web and apps/api are two areas, not one.
-const containerFolders = new Set(["apps", "packages", "libs", "services", "src", "modules", "crates", "internal", "pkg", "cmd"]);
+// Root folders that only hold other parts: in a monorepo, apps/web and apps/api are two areas.
+const containerFolders = new Set(["apps", "packages", "libs", "services", "modules", "crates", "internal", "pkg", "cmd"]);
 
-// The area of a repo path: its first folder, or its first two when the first is a container folder.
-// A file directly in the repo root, or directly in a container folder, is in the area of that folder.
-export function areaOf(repoPath: string): string {
-  const folders = repoPath.split("/").slice(0, -1);
-  if (folders.length === 0) {
-    return ".";
+// The area of a repo path: the first folder that has sibling folders, after skipping a container
+// folder at the root together with its child, any `src`, and any folder that is the only folder
+// in its parent (the Python src layout, src/<package>/). Siblings count over the measured source
+// files, so test folders do not split an area. A file directly in the folder where the skipping
+// stops is in that folder's area; a file in the repo root is in ".".
+//
+//   apps/api/src/shop_api/orders/service.py ──► apps/api/src/shop_api/orders
+//   ╰container╯ ╰src╯ ╰only one╯ ╰siblings╯
+export function areaRuleFor(sourcePaths: string[]): (repoPath: string) => string {
+  const childFolders = new Map<string, Set<string>>();
+  for (const sourcePath of sourcePaths) {
+    const folders = sourcePath.split("/").slice(0, -1);
+    folders.forEach((folder, index) => {
+      const parent = folders.slice(0, index).join("/");
+      childFolders.set(parent, (childFolders.get(parent) ?? new Set()).add(folder));
+    });
   }
-  return containerFolders.has(folders[0]) && folders.length >= 2 ? `${folders[0]}/${folders[1]}` : folders[0];
+  return (repoPath) => {
+    const folders = repoPath.split("/").slice(0, -1);
+    let index = containerFolders.has(folders[0]) && folders.length >= 2 ? 2 : 0;
+    while (index < folders.length && (folders[index] === "src" || childFolders.get(folders.slice(0, index).join("/"))?.size === 1)) {
+      index++;
+    }
+    return folders.slice(0, index + 1).join("/") || ".";
+  };
 }
 
 type Candidate = Omit<GodFileItem, "score">;
 
-function candidateOf(path: string, codeLines: number, imports: { imports: string[]; importedBy: string[] }, history: FileHistory | undefined): Candidate {
-  const { commits, coChangeAreas } = history ?? { commits: 0, coChangeAreas: [] };
-  const ownArea = areaOf(path);
-  const knownAreas = [...new Set(imports.imports.map(areaOf))].filter((area) => area !== ownArea).sort();
-  return { path, codeLines, commits, coChangeAreas, knownAreas, importedBy: [...imports.importedBy].sort(), breadth: { state: "pending" }, complexity: { state: "pending" } };
+// Both counts leave out the file's own area: a sibling that changes with it, or that it imports, is
+// the same reason to change.
+function candidateOf(path: string, codeLines: number, imports: { imports: string[]; importedBy: string[] }, history: FileHistory | undefined, areaOf: (repoPath: string) => string): Candidate {
+  const { commits, partners } = history ?? { commits: 0, partners: [] };
+  const otherAreas = (paths: string[]) => [...new Set(paths.map(areaOf))].filter((area) => area !== areaOf(path)).sort();
+  return { path, codeLines, commits, coChangeAreas: otherAreas(partners), knownAreas: otherAreas(imports.imports), importedBy: [...imports.importedBy].sort(), breadth: { state: "pending" }, complexity: { state: "pending" } };
 }
 
 // The score: the mean of the candidate's percentile ranks among all candidates on three signals,
@@ -216,7 +235,7 @@ async function readSources(repoFolder: string, files: TrackedFile[]): Promise<Sc
 // Reasons to change, from ONE git log pass over the window before HEAD:
 //
 //   commit ─┬─ checkout.py ┐
-//           ├─ payment.py  ├─ changed together: each counts the other's area
+//           ├─ payment.py  ├─ changed together: each counts the other's area, if not its own
 //           └─ README.md   ┘  (only measured source files count)
 //
 // A commit with more than godFileRules.largestCoChangeCommitFiles files is a sweep: it still counts
@@ -227,7 +246,8 @@ async function readSources(repoFolder: string, files: TrackedFile[]): Promise<Sc
 
 interface FileHistory {
   commits: number;
-  coChangeAreas: string[];
+  // The other measured source files changed in the same commits.
+  partners: string[];
 }
 
 // A commit's paths as they are at HEAD: a file renamed later in history counts under its new path.
@@ -287,7 +307,7 @@ function historyOf(commits: Commit[], measuredPaths: Set<string>): Map<string, F
       counts.set(filePath, count);
     }
   }
-  return new Map([...counts].map(([filePath, count]) => [filePath, { commits: count.commits, coChangeAreas: [...new Set([...count.partners].map(areaOf))].sort() }]));
+  return new Map([...counts].map(([filePath, count]) => [filePath, { commits: count.commits, partners: [...count.partners] }]));
 }
 
 // Git ----------------------------------------------------------------------------------------------

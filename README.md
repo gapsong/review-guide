@@ -171,11 +171,12 @@ GOD FILES                                                         [refresh]
 
 - **names used outside**: the file's top-level names and the public members of its classes, exported objects and namespaces (`Model.merge`, `api.get`) that other source files use, found with "Find All References" of the language server (the TypeScript server built into VS Code; Pylance or another Python language server for Python). Tests are not users, and an import line is not a use, so a barrel owns no re-exported name. Counting stops at "8+". "…" while measuring; "–" when no language server answers (the tooltip says why), never 0. A TypeScript or JavaScript project needs a `tsconfig.json` or `jsconfig.json`, or the TypeScript server sees only the open files.
 - **commits/90 d**: commits in the 90 days before HEAD; each is a reason the file had to change.
-- **changes with N areas**: the areas (`apps/api`, `packages/ui`, `shop`) of the files that changed in the same commits. Sweeps (commits of more than 25 files) do not count.
+- **An area** is the first folder with sibling folders, after skipping a container folder at the root with its child (`apps/api`), `src`, and a folder that is alone in its parent (`src/<package>/`): `src/github`, `apps/api/src/shop_api/orders`, `fastapi`.
+- **changes with N areas**: the other areas of the files that changed in the same commits; the file's own area never counts. Sweeps (commits of more than 25 files) do not count.
 - **knows N areas**: the other areas the file imports from.
 - **lines**: code lines, shown but never part of the score.
 - The ranking uses commits, co-change areas and known areas, so it is there at once and the same every time; the names fill in for the 20 files shown.
-- The hint is only a hint: `god file?` above 7 names used outside; `deep` needs 1 to 7 names used outside, at least 300 code lines, at most 3 co-change areas and at most 3 known areas. A file nothing uses gets no hint. The tooltip explains each number, and warns when your codemap calls a broad file `deep: true`.
+- The hint is only a hint: `god file?` above 7 names used outside; `deep` needs 1 to 7 names used outside, at least 300 code lines, at most 3 other areas it changes with and at most 3 other areas it knows. A file nothing uses gets no hint. The tooltip explains each number, and warns when your codemap calls a broad file `deep: true`.
 - **Hardest function** (tooltip; a click opens the file there): the function with the highest [cognitive complexity](https://www.sonarsource.com/docs/CognitiveComplexity.pdf), where reading is hard. It is never part of the score or the hint. TypeScript and JavaScript are measured inside the extension; Python needs [complexipy](https://complexipy.com) (`uv tool install complexipy`, or set `reviewGuide.complexipyPath`). Both read copies of your last commit in a temporary folder.
 - Tests, generated and vendored code are left out. Nothing is sent anywhere or written into the repo.
 

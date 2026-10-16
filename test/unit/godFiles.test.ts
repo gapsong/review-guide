@@ -3,7 +3,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { Breadth, LanguageServer, measureBreadth, SymbolNode } from "../../src/godfiles/breadth";
-import { areaOf, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles, readFilesAt } from "../../src/godfiles/godFiles";
+import { areaRuleFor, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles, readFilesAt } from "../../src/godfiles/godFiles";
 import { importedFiles, importLinesOf } from "../../src/godfiles/imports";
 import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
@@ -159,7 +159,7 @@ describe("G2: the ranking follows the owner's rule", () => {
     assert.strictEqual(hintOf({ breadth: { state: "pending" }, codeLines: 5000, coChangeAreas: [], knownAreas: [] }), undefined);
   });
 
-  it("G2: a long narrow file that changes with 6 areas gets no deep hint", async () => {
+  it("G2: a long narrow file that changes with 5 other areas gets no deep hint", async () => {
     const repo = path.join(scratch, "unstable");
     writeG2Repo(repo);
     for (const [days, partner] of [[50, "apps/web/page.ts"], [45, "packages/billing/charge.ts"], [35, "src/admin/panel.ts"], [25, "src/shop/broad.ts"]] as const) {
@@ -168,7 +168,7 @@ describe("G2: the ranking follows the owner's rule", () => {
       commitFilesAt(repo, days, { "src/ledger/ledger.ts": `${ledger}// ledger ${days}\n`, [partner]: `${partnerText}// ledger ${days}\n` }, `Change the ledger with ${partner}`);
     }
     const ledger = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "src/ledger/ledger.ts");
-    assert.deepStrictEqual(ledger.coChangeAreas, ["apps/web", "packages/billing", "src/admin", "src/ledger", "src/long", "src/shop"]);
+    assert.deepStrictEqual(ledger.coChangeAreas, ["apps/web", "packages/billing", "src/admin", "src/long", "src/shop"], "journal.ts is in its own area");
     assert.strictEqual(hintOf({ ...ledger, breadth: known(["balance", "post"]) }), undefined);
   });
 
@@ -189,6 +189,31 @@ describe("G2: the ranking follows the owner's rule", () => {
     assert.deepStrictEqual(itemOf(report, "app/main.py").knownAreas, [...areas].sort(), "its own area, os and packages outside the repo do not count");
     assert.deepStrictEqual(itemOf(report, "lib/quiet.py").knownAreas, []);
     assert.strictEqual(report.items[0].path, "app/main.py");
+  });
+
+  it("G2: in a src-layout monorepo, the sub-packages of one app are areas: a file importing 5 of them and a shared package knows 6 other areas; a sibling changing with it adds none", async () => {
+    const repo = path.join(scratch, "monorepo");
+    initRepo(repo);
+    const others = ["payments", "catalog", "accounts", "notifications", "inventory"];
+    const files: Record<string, string> = {
+      "apps/api/src/shop_api/orders/service.py": `${others.map((area) => `from shop_api.${area}.logic import run_${area}`).join("\n")}\nfrom shop_money.rates import convert\nfrom shop_api.orders.models import Order\n${filler(200)}\n`,
+      "apps/api/src/shop_api/orders/models.py": "class Order:\n    pass\n",
+      "apps/api/src/shop_api/main.py": "from shop_api.orders.service import run\n",
+      "apps/api/src/tests/test_service.py": `${filler(200)}\n`,
+      "apps/web/src/app/page.tsx": "export const page = 1;\n",
+      "apps/web/src/lib/format.ts": "export const format = 1;\n",
+      "packages/money/src/shop_money/rates.py": "def convert():\n    pass\n",
+      "alembic/versions/0001_start.py": "revision = '0001'\n",
+    };
+    for (const area of others) {
+      files[`apps/api/src/shop_api/${area}/logic.py`] = `def run_${area}():\n    pass\n`;
+    }
+    commitFilesAt(repo, 120, files, "Start, before the window");
+    commitFilesAt(repo, 20, { "apps/api/src/shop_api/orders/service.py": `${files["apps/api/src/shop_api/orders/service.py"]}# 20\n`, "apps/api/src/shop_api/orders/models.py": "class Order:\n    id = 1\n" }, "Change orders");
+    commitFilesAt(repo, 10, { "apps/api/src/shop_api/orders/service.py": `${files["apps/api/src/shop_api/orders/service.py"]}# 10\n`, "apps/api/src/shop_api/payments/logic.py": "def run_payments():\n    return 1\n" }, "Change orders with payments");
+    const service = itemOf(await measureGodFiles(repo, defaultGodFileOptions), "apps/api/src/shop_api/orders/service.py");
+    assert.deepStrictEqual(service.knownAreas, [...others.map((area) => `apps/api/src/shop_api/${area}`), "packages/money/src/shop_money"].sort(), "its own area and the tests folder do not count");
+    assert.deepStrictEqual(service.coChangeAreas, ["apps/api/src/shop_api/payments"], "models.py in orders/ is its own area");
   });
 
   it("G2: a route module that the app imports and uses only as m.router over a tuple of modules is imported, even with no name use", async () => {
@@ -414,7 +439,7 @@ describe("G4: history from one git log pass", () => {
 
   it("G4: co-change areas come from the measured files of commits of at most 25 files; a larger commit is a sweep", () => {
     const motor = itemOf(report, "src/core/motor.ts");
-    assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui", "src/core"], "no area of the sweep's services, none for the README or the test");
+    assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui"], "no area of the sweep's services, none for the README or the test, and not its own (helper.ts)");
   });
 
   it("G4: a blobless clone is measured without fetching; only exact renames count there", async () => {
@@ -444,15 +469,34 @@ describe("G4: history from one git log pass", () => {
 });
 
 describe("God files: areas and code lines", () => {
-  it("names the area by the first folder, or the first two below a container folder", () => {
-    assert.strictEqual(areaOf("apps/api/src/main.py"), "apps/api");
-    assert.strictEqual(areaOf("packages/ui/button.tsx"), "packages/ui");
-    assert.strictEqual(areaOf("src/shop/checkout.py"), "src/shop");
-    assert.strictEqual(areaOf("src/main.ts"), "src");
-    assert.strictEqual(areaOf("shop/checkout.py"), "shop");
-    assert.strictEqual(areaOf("setup.py"), ".");
-    for (const container of ["apps", "packages", "libs", "services", "src", "modules", "crates", "internal", "pkg", "cmd"]) {
-      assert.strictEqual(areaOf(`${container}/a/b.go`), `${container}/a`, container);
+  it("an area is the first folder with siblings, after a root container folder with its child, src, and a folder alone in its parent", () => {
+    const monorepo = areaRuleFor([
+      ...["orders", "payments", "catalog"].map((area) => `apps/api/src/shop_api/${area}/service.py`),
+      "apps/api/src/shop_api/main.py",
+      "apps/web/src/app/cart/page.tsx", "apps/web/src/lib/format.ts", "apps/web/src/components/button.tsx",
+      "packages/money/src/shop_money/rates.py",
+      "alembic/versions/0001_x.py",
+      "setup.py",
+    ]);
+    const areas: Record<string, string> = {
+      "apps/api/src/shop_api/orders/service.py": "apps/api/src/shop_api/orders",
+      "apps/api/src/shop_api/main.py": "apps/api/src/shop_api",
+      "packages/money/src/shop_money/rates.py": "packages/money/src/shop_money",
+      "apps/web/src/app/cart/page.tsx": "apps/web/src/app",
+      "alembic/versions/0001_x.py": "alembic",
+      "setup.py": ".",
+    };
+    for (const [repoPath, area] of Object.entries(areas)) {
+      assert.strictEqual(monorepo(repoPath), area, repoPath);
+    }
+    const extension = areaRuleFor(["src/github/pullRequestModel.ts", "src/view/tree.ts", "src/extension.ts", "webviews/app.tsx"]);
+    assert.strictEqual(extension("src/github/pullRequestModel.ts"), "src/github");
+    assert.strictEqual(extension("src/extension.ts"), "src");
+    const library = areaRuleFor(["fastapi/security/oauth2.py", "fastapi/routing.py", "docs_src/first/main.py", "scripts/docs.py"]);
+    assert.strictEqual(library("fastapi/security/oauth2.py"), "fastapi", "the repo root has more source folders");
+    assert.strictEqual(areaRuleFor(["fastapi/security/oauth2.py", "fastapi/routing.py"])("fastapi/security/oauth2.py"), "fastapi/security", "a package alone in the repo is split into its folders");
+    for (const container of ["apps", "packages", "libs", "services", "modules", "crates", "internal", "pkg", "cmd"]) {
+      assert.strictEqual(areaRuleFor([`${container}/a/b.go`, `${container}/c/d.go`, "other/e.go"])(`${container}/a/b.go`), `${container}/a`, container);
     }
   });
 

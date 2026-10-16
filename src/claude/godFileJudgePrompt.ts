@@ -23,7 +23,7 @@ path: ${item.path}
 code lines: ${item.codeLines}
 names used by other files: ${namesUsedOutside(item)}
 commits in ${godFileRules.days} days: ${item.commits}
-areas it changed with (commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
+other areas it changed with (commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
 other areas it imports from: ${item.knownAreas.join(", ") || "none"}
 files that import it: ${item.importedBy.length}
 

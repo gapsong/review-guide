@@ -42,7 +42,7 @@ describe("G5: what the God Files view says about a file", () => {
   it("G5: the tooltip says what each number means, the hardest function and the owner's rule", () => {
     const tooltip = godFileTooltip({ item: broad, entry: undefined, actions: [{ title: "Open", link: "command:x" }] });
     const shown = unescaped(tooltip);
-    for (const part of ["**23 names used outside:**", "used by 2 other files", "**66 commits in 90 days:**", "**Changes with 9 areas**", "**Knows 4 areas** (apps/api, billing, src/core, users)", "never part of the score", "**Hardest function:** Checkout.total, cognitive complexity 31 (line 120)", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
+    for (const part of ["**23 names used outside:**", "used by 2 other files", "**66 commits in 90 days:**", "**Changes with 9 other areas**", "**Knows 4 other areas** (apps/api, billing, src/core, users)", "never part of the score", "**Hardest function:** Checkout.total, cognitive complexity 31 (line 120)", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
       assert.ok(shown.includes(part), `${part}\n---\n${tooltip}`);
     }
   });
