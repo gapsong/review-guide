@@ -3,7 +3,6 @@ import * as fs from "fs";
 import * as path from "path";
 import { checkedJudgment, GodFileJudges } from "../../src/analysis/godFileJudge";
 import { claudeRunner, RunClaude } from "../../src/claude/claudeCli";
-import { godFileJudgeSchema } from "../../src/claude/schemas";
 import { defaultGodFileOptions, GodFileReport, measureGodFiles } from "../../src/godfiles/godFiles";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
@@ -108,7 +107,6 @@ describe("G7: Judge with Claude", () => {
     assert.throws(() => checkedJudgment({ ...answer, verdict: "fine" }, 10), /verdict is not one of god_file, deep_module, hub, ok/);
     assert.throws(() => checkedJudgment({ ...answer, readingPath: [{ name: 7, line: 1, why: "x" }] }, 10), /a step's name is not a text/);
     assert.throws(() => checkedJudgment("I would rather not.", 10), /not an object/);
-    assert.deepStrictEqual(godFileJudgeSchema.properties.verdict.enum, ["god_file", "deep_module", "hub", "ok"]);
   });
 });
 

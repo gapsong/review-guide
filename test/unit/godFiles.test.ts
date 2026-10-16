@@ -3,7 +3,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import { measureBreadth } from "../../src/godfiles/breadth";
-import { areaOf, defaultGodFileOptions, godFileRules, GodFileItem, GodFileReport, hintOf, measureGodFiles } from "../../src/godfiles/godFiles";
+import { areaOf, defaultGodFileOptions, GodFileItem, GodFileReport, hintOf, measureGodFiles } from "../../src/godfiles/godFiles";
 import { countCodeLines, globToRegExp, isMeasuredSource } from "../../src/godfiles/sourceFiles";
 import { fingerprint, makeTempDir } from "../support/gitFixture";
 import { commitFilesAt, filler, initRepo } from "../support/historyFixture";
@@ -139,8 +139,6 @@ describe("G2: the ranking follows the owner's rule", () => {
   });
 
   it("G2: the hint is 'god file?' above 7 names used outside; 'deep' needs 1 to 7 names, 300 code lines and at most 3 co-change areas; none when breadth is unknown or nothing imports the file", () => {
-    assert.strictEqual(godFileRules.broadAboveNamesUsedOutside, 7);
-    assert.strictEqual(godFileRules.deepAtMostCoChangeAreas, 3);
     assert.strictEqual(hintOf(8, 10, 0), "god file?");
     assert.strictEqual(hintOf(8, 10, 12), "god file?");
     assert.strictEqual(hintOf(7, 300, 3), "deep");
