@@ -12,6 +12,8 @@ interface OpenJudgePanel {
   error: string | undefined;
   // What the panel's links point to, by index (godFileJudgeHtml.ts).
   locations: CodeLocation[];
+  // A run may end after the owner closed the panel; a closed webview cannot be drawn.
+  closed: boolean;
 }
 
 // The Judge with Claude panels, one per file. A panel never starts a run by itself: only
@@ -35,10 +37,13 @@ export class GodFileJudgePanels implements vscode.Disposable {
     let opened = this.open.get(key);
     if (!opened) {
       const panel = vscode.window.createWebviewPanel(GodFileJudgePanels.viewType, `Judge: ${target.path.split("/").pop()}`, vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
-      opened = { target, panel, work: "idle", error: undefined, locations: [] };
+      opened = { target, panel, work: "idle", error: undefined, locations: [], closed: false };
       const current = opened;
       this.open.set(key, current);
-      panel.onDidDispose(() => this.open.delete(key));
+      panel.onDidDispose(() => {
+        current.closed = true;
+        this.open.delete(key);
+      });
       panel.webview.onDidReceiveMessage((message: JudgePanelMessage) => this.handle(current, message).catch(this.showError));
     }
     opened.panel.reveal();
@@ -118,6 +123,9 @@ export class GodFileJudgePanels implements vscode.Disposable {
   }
 
   private render(opened: OpenJudgePanel): void {
+    if (opened.closed) {
+      return;
+    }
     const state = this.godFiles.stateOf(opened.target.folderUri);
     const item = state?.state === "ready" ? state.report.items.find((candidate) => candidate.path === opened.target.path) : undefined;
     if (state?.state !== "ready" || !item) {
