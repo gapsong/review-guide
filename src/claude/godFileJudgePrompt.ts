@@ -1,26 +1,14 @@
 import { godFileRules, GodFileItem } from "../godfiles/godFiles";
 
 // "Judge with Claude": one read-only pass about one file of the God Files view. It runs in a copy
-// of the repo at HEAD and gets no shell and no git, so the extension hands over the commit
-// subjects and the measured numbers as files in the context folder.
-
-export interface GodFileJudgeContext {
-  // The commit the repo copy holds.
-  commit: string;
-  // Holds history.txt (commit subjects) and numbers.txt (the measurement).
-  contextFolder: string;
-  // The language the answer is written in (setting reviewGuide.explanationLanguage).
-  language: string;
-}
-
-export function godFileJudgePrompt(item: GodFileItem, context: GodFileJudgeContext): string {
+// of the repo at HEAD and gets no shell and no git, so the prompt carries the measured numbers and
+// the file's commit subjects. language: setting reviewGuide.explanationLanguage.
+export function godFileJudgePrompt(item: GodFileItem, context: { commit: string; commitSubjects: string; language: string }): string {
   return `Review Guide pass: god file judge
 
 The owner of this repo wants to know where owning it hurts most. Their rule: "A big file is fine only as a well-designed deep module." A long file with a small interface (1 to ${godFileRules.broadAboveNamesUsedOutside} names used by other files) and one reason to change is a deep module, and that is good. A file is a problem when it does several unrelated jobs behind a broad interface, so it changes for many reasons.
 
-Your working directory is a copy of the repo at commit ${context.commit}. Judge the file below by reading it and what it calls (you have read-only tools; there is no shell and no git). The extension measured it for you:
-- ${context.contextFolder}/numbers.txt: the names other files use, its commits and the areas it changed with.
-- ${context.contextFolder}/history.txt: the subjects of its commits of the last ${godFileRules.days} days, newest first.
+Your working directory is a copy of the repo at commit ${context.commit}. Judge the file below by reading it and what it calls (you have read-only tools; there is no shell and no git). The extension measured it for you; its numbers and commit subjects are at the end.
 
 Answer with:
 - verdict: god_file (several unrelated responsibilities behind a broad interface), deep_module (small interface, much hidden logic, one reason to change), hub (broad on purpose with little logic of its own: an index, a table of routes, the shared types callers must build), or ok; verdictWhy in one sentence, by the owner's rule.
@@ -32,19 +20,11 @@ Lines are lines of the file at commit ${context.commit}, counting from 1. Write 
 
 ## The file
 path: ${item.path}
-code lines: ${item.codeLines}`;
-}
-
-// numbers.txt: the measurement, in plain words.
-export function numbersText(item: GodFileItem): string {
-  const breadth = item.namesUsedOutside === undefined
-    ? "names used by other files: not measured for this language"
-    : `names used by other files (${item.namesUsedOutside.length}): ${item.namesUsedOutside.join(", ") || "none"}`;
-  return `# Measured by Review Guide at HEAD (no Claude involved)
-path: ${item.path}
 code lines: ${item.codeLines}
-${breadth}
+names used by other files: ${item.namesUsedOutside === undefined ? "not measured for this language" : `${item.namesUsedOutside.length}: ${item.namesUsedOutside.join(", ") || "none"}`}
 commits in ${godFileRules.days} days: ${item.commits}
-areas it changed with (${item.coChangeAreas.length}, commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
-`;
+areas it changed with (commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
+
+## Its commits of the last ${godFileRules.days} days, newest first
+${context.commitSubjects}`;
 }

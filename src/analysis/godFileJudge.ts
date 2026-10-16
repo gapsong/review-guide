@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { RunClaude } from "../claude/claudeCli";
-import { godFileJudgePrompt, numbersText } from "../claude/godFileJudgePrompt";
+import { godFileJudgePrompt } from "../claude/godFileJudgePrompt";
 import { godFileJudgeSchema } from "../claude/schemas";
 import { runGit } from "../git/git";
 import { folderKey, HeadCopies } from "../git/headCopy";
@@ -14,7 +14,6 @@ import { godFileRules, GodFileItem, GodFileReport } from "../godfiles/godFiles";
 // storage; nothing is written into the repo.
 //
 //   storage/head-copies/<folder>/<commit>/            Claude's working directory (tracked files only)
-//   storage/god-file-context/<folder>/<path hash>/   history.txt, numbers.txt (Claude may read)
 //   storage/god-file-judgments/<folder>/<path hash>/<commit>.json
 
 export type GodFileVerdict = "god_file" | "deep_module" | "hub" | "ok";
@@ -60,12 +59,15 @@ export class GodFileJudges {
     if (copy.commit !== report.commit) {
       throw new Error(`HEAD moved since the god files were measured (${report.commit.slice(0, 7)}, now ${copy.commit.slice(0, 7)}). Refresh God Files, then judge again.`);
     }
-    const contextFolder = await this.writeContext(repoFolder, item, report.commit);
+    // Claude gets no git: the prompt carries the file's commit subjects of the window.
+    const headTimeSeconds = Number((await runGit(["show", "-s", "--format=%ct", copy.commit], { cwd: repoFolder })).trim());
+    const since = `--since=@${headTimeSeconds - godFileRules.days * 24 * 60 * 60}`;
+    const commitSubjects = await runGit(["--literal-pathspecs", "log", "--no-merges", "--format=%h %ad %s", "--date=short", since, copy.commit, "--", item.path], { cwd: repoFolder });
     const run = await this.options.runClaude<unknown>({
-      prompt: godFileJudgePrompt(item, { commit: copy.commit, contextFolder, language: this.options.language() }),
+      prompt: godFileJudgePrompt(item, { commit: copy.commit, commitSubjects, language: this.options.language() }),
       schema: godFileJudgeSchema,
       workingDirectory: copy.folder,
-      readableFolders: [contextFolder],
+      readableFolders: [],
     });
     const lineCount = fs.readFileSync(path.join(copy.folder, item.path), "utf8").split("\n").length;
     const stored: StoredJudgment = {
@@ -79,19 +81,6 @@ export class GodFileJudges {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify(stored, null, 2));
     return stored;
-  }
-
-  // Claude gets no git: the extension writes the file's commit subjects and its numbers where
-  // Claude may read them.
-  private async writeContext(repoFolder: string, item: GodFileItem, commit: string): Promise<string> {
-    const contextFolder = path.join(this.options.storageFolder, "god-file-context", folderKey(repoFolder), pathKey(item.path));
-    fs.mkdirSync(contextFolder, { recursive: true });
-    const headTimeSeconds = Number((await runGit(["show", "-s", "--format=%ct", commit], { cwd: repoFolder })).trim());
-    const since = `--since=@${headTimeSeconds - godFileRules.days * 24 * 60 * 60}`;
-    const subjects = await runGit(["--literal-pathspecs", "log", "--no-merges", "--format=%h %ad %s", "--date=short", since, commit, "--", item.path], { cwd: repoFolder });
-    fs.writeFileSync(path.join(contextFolder, "history.txt"), `# Commits of the last ${godFileRules.days} days before ${commit.slice(0, 7)} that touched ${item.path}, newest first\n${subjects}`);
-    fs.writeFileSync(path.join(contextFolder, "numbers.txt"), numbersText(item));
-    return contextFolder;
   }
 
   private judgmentFile(repoFolder: string, repoPath: string, commit: string): string {

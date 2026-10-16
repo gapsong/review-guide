@@ -18,6 +18,7 @@ interface FakeLogEntry {
   cwd: string;
   readableFolders: string[];
   args: string[];
+  prompt: string;
 }
 
 describe("G7: Judge with Claude", () => {
@@ -52,7 +53,7 @@ describe("G7: Judge with Claude", () => {
     return new GodFileJudges({ storageFolder: storage, runClaude, language: () => "German" });
   }
 
-  it("G7, S1: runs once, read-only, in a copy of HEAD with the commit subjects and the numbers as files, and changes no byte of the repo", async () => {
+  it("G7, S1: runs once, read-only, in a copy of HEAD with the commit subjects and the numbers in the prompt, and changes no byte of the repo", async () => {
     const before = fingerprint(repo);
     const item = report.items.find((candidate) => candidate.path === "src/shop/broad.ts")!;
     const stored = await judges(claudeRunner(() => ({ executable: fakeClaudePath, model: "haiku" }))).judge(repo, item, report);
@@ -69,14 +70,10 @@ describe("G7: Judge with Claude", () => {
     }
     assert.strictEqual(call.args[call.args.indexOf("--tools") + 1], "Read,Grep,Glob");
     assert.strictEqual(call.args[call.args.indexOf("--permission-mode") + 1], "dontAsk");
-    assert.strictEqual(call.readableFolders.length, 1);
-    const context = call.readableFolders[0];
-    assert.ok(context.startsWith(path.join(storage, "god-file-context")));
-    const history = fs.readFileSync(path.join(context, "history.txt"), "utf8");
-    assert.ok(history.includes("Fix rounding of prices") && history.includes("Add the broad file"), history);
-    const numbers = fs.readFileSync(path.join(context, "numbers.txt"), "utf8");
-    assert.ok(numbers.includes("names used by other files (2): broad1, broad2"), numbers);
-    assert.ok(numbers.includes("commits in 90 days: 2"), numbers);
+    assert.deepStrictEqual(call.readableFolders, [], "no folder beyond the copy");
+    for (const part of ["Fix rounding of prices", "Add the broad file", "names used by other files: 2: broad1, broad2", "commits in 90 days: 2"]) {
+      assert.ok(call.prompt.includes(part), `${part}\n---\n${call.prompt}`);
+    }
 
     assert.strictEqual(stored.judgment.verdict, "god_file");
     assert.strictEqual(stored.commit, report.commit);

@@ -34,8 +34,8 @@ function main() {
   const pass = /^Review Guide pass: (.*)$/m.exec(prompt)[1].trim();
   const answer = answerFor(pass, prompt);
   const watched = process.env.FAKE_CLAUDE_WATCH;
-  // The judge's tests check every flag of the call; the older passes keep their log entries as they were.
-  const flags = pass === "god file judge" ? { args: args.filter((arg, index) => args[index - 1] !== "--json-schema") } : {};
+  // The judge's tests check every flag and the prompt of the call; the older passes keep their log entries as they were.
+  const flags = pass === "god file judge" ? { args: args.filter((arg, index) => args[index - 1] !== "--json-schema"), prompt } : {};
   log({ pass, unitIds: answer.unitIds, cwd: process.cwd(), readableFolders: readableFolders(args), ...(watched ? { saw: prompt.includes(watched) } : {}), ...flags });
   delete answer.unitIds;
   process.stdout.write(JSON.stringify({
