@@ -23,7 +23,7 @@ const broad: GodFileItem = {
 
 const unknownBreadth: GodFileItem = { ...broad, path: "cmd/main.go", namesUsedOutside: undefined, filesUsingIt: undefined, hint: undefined, percentiles: { coChangeAreas: 0.5, commitsInWindow: 0.5, coChangePartners: 0.5 } };
 
-const report: GodFileReport = { commit: "abc", days: 90, minCodeLines: 150, sourceFileCount: 10, commitCount: 70, items: [broad, unknownBreadth] };
+const report: GodFileReport = { commit: "abc", days: 90, minCodeLines: 150, sourceFileCount: 10, commitCount: 70, historyIsCut: false, items: [broad, unknownBreadth] };
 
 describe("G5: what the God Files view says about a file", () => {
   it("G5: shows the numbers line", () => {

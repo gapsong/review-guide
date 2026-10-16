@@ -361,6 +361,15 @@ describe("G4: history from one git log pass", () => {
     assert.strictEqual(shorter.commitCount, 2);
   });
 
+  it("G4: a shallow clone says so: its commit counts are a floor, not the history", async () => {
+    const shallow = path.join(scratch, "shallow");
+    execFileSync("git", ["clone", "--quiet", "--depth", "1", `file://${repo}`, shallow]);
+    const cut = await measureGodFiles(shallow, defaultGodFileOptions);
+    assert.strictEqual(cut.historyIsCut, true);
+    assert.strictEqual(cut.commitCount, 1);
+    assert.strictEqual(report.historyIsCut, false);
+  });
+
   it("G4: reads renames and sweeps from the log text", () => {
     const log = "\x1eaaa 300\0\nM\0src/b.ts\0A\0src/c.ts\0\x1ebbb 200\0\nR100\0src/a.ts\0src/b.ts\0\x1eccc 100\0\nM\0src/a.ts\0";
     const commits = parseLog(log);

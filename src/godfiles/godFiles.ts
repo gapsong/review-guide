@@ -49,6 +49,8 @@ export interface GodFileReport {
   sourceFileCount: number;
   // Commits in the window before HEAD, merges left out.
   commitCount: number;
+  // A shallow clone holds only the newest commits: the counts are a floor, not the history.
+  historyIsCut: boolean;
   // Every candidate, the highest score first.
   items: GodFileItem[];
 }
@@ -61,6 +63,7 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
   const sources = await readSources(repoFolder, sourcePaths, options.signal);
   const breadth = measureBreadth(sources);
   const history = await readHistory(repoFolder, commit, options.days, new Set(sourcePaths.map((file) => file.path)), await isPartialClone(repoFolder), options.signal);
+  const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"], options.signal)).trim() === "true";
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
     .filter((source) => source.codeLines >= options.minCodeLines)
@@ -71,6 +74,7 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
     minCodeLines: options.minCodeLines,
     sourceFileCount: sources.length,
     commitCount: history.commitCount,
+    historyIsCut,
     items: rankedItems(candidates),
   };
 }

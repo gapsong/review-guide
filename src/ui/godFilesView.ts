@@ -146,7 +146,8 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
       return undefined;
     }
     const { report } = ready[0];
-    return `${report.sourceFileCount} source files · ${report.commitCount} commits in ${report.days} days · ranked by breadth and history, never by length`;
+    const cut = report.historyIsCut ? " (shallow clone: older commits are missing)" : "";
+    return `${report.sourceFileCount} source files · ${report.commitCount} commits in ${report.days} days${cut} · ranked by breadth and history, never by length`;
   }
 }
 
