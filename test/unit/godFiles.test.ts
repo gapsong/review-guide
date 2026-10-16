@@ -245,14 +245,17 @@ describe("G3: the module-level import scan (knows N areas)", () => {
       py("app/models.py", "class Order: pass\n"),
       py("shop/payment.py", "def charge(): pass\n"),
       py("api/main.py", "from app.routes import billing\nbilling.router\n"),
+      py("api/app.py", "from app.routes import (\n    billing,\n    users,\n    helper,\n)\n"),
+      py("app/routes/users.py", "router = 1\n"),
       py("api/admin.py", "import app.models as m\nfrom ..shop import payment\n"),
       py("api/jobs.py", "from app.models import (\n    Order,\n)\nfrom shop.payment \\\n    import charge\n\"\"\"from app.routes import billing\"\"\"\n"),
     ];
     const imported = importedFiles(sources);
     assert.deepStrictEqual(imported.get("api/main.py"), ["app/routes/billing.py"], "from a package, a module is the import");
+    assert.deepStrictEqual(imported.get("api/app.py"), ["app/routes/__init__.py", "app/routes/billing.py", "app/routes/users.py"], "every submodule of the list, and the package for a name that is none");
     assert.deepStrictEqual(imported.get("api/admin.py"), ["app/models.py", "shop/payment.py"]);
     assert.deepStrictEqual(imported.get("api/jobs.py"), ["app/models.py", "shop/payment.py"]);
-    assert.deepStrictEqual([...importLinesOf(sources[6].text, "python")].sort(), [0, 1, 2, 3, 4]);
+    assert.deepStrictEqual([...importLinesOf(sources.find((source) => source.path === "api/jobs.py")!.text, "python")].sort(), [0, 1, 2, 3, 4]);
   });
 
   it("G3: a string with \"from\", a declaration before a re-export or a template is no import line; a re-export without from and __all__ are", () => {

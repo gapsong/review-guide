@@ -56,16 +56,21 @@ export function importedFiles(sources: ScannedSource[]): Map<string, string[]> {
       if (statement.module === undefined) {
         continue;
       }
-      const module = statement.module;
-      const target = source.language === "typescript"
-        ? typescript.resolve(source.path, module)
-        : [...statement.submodules, module].map((candidate) => python.resolve(source.path, candidate)).find((file) => file !== undefined);
-      if (target !== undefined && target !== source.path) {
-        files.add(target);
+      for (const target of source.language === "typescript" ? [typescript.resolve(source.path, statement.module)] : pythonTargets(python, source.path, statement.module, statement.submodules)) {
+        if (target !== undefined && target !== source.path) {
+          files.add(target);
+        }
       }
     }
     return [source.path, [...files].sort()];
   }));
+}
+
+// "from pkg import a, b, f": every name that is a submodule is an import of it; a name that is not
+// (a function of the package) is an import of the package itself.
+function pythonTargets(python: PythonModuleIndex, importer: string, module: string, submodules: string[]): (string | undefined)[] {
+  const files = submodules.map((submodule) => python.resolve(importer, submodule));
+  return files.length > 0 && files.every((file) => file !== undefined) ? files : [...files, python.resolve(importer, module)];
 }
 
 // TypeScript and JavaScript ------------------------------------------------------------------------
