@@ -9,6 +9,10 @@ export interface PythonImport {
   usesAllNames: boolean;
   // For "import a.b as n" and "import a.b": the attributes used on it (n.<name>, a.b.<name>).
   attributesUsed: string[];
+  // A module-level "from m import a as b" offers a as b to whoever imports this module, which is
+  // how a package's __init__.py passes names on; "from m import *" passes all of them.
+  reexported?: { importedName: string; exportedAs: string }[];
+  reexportsAll?: boolean;
 }
 
 const identifier = "[A-Za-z_]\\w*";
@@ -45,12 +49,14 @@ export function importsOf(text: string): PythonImport[] {
   const fromImports = new RegExp(`^[ \\t]*from[ \\t]+(\\.*(?:${identifier}(?:\\.${identifier})*)?)[ \\t]+import[ \\t]+(\\([^)]*\\)|[^\\n;]+)`, "gm");
   for (const match of code.matchAll(fromImports)) {
     const list = match[2].replace(/[()]/g, " ");
+    const isModuleLevel = !/^[ \t]/.test(match[0]);
     if (list.trim() === "*") {
-      imports.push({ module: match[1], importedNames: [], usesAllNames: true, attributesUsed: [] });
+      imports.push({ module: match[1], importedNames: [], usesAllNames: true, attributesUsed: [], reexportsAll: isModuleLevel });
       continue;
     }
     const entries = list.split(",").map((part) => part.trim()).filter((part) => part !== "").map(aliasOf);
-    imports.push({ module: match[1], importedNames: entries.map((entry) => entry.name), usesAllNames: false, attributesUsed: [] });
+    const reexported = isModuleLevel ? entries.map((entry) => ({ importedName: entry.name, exportedAs: entry.boundAs })) : undefined;
+    imports.push({ module: match[1], importedNames: entries.map((entry) => entry.name), usesAllNames: false, attributesUsed: [], reexported });
     for (const entry of entries) {
       // "from pkg import sub" may name a submodule; its attributes are found the same way.
       imports.push({ module: `${match[1]}${match[1].endsWith(".") ? "" : "."}${entry.name}`, importedNames: [], usesAllNames: false, attributesUsed: attributesUsed(entry.boundAs, code), });

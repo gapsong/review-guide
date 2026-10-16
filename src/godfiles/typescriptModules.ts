@@ -6,6 +6,14 @@ export interface ModuleUse {
   specifier: string;
   names: string[];
   usesAllNames: boolean;
+  // A re-export passes names on: "export { a as b } from" offers a as b, "export * from" offers all.
+  reexported?: Reexport[];
+  reexportsAll?: boolean;
+}
+
+export interface Reexport {
+  importedName: string;
+  exportedAs: string;
 }
 
 const identifier = "[A-Za-z_$][\\w$]*";
@@ -83,11 +91,12 @@ function reexports(code: string): ModuleUse[] {
   const uses: ModuleUse[] = [];
   const lists = /^[ \t]*export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm;
   for (const match of code.matchAll(lists)) {
-    uses.push({ specifier: match[2], names: listEntries(match[1]).map((entry) => entry.importedName), usesAllNames: false });
+    const entries = listEntries(match[1]);
+    uses.push({ specifier: match[2], names: entries.map((entry) => entry.importedName), usesAllNames: false, reexported: entries });
   }
-  const stars = /^[ \t]*export\s+(?:type\s+)?\*\s*(?:as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/gm;
+  const stars = /^[ \t]*export\s+(?:type\s+)?\*\s*(as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/gm;
   for (const match of code.matchAll(stars)) {
-    uses.push({ specifier: match[1], names: [], usesAllNames: true });
+    uses.push({ specifier: match[2], names: [], usesAllNames: true, reexportsAll: match[1] === undefined });
   }
   return uses;
 }

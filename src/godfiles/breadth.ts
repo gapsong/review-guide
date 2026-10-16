@@ -1,7 +1,7 @@
 import * as path from "path";
 import { importsOf, publicNamesOf } from "./pythonModules";
 import { Language } from "./sourceFiles";
-import { exportedNamesOf, moduleUsesOf } from "./typescriptModules";
+import { exportedNamesOf, moduleUsesOf, Reexport } from "./typescriptModules";
 
 // Breadth: how many of a file's top-level names other source files use, and how many files use
 // them. Users are found through their imports, resolved to files of the repo:
@@ -39,30 +39,57 @@ export function measureBreadth(sources: SourceText[]): Map<string, Breadth> {
   return breadth;
 }
 
+// Re-exports are followed: a name imported from a barrel (index.ts, a package's __init__.py) is
+// also a use of the module that defines it, a few hops deep at most.
+const reexportHopsFollowed = 4;
+
 class UseCounter {
   private readonly exported = new Map<string, Set<string>>();
   private readonly usedNames = new Map<string, Set<string>>();
   private readonly users = new Map<string, Set<string>>();
+  private readonly namedReexports = new Map<string, Map<string, { target: string; importedName: string }>>();
+  private readonly starReexports = new Map<string, string[]>();
 
   declareExports(file: string, names: string[]): void {
     this.exported.set(file, new Set(names));
+  }
+
+  declareReexports(file: string, target: string, reexported: Reexport[] | undefined, reexportsAll: boolean | undefined): void {
+    const named = this.namedReexports.get(file) ?? new Map<string, { target: string; importedName: string }>();
+    for (const entry of reexported ?? []) {
+      named.set(entry.exportedAs, { target, importedName: entry.importedName });
+    }
+    this.namedReexports.set(file, named);
+    if (reexportsAll) {
+      this.starReexports.set(file, [...(this.starReexports.get(file) ?? []), target]);
+    }
   }
 
   exportsOf(file: string): string[] {
     return [...(this.exported.get(file) ?? [])];
   }
 
-  record(user: string, target: string, names: string[]): void {
-    if (user === target) {
+  record(user: string, target: string, names: string[], hops = 0): void {
+    if (user === target || hops > reexportHopsFollowed) {
       return;
     }
     const exported = this.exported.get(target) ?? new Set<string>();
     const real = names.filter((name) => exported.has(name));
-    if (real.length === 0) {
-      return;
+    if (real.length > 0) {
+      addAll(this.usedNames, target, real);
+      addAll(this.users, target, [user]);
     }
-    addAll(this.usedNames, target, real);
-    addAll(this.users, target, [user]);
+    for (const name of names) {
+      const reexport = this.namedReexports.get(target)?.get(name);
+      if (reexport) {
+        this.record(user, reexport.target, [reexport.importedName], hops + 1);
+      }
+      for (const starTarget of this.starReexports.get(target) ?? []) {
+        if (this.exported.get(starTarget)?.has(name) || this.namedReexports.get(starTarget)?.has(name) || this.starReexports.has(starTarget)) {
+          this.record(user, starTarget, [name], hops + 1);
+        }
+      }
+    }
   }
 
   breadthOf(file: string): Breadth {
@@ -87,12 +114,20 @@ const resolvableExtensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mt
 
 function countTypescriptUses(sources: SourceText[], uses: UseCounter): void {
   const modules = new TypescriptModuleIndex(sources.map((source) => source.path));
-  for (const source of sources) {
+  const resolvedUses = sources.map((source) => ({
+    source,
+    uses: moduleUsesOf(source.text).map((use) => ({ use, target: modules.resolve(source.path, use.specifier) })),
+  }));
+  for (const { source, uses: fileUses } of resolvedUses) {
     uses.declareExports(source.path, exportedNamesOf(source.text));
+    for (const { use, target } of fileUses) {
+      if (target !== undefined) {
+        uses.declareReexports(source.path, target, use.reexported, use.reexportsAll);
+      }
+    }
   }
-  for (const source of sources) {
-    for (const use of moduleUsesOf(source.text)) {
-      const target = modules.resolve(source.path, use.specifier);
+  for (const { source, uses: fileUses } of resolvedUses) {
+    for (const { use, target } of fileUses) {
       if (target !== undefined) {
         uses.record(source.path, target, use.usesAllNames ? uses.exportsOf(target) : use.names);
       }
@@ -160,17 +195,25 @@ class TypescriptModuleIndex {
 
 function countPythonUses(sources: SourceText[], uses: UseCounter): void {
   const modules = new PythonModuleIndex(sources.map((source) => source.path));
-  for (const source of sources) {
-    uses.declareExports(source.path, publicNamesOf(source.text, source.path === "__init__.py" || source.path.endsWith("/__init__.py")));
-  }
-  for (const source of sources) {
-    for (const pythonImport of importsOf(source.text)) {
-      const target = modules.resolve(source.path, pythonImport.module);
-      if (target === undefined) {
-        continue;
+  const resolvedImports = sources.map((source) => ({
+    source,
+    isPackageInit: source.path === "__init__.py" || source.path.endsWith("/__init__.py"),
+    imports: importsOf(source.text).map((pythonImport) => ({ pythonImport, target: modules.resolve(source.path, pythonImport.module) })),
+  }));
+  for (const { source, isPackageInit, imports } of resolvedImports) {
+    uses.declareExports(source.path, publicNamesOf(source.text, isPackageInit));
+    for (const { pythonImport, target } of imports) {
+      if (target !== undefined && isPackageInit) {
+        uses.declareReexports(source.path, target, pythonImport.reexported, pythonImport.reexportsAll);
       }
-      const names = pythonImport.usesAllNames ? uses.exportsOf(target) : [...pythonImport.importedNames, ...pythonImport.attributesUsed];
-      uses.record(source.path, target, names);
+    }
+  }
+  for (const { source, imports } of resolvedImports) {
+    for (const { pythonImport, target } of imports) {
+      if (target !== undefined) {
+        const names = pythonImport.usesAllNames ? uses.exportsOf(target) : [...pythonImport.importedNames, ...pythonImport.attributesUsed];
+        uses.record(source.path, target, names);
+      }
     }
   }
 }

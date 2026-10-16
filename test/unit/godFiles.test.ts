@@ -174,12 +174,14 @@ describe("G3: breadth through imports", () => {
       ts("apps/web/c.js", "const { legacy } = require('../../src/lib/old.js');\nconst cjs = require('../../src/lib/cjs');\ncjs.alpha(); require('../../src/lib/old').older;\n"),
       ts("apps/web/d.mjs", "const { rate } = await import('../../src/lib/tax.js');\n"),
       ts("apps/web/e.ts", "import { visible } from '~/lib/money';\nimport React from 'react';\nimport { x } from 'money';\n"),
+      ts("apps/web/f.ts", "import { add, vat } from '../../src/lib';\n"),
     ]);
     assert.deepStrictEqual(breadth.get("src/lib/money.ts"), {
       namesUsedOutside: ["Price", "Purse", "Coin", "add", "cents", "default", "visible"].sort(),
-      filesUsingIt: ["apps/web/a.ts", "apps/web/b.tsx", "apps/web/e.ts", "src/lib/index.ts"],
+      filesUsingIt: ["apps/web/a.ts", "apps/web/b.tsx", "apps/web/e.ts", "apps/web/f.ts", "src/lib/index.ts"],
     });
-    assert.deepStrictEqual(breadth.get("src/lib/tax.ts"), { namesUsedOutside: ["rate", "vat"], filesUsingIt: ["apps/web/d.mjs", "src/lib/index.ts"] }, "export * uses every name");
+    assert.deepStrictEqual(breadth.get("src/lib/tax.ts"), { namesUsedOutside: ["rate", "vat"], filesUsingIt: ["apps/web/d.mjs", "apps/web/f.ts", "src/lib/index.ts"] }, "export * uses every name, and a name taken from the barrel is a use of its module");
+    assert.deepStrictEqual(breadth.get("src/lib/index.ts"), { namesUsedOutside: ["add"], filesUsingIt: ["apps/web/f.ts"] });
     assert.deepStrictEqual(breadth.get("src/lib/old.js")?.namesUsedOutside, ["legacy", "older"]);
     assert.deepStrictEqual(breadth.get("src/lib/cjs.js")?.namesUsedOutside, ["alpha"]);
     assert.deepStrictEqual(breadth.get("apps/web/a.ts"), { namesUsedOutside: [], filesUsingIt: [] });
@@ -212,6 +214,18 @@ describe("G3: breadth through imports", () => {
     });
     assert.deepStrictEqual(breadth.get("src/shop/models.py"), { namesUsedOutside: ["Line", "Order"], filesUsingIt: ["src/api/admin.py", "src/api/everything.py", "src/api/views.py"] }, "__all__ decides; Hidden is not public");
     assert.deepStrictEqual(breadth.get("src/shop/__init__.py"), { namesUsedOutside: ["Receipt"], filesUsingIt: ["src/api/home.py"] }, "a package offers what its __init__ imports");
+  });
+
+  it("G3: Python: a name a package's __init__.py passes on is also a use of the module that defines it", () => {
+    const breadth = measureBreadth([
+      py("fastlib/applications.py", "class App:\n    pass\n"),
+      py("fastlib/params.py", "def Query():\n    pass\n"),
+      py("fastlib/__init__.py", "from .applications import App as App\nfrom .params import *\n"),
+      py("docs/a.py", "from fastlib import App, Query\n"),
+      py("docs/b.py", "import fastlib\nfastlib.App()\n"),
+    ]);
+    assert.deepStrictEqual(breadth.get("fastlib/applications.py"), { namesUsedOutside: ["App"], filesUsingIt: ["docs/a.py", "docs/b.py", "fastlib/__init__.py"] });
+    assert.deepStrictEqual(breadth.get("fastlib/params.py"), { namesUsedOutside: ["Query"], filesUsingIt: ["docs/a.py", "fastlib/__init__.py"] });
   });
 
   it("G3: other languages show no breadth ('–', never 0) and still rank on history", async () => {
