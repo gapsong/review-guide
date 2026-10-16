@@ -181,7 +181,7 @@ GOD FILES                                                         [refresh]
 
 **Judge with Claude** (right-click a file): one read-only Claude Code run on a clean copy of your last commit. It answers with a verdict (god file, deep module, hub, ok) and why, the file's responsibilities with their lines, a reading path of 3 to 5 functions, and keep whole or split. The judgment shows in the Explain panel's "Judge" view and is kept for that file and commit.
 
-<img alt="Judge with Claude on src/godfiles/breadth.ts of this repo (haiku)" src="docs/assets/god-files-judge.png" width="900">
+<img alt="Judge with Claude on src/godfiles/godFiles.ts of this repo (haiku)" src="docs/assets/god-files-judge.png" width="900">
 
 ## Safety
 
