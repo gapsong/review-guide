@@ -487,23 +487,11 @@
           "default": ".codemap/codemap.yaml",
           "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`), an optional `deep: true` and optional notes (`why`, `watch`, `start`, `mine`). Keep it personal (gitignored)."
         },
-        "reviewGuide.godFiles.days": {
-          "type": "integer",
-          "default": 90,
-          "minimum": 1,
-          "description": "God Files: how many days of git history before HEAD count as reasons to change."
-        },
         "reviewGuide.godFiles.minLines": {
           "type": "integer",
           "default": 150,
           "minimum": 1,
           "description": "God Files: a source file is ranked from this many code lines on. Code lines are shown, but never part of the score."
-        },
-        "reviewGuide.godFiles.maxItems": {
-          "type": "integer",
-          "default": 20,
-          "minimum": 1,
-          "description": "God Files: how many files the view shows."
         },
         "reviewGuide.godFiles.exclude": {
           "type": "array",

@@ -337,21 +337,14 @@ describe("G4: history from one git log pass", () => {
 
   after(() => fs.rmSync(scratch, { recursive: true, force: true }));
 
-  it("G4: counts commits in the 90 days before HEAD, under the file's current path across a rename", () => {
+  it("G4: counts commits in the 90 days before HEAD's commit time (not the clock), under the file's current path across a rename", () => {
     const motor = itemOf(report, "src/core/motor.ts");
     assert.strictEqual(motor.commits, 5, "80, 25, the sweep, the rename and the last commit; not the one at 120 days");
-    assert.strictEqual(report.days, 90);
   });
 
   it("G4: co-change areas come from the measured files of commits of at most 25 files; a larger commit is a sweep", () => {
     const motor = itemOf(report, "src/core/motor.ts");
     assert.deepStrictEqual(motor.coChangeAreas, ["apps/api", "packages/ui", "src/core"], "no area of the sweep's services, none for the README or the test");
-  });
-
-  it("G4: the window is measured from HEAD's commit time, so the same commit always gives the same numbers", async () => {
-    const shorter = await measureGodFiles(repo, { ...defaultGodFileOptions, days: 7 });
-    assert.strictEqual(itemOf(shorter, "src/core/motor.ts").commits, 2);
-    assert.strictEqual(shorter.commitCount, 2);
   });
 
   it("G4: a shallow clone says so: its commit counts are a floor, not the history", async () => {

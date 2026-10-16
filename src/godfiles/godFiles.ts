@@ -28,17 +28,12 @@ export const godFileRules = {
   // A commit that touches more files than this is a sweep (a rename, a formatter run); its files did
   // not change together for one reason, so it does not count as co-change.
   largestCoChangeCommitFiles: 25,
-};
-
-// The settings' defaults (package.json, reviewGuide.godFiles.*).
-export const godFileDefaults = {
+  // The history window before HEAD: each commit in it is a reason the file had to change.
   days: 90,
-  minCodeLines: 150,
-  maxItems: 20,
 };
 
 export interface GodFileOptions {
-  days: number;
+  // Files are candidates from this many code lines on (setting reviewGuide.godFiles.minLines).
   minCodeLines: number;
   // Globs of repo paths to leave out (setting reviewGuide.godFiles.exclude).
   exclude: string[];
@@ -63,7 +58,6 @@ export interface GodFileItem {
 
 export interface GodFileReport {
   commit: string;
-  days: number;
   minCodeLines: number;
   sourceFileCount: number;
   // Commits in the window before HEAD, merges left out.
@@ -74,14 +68,14 @@ export interface GodFileReport {
   items: GodFileItem[];
 }
 
-export const defaultGodFileOptions: GodFileOptions = { days: godFileDefaults.days, minCodeLines: godFileDefaults.minCodeLines, exclude: [] };
+export const defaultGodFileOptions: GodFileOptions = { minCodeLines: 150, exclude: [] };
 
 export async function measureGodFiles(repoFolder: string, options: GodFileOptions): Promise<GodFileReport> {
   const commit = await headCommitOf(repoFolder);
   const sourcePaths = await measuredSourcesAt(repoFolder, commit, options);
   const sources = await readSources(repoFolder, sourcePaths);
   const breadth = measureBreadth(sources);
-  const history = await readHistory(repoFolder, commit, options.days, new Set(sourcePaths.map((file) => file.path)));
+  const history = await readHistory(repoFolder, commit, new Set(sourcePaths.map((file) => file.path)));
   const historyIsCut = (await readGit(repoFolder, ["rev-parse", "--is-shallow-repository"])).trim() === "true";
   const candidates = sources
     .map((source) => ({ path: source.path, codeLines: countCodeLines(source.text, source.language) }))
@@ -89,7 +83,6 @@ export async function measureGodFiles(repoFolder: string, options: GodFileOption
     .map((source) => candidateOf(source.path, source.codeLines, breadth.get(source.path), history.files.get(source.path)));
   return {
     commit,
-    days: options.days,
     minCodeLines: options.minCodeLines,
     sourceFileCount: sources.length,
     commitCount: history.commitCount,
@@ -223,9 +216,9 @@ export interface Commit {
   paths: string[];
 }
 
-async function readHistory(repoFolder: string, headCommit: string, days: number, measuredPaths: Set<string>): Promise<{ commitCount: number; files: Map<string, FileHistory> }> {
+async function readHistory(repoFolder: string, headCommit: string, measuredPaths: Set<string>): Promise<{ commitCount: number; files: Map<string, FileHistory> }> {
   const headTimeSeconds = Number((await readGit(repoFolder, ["show", "-s", "--format=%ct", headCommit])).trim());
-  const since = `--since=@${headTimeSeconds - days * 24 * 60 * 60}`;
+  const since = `--since=@${headTimeSeconds - godFileRules.days * 24 * 60 * 60}`;
   const commits = parseLog(await readGit(repoFolder, ["log", "--no-merges", "-z", "--name-status", "-M", "--format=%x1e%H", since, headCommit]));
   return { commitCount: commits.length, files: historyOf(commits, measuredPaths) };
 }

@@ -136,7 +136,7 @@ export class GodFileJudgePanels implements vscode.Disposable {
     const folder = vscode.Uri.parse(opened.target.folderUri).fsPath;
     const stored = this.judges.judgmentOf(folder, item.path, state.report.commit);
     const { html, locations } = renderJudgePanel(
-      { item, days: state.report.days, commit: state.report.commit, stored, work: opened.work, error: opened.error },
+      { item, commit: state.report.commit, stored, work: opened.work, error: opened.error },
       randomBytes(16).toString("hex"),
       opened.panel.webview.cspSource,
     );

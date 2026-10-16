@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { gitFoldersOf } from "../git/gitFolders";
-import { godFileDefaults, GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
+import { defaultGodFileOptions, GodFileOptions, GodFileReport, measureGodFiles } from "../godfiles/godFiles";
 
 // The god files of every workspace folder that is a git repo, kept fresh: measured the first time
 // the view is shown, again when HEAD moves (a commit, a checkout, a pull) or a setting changes,
@@ -11,18 +11,9 @@ export type FolderGodFiles =
   | { folder: vscode.WorkspaceFolder; state: "ready"; report: GodFileReport }
   | { folder: vscode.WorkspaceFolder; state: "failed"; message: string };
 
-export interface GodFileSettings extends GodFileOptions {
-  maxItems: number;
-}
-
-export function godFileSettings(): GodFileSettings {
+export function godFileSettings(): GodFileOptions {
   const settings = vscode.workspace.getConfiguration("reviewGuide.godFiles");
-  return {
-    days: settings.get<number>("days", godFileDefaults.days),
-    minCodeLines: settings.get<number>("minLines", godFileDefaults.minCodeLines),
-    maxItems: settings.get<number>("maxItems", godFileDefaults.maxItems),
-    exclude: settings.get<string[]>("exclude", []),
-  };
+  return { minCodeLines: settings.get<number>("minLines", defaultGodFileOptions.minCodeLines), exclude: settings.get<string[]>("exclude", []) };
 }
 
 export class WorkspaceGodFiles implements vscode.Disposable {
@@ -38,7 +29,7 @@ export class WorkspaceGodFiles implements vscode.Disposable {
   private running: Promise<void> | undefined;
   private measureRequested = false;
 
-  constructor(private readonly settings: () => GodFileSettings = godFileSettings) {
+  constructor(private readonly settings: () => GodFileOptions = godFileSettings) {
     this.subscriptions = [
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.restartIfStarted()),
       vscode.workspace.onDidChangeConfiguration((event) => {
@@ -55,10 +46,6 @@ export class WorkspaceGodFiles implements vscode.Disposable {
       this.started = true;
       void this.findRepos().then(() => this.measure());
     }
-  }
-
-  get maxItems(): number {
-    return this.settings().maxItems;
   }
 
   foldersWithGit(): FolderGodFiles[] {

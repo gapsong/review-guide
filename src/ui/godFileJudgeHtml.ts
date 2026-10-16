@@ -13,7 +13,6 @@ export type JudgeWork = "idle" | "judging";
 
 export interface JudgePanelModel {
   item: GodFileItem;
-  days: number;
   commit: string;
   stored: StoredJudgment | undefined;
   work: JudgeWork;
@@ -57,7 +56,7 @@ export function renderJudgePanel(model: JudgePanelModel, nonce: string, cspSourc
 <body>
 <header>
 <h2>${escapeHtml(model.item.path)}${model.item.hint ? ` <span class="hint">${escapeHtml(model.item.hint)}</span>` : ""}</h2>
-<p class="muted">${escapeHtml(numbersLine(model.item, model.days))} · at ${escapeHtml(model.commit.slice(0, 7))}</p>
+<p class="muted">${escapeHtml(numbersLine(model.item))} · at ${escapeHtml(model.commit.slice(0, 7))}</p>
 <p class="rule">${escapeHtml(ownersRule)}</p>
 <p>${actionHtml(model)}</p>
 ${model.error ? `<p class="error">${escapeHtml(model.error)}</p>` : ""}

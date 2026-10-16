@@ -7,7 +7,7 @@ import { godFileJudgeSchema } from "../claude/schemas";
 import { cleanRelativePath } from "../codemap/repoPath";
 import { runGit } from "../git/git";
 import { folderKey, HeadCopies } from "../git/headCopy";
-import { GodFileItem, GodFileReport } from "../godfiles/godFiles";
+import { godFileRules, GodFileItem, GodFileReport } from "../godfiles/godFiles";
 
 // "Judge with Claude" for one file of the God Files view, without VS Code: one read-only Claude call
 // in a copy of the repo's HEAD (the same copies "Check my words" reads), started only by the owner.
@@ -80,7 +80,7 @@ export class GodFileJudges {
     }
     const contextFolder = await this.writeContext(repoFolder, item, report);
     const run = await this.options.runClaude<unknown>({
-      prompt: godFileJudgePrompt(item, { commit: copy.commit, contextFolder, language: this.options.language(), days: report.days }),
+      prompt: godFileJudgePrompt(item, { commit: copy.commit, contextFolder, language: this.options.language() }),
       schema: godFileJudgeSchema,
       workingDirectory: copy.folder,
       readableFolders: [contextFolder],
@@ -105,10 +105,10 @@ export class GodFileJudges {
     const contextFolder = path.join(this.options.storageFolder, "god-file-context", folderKey(repoFolder), pathKey(item.path));
     fs.mkdirSync(contextFolder, { recursive: true });
     const headTimeSeconds = Number((await runGit(["show", "-s", "--format=%ct", report.commit], { cwd: repoFolder })).trim());
-    const since = headTimeSeconds - report.days * 24 * 60 * 60;
+    const since = headTimeSeconds - godFileRules.days * 24 * 60 * 60;
     const subjects = await runGit(["--literal-pathspecs", "log", "--no-merges", "--format=%h %ad %s", "--date=short", `--since=@${since}`, report.commit, "--", item.path], { cwd: repoFolder });
-    fs.writeFileSync(path.join(contextFolder, "history.txt"), `# Commits of the last ${report.days} days before ${report.commit.slice(0, 7)} that touched ${item.path}, newest first\n${subjects}`);
-    fs.writeFileSync(path.join(contextFolder, "numbers.txt"), numbersText(item, report.days));
+    fs.writeFileSync(path.join(contextFolder, "history.txt"), `# Commits of the last ${godFileRules.days} days before ${report.commit.slice(0, 7)} that touched ${item.path}, newest first\n${subjects}`);
+    fs.writeFileSync(path.join(contextFolder, "numbers.txt"), numbersText(item));
     return contextFolder;
   }
 

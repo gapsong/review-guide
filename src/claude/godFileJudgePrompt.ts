@@ -13,7 +13,6 @@ export interface GodFileJudgeContext {
   contextFolder: string;
   // The language the answer is written in (setting reviewGuide.explanationLanguage).
   language: string;
-  days: number;
 }
 
 export function godFileJudgePrompt(item: GodFileItem, context: GodFileJudgeContext): string {
@@ -23,7 +22,7 @@ The owner of this repo wants to know where owning it hurts most. Their rule: "${
 
 Your working directory is a copy of the repo at commit ${context.commit}. Judge the file below by reading it and what it calls (you have read-only tools; there is no shell and no git). The extension measured it for you:
 - ${context.contextFolder}/numbers.txt: its numbers (names other files use, the files that use them, commits, files and areas it changed with).
-- ${context.contextFolder}/history.txt: the subjects of the commits of the last ${context.days} days that touched it, newest first.
+- ${context.contextFolder}/history.txt: the subjects of the commits of the last ${godFileRules.days} days that touched it, newest first.
 
 Answer with:
 - verdict: god_file (several unrelated responsibilities behind a broad interface), deep_module (small interface, much hidden logic, one reason to change), hub (broad on purpose with little logic of its own: an index, a table of routes, the shared types callers must build), or ok (none of these is a problem here); verdictWhy in one sentence, by the owner's rule.
@@ -41,7 +40,7 @@ code lines: ${item.codeLines}`;
 }
 
 // numbers.txt: the measurement, in plain words.
-export function numbersText(item: GodFileItem, days: number): string {
+export function numbersText(item: GodFileItem): string {
   const breadth = item.namesUsedOutside === undefined || item.filesUsingIt === undefined
     ? "names used by other files: not measured for this language"
     : `names used by other files (${item.namesUsedOutside.length}): ${item.namesUsedOutside.join(", ") || "none"}\nfiles that use them (${item.filesUsingIt.length}): ${item.filesUsingIt.join(", ") || "none"}`;
@@ -49,7 +48,7 @@ export function numbersText(item: GodFileItem, days: number): string {
 path: ${item.path}
 code lines: ${item.codeLines}
 ${breadth}
-commits in ${days} days: ${item.commits}
+commits in ${godFileRules.days} days: ${item.commits}
 areas it changed with (${item.coChangeAreas.length}, commits of more than ${godFileRules.largestCoChangeCommitFiles} files left out): ${item.coChangeAreas.join(", ") || "none"}
 `;
 }

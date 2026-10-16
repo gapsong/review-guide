@@ -121,7 +121,7 @@ describe("G7: Judge with Claude", () => {
   it("G7: the panel escapes every text of the judgment, runs only its nonce script, and links only to checked lines of the file", () => {
     const stored = { path: "src/shop/broad.ts", commit: "a".repeat(40), judgment: checkedJudgment(validAnswer(), 10), judgedAt: "2026-10-16T12:00:00Z", durationMilliseconds: 61000 };
     const item = report.items[0];
-    const { html, locations } = renderJudgePanel({ item, days: 90, commit: stored.commit, stored, work: "idle", error: undefined }, "NONCE123", "vscode-resource:");
+    const { html, locations } = renderJudgePanel({ item, commit: stored.commit, stored, work: "idle", error: undefined }, "NONCE123", "vscode-resource:");
     assert.ok(html.includes("script-src 'nonce-NONCE123'"));
     assert.ok(html.includes("default-src 'none'"));
     assert.strictEqual((html.match(/<script/g) ?? []).length, 1, "only the panel's own script");
@@ -131,9 +131,9 @@ describe("G7: Judge with Claude", () => {
     assert.deepStrictEqual(locations, [{ path: item.path, line: 1 }, { path: item.path, line: 5 }, { path: item.path, line: 1 }, { path: item.path, line: 3 }]);
     assert.strictEqual((html.match(/data-location="\d+"/g) ?? []).length, 4, "the line outside the file has no link");
     assert.ok(html.includes("Judge again"));
-    const idle = renderJudgePanel({ item, days: 90, commit: stored.commit, stored: undefined, work: "idle", error: undefined }, "N", "c").html;
+    const idle = renderJudgePanel({ item, commit: stored.commit, stored: undefined, work: "idle", error: undefined }, "N", "c").html;
     assert.ok(idle.includes("Judge with Claude"));
-    const running = renderJudgePanel({ item, days: 90, commit: stored.commit, stored: undefined, work: "judging", error: undefined }, "N", "c").html;
+    const running = renderJudgePanel({ item, commit: stored.commit, stored: undefined, work: "judging", error: undefined }, "N", "c").html;
     assert.ok(running.includes("<button disabled>Judging…</button>"));
   });
 });

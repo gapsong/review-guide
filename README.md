@@ -105,9 +105,7 @@ If VS Code cannot find `claude` (common when VS Code is started from the Dock), 
 | `reviewGuide.githubApiUrl` | `https://api.github.com` | GitHub REST API address. |
 | `reviewGuide.codemapFile` | `.codemap/codemap.yaml` | Your codemap, relative to each workspace folder. |
 | `reviewGuide.explanationLanguage` | `English` | The language generated codemap explanations (and the God Files judgments) are written in. |
-| `reviewGuide.godFiles.days` | `90` | God Files: how many days of history before HEAD count as reasons to change. |
 | `reviewGuide.godFiles.minLines` | `150` | God Files: files are ranked from this many code lines on. |
-| `reviewGuide.godFiles.maxItems` | `20` | God Files: how many files the view shows. |
 | `reviewGuide.godFiles.exclude` | `[]` | God Files: globs of paths to leave out, e.g. `docs_src/**`. Tests, generated and vendored code are always left out. |
 
 ## Repo profile: `.review-guide.md`

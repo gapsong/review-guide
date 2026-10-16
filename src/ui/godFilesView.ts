@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { withBadge } from "../codemap/badge";
 import { WorkspaceCodemaps } from "../codemap/workspaceCodemaps";
-import { GodFileItem, GodFileReport } from "../godfiles/godFiles";
+import { godFileRules, GodFileItem } from "../godfiles/godFiles";
 import { CodemapTarget, commandLink, uriOfTarget } from "./codemapTarget";
 import { readSymbols } from "./documentSymbols";
 import { TooltipLink } from "./codemapTooltip";
@@ -12,6 +12,9 @@ import { FolderGodFiles, WorkspaceGodFiles } from "./workspaceGodFiles";
 // files where owning the repo hurts most, ranked by breadth and history (src/godfiles).
 //
 //   ⚠ src/shop/checkout.py   god file? · 23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines
+
+// The view shows the top of the ranking; the tail is where owning hurts least.
+const shownFiles = 20;
 
 export const godFileCommands = {
   refresh: "reviewGuide.godFiles.refresh",
@@ -83,17 +86,15 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
       return item;
     }
     const { item: godFile } = element;
-    const state = this.godFiles.stateOf(element.folderUri);
-    const days = state?.state === "ready" ? state.report.days : 90;
     const entry = this.codemaps.entryOf(uriOfTarget(element));
     const name = entry ? withBadge(entry, godFile.path) : godFile.path;
     const item = new vscode.TreeItem(`${markOf(godFile)}${name}`, vscode.TreeItemCollapsibleState.None);
     const warning = contradictsCodemap(godFile, entry) ? "⚠️ codemap says deep · " : "";
-    item.description = `${warning}${godFile.hint ? `${godFile.hint} · ` : ""}${numbersLine(godFile, days)}`;
+    item.description = `${warning}${godFile.hint ? `${godFile.hint} · ` : ""}${numbersLine(godFile)}`;
     item.contextValue = "godFile";
     item.resourceUri = uriOfTarget(element);
     item.command = { title: "Open at the longest function", command: godFileCommands.open, arguments: [targetOfNode(element)] };
-    item.accessibilityInformation = { label: `${godFile.path}, ${godFile.hint ?? "no hint"}: ${numbersLine(godFile, days)}` };
+    item.accessibilityInformation = { label: `${godFile.path}, ${godFile.hint ?? "no hint"}: ${numbersLine(godFile)}` };
     return item;
   }
 
@@ -102,19 +103,19 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     if (element.kind === "file") {
       const state = this.godFiles.stateOf(element.folderUri);
       if (state?.state === "ready") {
-        item.tooltip = this.tooltipOf(element, state.report);
+        item.tooltip = this.tooltipOf(element);
       }
     }
     return item;
   }
 
-  tooltipOf(element: Extract<GodFilesViewNode, { kind: "file" }>, report: GodFileReport): vscode.MarkdownString {
+  tooltipOf(element: Extract<GodFilesViewNode, { kind: "file" }>): vscode.MarkdownString {
     const target = targetOfNode(element);
     const actions: TooltipLink[] = [
       { title: "Open at the longest function", link: commandLink(godFileCommands.open, target) },
       { title: "Details and Judge with Claude", link: commandLink(godFileCommands.showDetails, target) },
     ];
-    const markdown = godFileTooltip({ item: element.item, report, entry: this.codemaps.entryOf(uriOfTarget(element)), actions });
+    const markdown = godFileTooltip({ item: element.item, entry: this.codemaps.entryOf(uriOfTarget(element)), actions });
     const tooltip = new vscode.MarkdownString(markdown, true);
     tooltip.isTrusted = { enabledCommands: [godFileCommands.open, godFileCommands.showDetails] };
     return tooltip;
@@ -136,7 +137,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
       return [{ kind: "message", text: `No source file has ${state.report.minCodeLines} code lines or more.`, icon: "info" }];
     }
     const folderUri = state.folder.uri.toString();
-    return state.report.items.slice(0, this.godFiles.maxItems).map((item, index) => ({ kind: "file", item, rank: index + 1, folderUri, path: item.path }));
+    return state.report.items.slice(0, shownFiles).map((item, index) => ({ kind: "file", item, rank: index + 1, folderUri, path: item.path }));
   }
 
   // "538 source files · 307 commits in 90 days · ranked by breadth and history, never by length"
@@ -147,7 +148,7 @@ export class GodFilesView implements vscode.TreeDataProvider<GodFilesViewNode>, 
     }
     const { report } = ready[0];
     const cut = report.historyIsCut ? " (shallow clone: older commits are missing)" : "";
-    return `${report.sourceFileCount} source files · ${report.commitCount} commits in ${report.days} days${cut} · ranked by breadth and history, never by length`;
+    return `${report.sourceFileCount} source files · ${report.commitCount} commits in ${godFileRules.days} days${cut} · ranked by breadth and history, never by length`;
   }
 }
 

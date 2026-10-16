@@ -1,7 +1,7 @@
 import { spacedBadgeOf } from "../codemap/badge";
 import { CodemapEntry } from "../codemap/codemap";
 import { isClassMember } from "../godfiles/breadth";
-import { godFileRules, GodFileItem, GodFileReport, isBroad } from "../godfiles/godFiles";
+import { godFileRules, GodFileItem, isBroad } from "../godfiles/godFiles";
 import { escapeMarkdown, TooltipLink } from "./codemapTooltip";
 
 // What the God Files view says about one file: the line of numbers, and the tooltip that explains
@@ -13,10 +13,10 @@ export const ownersRule = "A big file is fine only as a well-designed deep modul
 export const unknownNumber = "–";
 
 // "23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines"
-export function numbersLine(item: GodFileItem, days: number): string {
+export function numbersLine(item: GodFileItem): string {
   return [
     breadthText(item),
-    `${formatted(item.commits)} ${plural(item.commits, "commit", "commits")}/${days} d`,
+    `${formatted(item.commits)} ${plural(item.commits, "commit", "commits")}/${godFileRules.days} d`,
     `changes with ${formatted(item.coChangeAreas.length)} ${plural(item.coChangeAreas.length, "area", "areas")}`,
     `${formatted(item.codeLines)} lines`,
   ].join(" · ");
@@ -37,32 +37,31 @@ export function contradictsCodemap(item: GodFileItem, entry: CodemapEntry | unde
 
 export interface GodFileTooltipContent {
   item: GodFileItem;
-  report: GodFileReport;
   entry: CodemapEntry | undefined;
   actions: TooltipLink[];
 }
 
 export function godFileTooltip(content: GodFileTooltipContent): string {
-  const { item, report, entry } = content;
+  const { item, entry } = content;
   const sections = [
     `**${escapeMarkdown(item.path)}**${item.hint ? ` · *${escapeMarkdown(item.hint)}*` : ""}`,
     contradictsCodemap(item, entry) ? `$(warning) **Your codemap calls this file a deep module, but ${item.namesUsedOutside!.length} of its names are used by other files** (more than ${godFileRules.broadAboveNamesUsedOutside}).` : "",
     entry ? `Codemap: ${spacedBadgeOf(entry)} ${escapeMarkdown(entry.says)} *(${entry.label}${entry.deep ? " · deep module" : ""})*` : "",
-    numberLines(item, report.days).join("\n"),
+    numberLines(item).join("\n"),
     `*${escapeMarkdown(ownersRule)}* ${escapeMarkdown(hintMeaning(item))}`,
     content.actions.map((action) => `[${escapeMarkdown(action.title)}](${action.link})`).join(" · "),
   ];
   return sections.filter((section) => section !== "").join("\n\n");
 }
 
-function numberLines(item: GodFileItem, days: number): string[] {
+function numberLines(item: GodFileItem): string[] {
   const names = item.namesUsedOutside;
   const breadth = names === undefined
     ? `- **${unknownNumber} names used outside:** breadth is measured for TypeScript, JavaScript and Python only; this file ranks on its history.`
     : `- **${breadthText(item)}:** ${names.length === 0 ? "nothing imports it: an entry point, or unused." : `${escapeMarkdown(breadthSplit(names))}. The more names, the broader the interface you must keep stable.`}`;
   return [
     breadth,
-    `- **${item.commits} ${plural(item.commits, "commit", "commits")} in ${days} days:** each commit is a reason it had to change.`,
+    `- **${item.commits} ${plural(item.commits, "commit", "commits")} in ${godFileRules.days} days:** each commit is a reason it had to change.`,
     `- **Changes with ${item.coChangeAreas.length} ${plural(item.coChangeAreas.length, "area", "areas")}**${item.coChangeAreas.length > 0 ? ` (${escapeMarkdown(shortList(item.coChangeAreas))})` : ""}: files that changed in the same commits; many areas mean many unrelated reasons. Commits of more than ${godFileRules.largestCoChangeCommitFiles} files are sweeps and do not count.`,
     `- **${formatted(item.codeLines)} code lines:** shown, but never part of the score.`,
   ];
