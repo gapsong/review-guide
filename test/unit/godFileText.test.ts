@@ -3,7 +3,7 @@ import { checkedJudgment } from "../../src/analysis/godFileJudge";
 import { CodemapEntry } from "../../src/codemap/codemap";
 import { GodFileItem } from "../../src/godfiles/godFiles";
 import { renderExplainPanel } from "../../src/ui/explainHtml";
-import { breadthText, contradictsCodemap, godFileTooltip, judgeHtml, judgeStyles, numbersLine } from "../../src/ui/godFileText";
+import { contradictsCodemap, godFileTooltip, judgeHtml, judgeStyles, numbersLine } from "../../src/ui/godFileText";
 
 const broad: GodFileItem = {
   path: "src/shop/checkout.py",
@@ -24,8 +24,7 @@ describe("G5: what the God Files view says about a file", () => {
   });
 
   it("G3, G5: shows unknown breadth as \"–\", never as 0", () => {
-    assert.strictEqual(breadthText(unknownBreadth), "– names used outside");
-    assert.ok(!numbersLine(unknownBreadth).includes(" 0 names"));
+    assert.ok(numbersLine(unknownBreadth).startsWith("– names used outside · "), numbersLine(unknownBreadth));
     const tooltip = godFileTooltip({ item: unknownBreadth, entry: undefined, actions: [] });
     assert.ok(tooltip.includes("– names used outside:** breadth is measured for TypeScript, JavaScript and Python only"), tooltip);
   });

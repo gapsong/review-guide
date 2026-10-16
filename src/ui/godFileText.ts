@@ -12,9 +12,6 @@ import { escapeHtml } from "./markdown";
 
 export const ownersRule = "A big file is fine only as a well-designed deep module: few names used outside, one reason to change.";
 
-// Breadth that is not measured shows as "–": a 0 would claim nobody uses the file.
-export const unknownNumber = "–";
-
 // "23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines"
 export function numbersLine(item: GodFileItem): string {
   return [
@@ -25,12 +22,10 @@ export function numbersLine(item: GodFileItem): string {
   ].join(" · ");
 }
 
-export function breadthText(item: GodFileItem): string {
-  if (item.namesUsedOutside === undefined) {
-    return `${unknownNumber} names used outside`;
-  }
-  const names = item.namesUsedOutside.length;
-  return `${formatted(names)} ${plural(names, "name", "names")} used outside`;
+// Breadth that is not measured shows as "–": a 0 would claim nobody uses the file.
+function breadthText(item: GodFileItem): string {
+  const names = item.namesUsedOutside?.length;
+  return names === undefined ? "– names used outside" : `${formatted(names)} ${plural(names, "name", "names")} used outside`;
 }
 
 // The codemap calls the file deep, but other files use more of it than a deep module shows.
@@ -60,7 +55,7 @@ export function godFileTooltip(content: GodFileTooltipContent): string {
 function numberLines(item: GodFileItem): string[] {
   const names = item.namesUsedOutside;
   const breadth = names === undefined
-    ? `- **${unknownNumber} names used outside:** breadth is measured for TypeScript, JavaScript and Python only; this file ranks on its history.`
+    ? `- **– names used outside:** breadth is measured for TypeScript, JavaScript and Python only; this file ranks on its history.`
     : `- **${breadthText(item)}:** ${names.length === 0 ? "nothing imports it: an entry point, or unused." : `${escapeMarkdown(breadthSplit(names))}. The more names, the broader the interface you must keep stable.`}`;
   return [
     breadth,
@@ -82,19 +77,15 @@ function breadthSplit(names: string[]): string {
 }
 
 function hintMeaning(item: GodFileItem): string {
-  if (item.hint === "god file?") {
-    return `More than ${godFileRules.broadAboveNamesUsedOutside} names used outside (class members included): maybe several modules in one file. Judge with Claude for a verdict.`;
-  }
+  const { broadAboveNamesUsedOutside: broad, deepFromCodeLines, deepAtMostCoChangeAreas } = godFileRules;
   if (item.hint === "deep") {
-    return `At most ${godFileRules.broadAboveNamesUsedOutside} names used outside, at least ${godFileRules.deepFromCodeLines} code lines and changes with at most ${godFileRules.deepAtMostCoChangeAreas} areas: it looks like a deep module.`;
+    return `At most ${broad} names used outside, at least ${deepFromCodeLines} code lines and changes with at most ${deepAtMostCoChangeAreas} areas: it looks like a deep module.`;
   }
-  if (item.namesUsedOutside?.length === 0) {
-    return "No hint: nothing imports it, so it has no interface to be deep behind. Judge with Claude for a verdict.";
-  }
-  if (item.namesUsedOutside !== undefined && item.codeLines >= godFileRules.deepFromCodeLines) {
-    return `No hint: a narrow interface, but it changes with ${item.coChangeAreas.length} areas (more than ${godFileRules.deepAtMostCoChangeAreas}), so it has more reasons to change than a deep module. Judge with Claude for a verdict.`;
-  }
-  return "No hint: Judge with Claude for a verdict.";
+  const why = item.hint === "god file?" ? `More than ${broad} names used outside (class members included): maybe several modules in one file.`
+    : item.namesUsedOutside?.length === 0 ? "No hint: nothing imports it, so it has no interface to be deep behind."
+      : item.namesUsedOutside !== undefined && item.codeLines >= deepFromCodeLines ? `No hint: a narrow interface, but it changes with more than ${deepAtMostCoChangeAreas} areas, so it has more reasons to change than a deep module.`
+        : "No hint.";
+  return `${why} Judge with Claude for a verdict.`;
 }
 
 function shortList(values: string[]): string {

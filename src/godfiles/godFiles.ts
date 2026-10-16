@@ -209,8 +209,8 @@ interface FileHistory {
   coChangeAreas: string[];
 }
 
-export interface Commit {
-  // Paths as they are at HEAD: a file renamed later in history counts under its new path.
+// A commit's paths as they are at HEAD: a file renamed later in history counts under its new path.
+interface Commit {
   paths: string[];
 }
 
@@ -223,7 +223,7 @@ async function readHistory(repoFolder: string, headCommit: string, measuredPaths
 
 // The log, newest first. A rename ("R100 old new") maps the old path to the new one for every
 // older commit, so a file keeps its history across a move.
-export function parseLog(log: string): Commit[] {
+function parseLog(log: string): Commit[] {
   const currentPathOf = new Map<string, string>();
   return log.split("\x1e").slice(1).map((record) => {
     const fields = record.split("\0").slice(1).map((field) => field.replace(/^\n/, "")).filter((field) => field !== "");
@@ -247,7 +247,7 @@ export function parseLog(log: string): Commit[] {
   });
 }
 
-export function historyOf(commits: Commit[], measuredPaths: Set<string>): Map<string, FileHistory> {
+function historyOf(commits: Commit[], measuredPaths: Set<string>): Map<string, FileHistory> {
   const counts = new Map<string, { commits: number; partners: Set<string> }>();
   for (const commit of commits) {
     const measured = commit.paths.filter((filePath) => measuredPaths.has(filePath));
@@ -306,13 +306,9 @@ function readBlobs(repoFolder: string, objectIds: string[]): Promise<Buffer[]> {
       const output = Buffer.concat(chunks);
       const blobs: Buffer[] = [];
       let offset = 0;
-      for (const id of objectIds) {
+      for (let index = 0; index < objectIds.length; index++) {
         const headerEnd = output.indexOf(0x0a, offset);
-        const size = Number(/^\S+ blob (\d+)$/.exec(output.subarray(offset, headerEnd).toString("utf8"))?.[1]);
-        if (Number.isNaN(size)) {
-          reject(new Error(`git cat-file did not return the file ${id}.`));
-          return;
-        }
+        const size = Number(/^\S+ blob (\d+)$/.exec(output.subarray(offset, headerEnd).toString("utf8"))![1]);
         blobs.push(output.subarray(headerEnd + 1, headerEnd + 1 + size));
         offset = headerEnd + 1 + size + 1;
       }
