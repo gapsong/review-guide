@@ -9,13 +9,9 @@ const identifier = "[A-Za-z_$][\\w$]*";
 export function exportedNamesOf(text: string): string[] {
   const code = withoutComments(text);
   const names = new Set<string>();
-  const declaration = new RegExp(`^[ \\t]*export\\s+(?:declare\\s+)?(default\\s+)?(?:abstract\\s+)?(?:async\\s+)?(?:function\\s*\\*?|class|interface|type|enum|const\\s+enum|namespace|module)\\s+(${identifier})`, "gm");
+  const declaration = new RegExp(`^[ \\t]*export\\s+(?:declare\\s+)?(default\\s+)?(?:abstract\\s+)?(?:async\\s+)?(?:function\\s*\\*?|class|interface|type|enum|const\\s+enum|namespace|module|const|let|var)\\s+(${identifier})`, "gm");
   for (const match of code.matchAll(declaration)) {
     names.add(match[1] ? "default" : match[2]);
-  }
-  const variables = new RegExp(`^[ \\t]*export\\s+(?:declare\\s+)?(?:const|let|var)\\s+(${identifier})`, "gm");
-  for (const match of code.matchAll(variables)) {
-    names.add(match[1]);
   }
   if (/^[ \t]*export\s+default\b/m.test(code) || /^[ \t]*export\s*=/m.test(code)) {
     names.add("default");
@@ -39,7 +35,7 @@ export function exportedNamesOf(text: string): string[] {
 // Every module this file imports names from, by import, re-export, require or dynamic import.
 export function moduleUsesOf(text: string): ModuleUse[] {
   const code = withoutComments(text);
-  return [...staticImports(code), ...reexports(code), ...requires(code), ...dynamicImports(code)];
+  return [...staticImports(code), ...reexports(code), ...requiresAndDynamicImports(code)];
 }
 
 // The public members of every top-level class, by class name (and "default" for a default export):
@@ -192,12 +188,8 @@ export function membersAccessed(text: string): Set<string> {
 }
 
 function staticImports(code: string): ModuleUse[] {
-  const uses: ModuleUse[] = [];
   const pattern = /(?:^|[;\s])import\s+(?:type\s+)?([^'"`;]*?)\s+from\s+['"]([^'"]+)['"]/gm;
-  for (const match of code.matchAll(pattern)) {
-    uses.push({ module: match[2], names: importClauseNames(match[1], code), usesAllNames: false });
-  }
-  return uses;
+  return [...code.matchAll(pattern)].map((match) => ({ module: match[2], names: importClauseNames(match[1], code), usesAllNames: false }));
 }
 
 function importClauseNames(clause: string, code: string): string[] {
@@ -218,37 +210,18 @@ function importClauseNames(clause: string, code: string): string[] {
 }
 
 function reexports(code: string): ModuleUse[] {
-  const uses: ModuleUse[] = [];
   const lists = /^[ \t]*export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/gm;
-  for (const match of code.matchAll(lists)) {
-    const entries = listEntries(match[1]);
-    uses.push({ module: match[2], names: entries.map((entry) => entry.importedName), usesAllNames: false, reexported: entries });
-  }
   const stars = /^[ \t]*export\s+(?:type\s+)?\*\s*(as\s+[\w$]+\s*)?from\s*['"]([^'"]+)['"]/gm;
-  for (const match of code.matchAll(stars)) {
-    uses.push({ module: match[2], names: [], usesAllNames: true, reexportsAll: match[1] === undefined });
-  }
-  return uses;
+  return [
+    ...[...code.matchAll(lists)].map((match) => ({ module: match[2], names: listEntries(match[1]).map((entry) => entry.importedName), usesAllNames: false, reexported: listEntries(match[1]) })),
+    ...[...code.matchAll(stars)].map((match) => ({ module: match[2], names: [], usesAllNames: true, reexportsAll: match[1] === undefined })),
+  ];
 }
 
-function requires(code: string): ModuleUse[] {
-  const uses: ModuleUse[] = [];
-  const pattern = new RegExp(`(?:(const|let|var)\\s+(\\{[^}]*\\}|${identifier})\\s*=\\s*)?require\\(\\s*['"]([^'"]+)['"]\\s*\\)(\\.(${identifier}))?`, "g");
-  for (const match of code.matchAll(pattern)) {
-    const [, , binding, module, , member] = match;
-    uses.push({ module, names: boundNames(binding, member, code), usesAllNames: false });
-  }
-  return uses;
-}
-
-function dynamicImports(code: string): ModuleUse[] {
-  const uses: ModuleUse[] = [];
-  const pattern = new RegExp(`(?:(const|let|var)\\s+(\\{[^}]*\\}|${identifier})\\s*=\\s*(?:await\\s+)?)?\\bimport\\(\\s*['"]([^'"]+)['"]\\s*\\)`, "g");
-  for (const match of code.matchAll(pattern)) {
-    const [, , binding, module] = match;
-    uses.push({ module, names: boundNames(binding, undefined, code), usesAllNames: false });
-  }
-  return uses;
+// require("x") and import("x"), awaited or not, with what the result is bound to.
+function requiresAndDynamicImports(code: string): ModuleUse[] {
+  const pattern = new RegExp(`(?:(?:const|let|var)\\s+(\\{[^}]*\\}|${identifier})\\s*=\\s*(?:await\\s+)?)?\\b(?:require|import)\\(\\s*['"]([^'"]+)['"]\\s*\\)(?:\\.(${identifier}))?`, "g");
+  return [...code.matchAll(pattern)].map(([, binding, module, member]) => ({ module, names: boundNames(binding, member, code), usesAllNames: false }));
 }
 
 // const { a, b: c } = require("x")  takes a and b;  const m = require("x")  takes the m.<name> used;
