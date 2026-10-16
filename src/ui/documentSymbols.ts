@@ -18,14 +18,16 @@ export async function readFileSymbols(checkout: Checkout, file: FileDiff): Promi
 }
 
 async function readSymbols(filePath: string): Promise<CodeSymbol[] | undefined> {
-  const uri = vscode.Uri.file(filePath);
+  const symbols = await documentSymbolsOf(vscode.Uri.file(filePath));
+  return symbols && flatten(symbols, "");
+}
+
+// The document symbols of a file, or undefined when no language extension provides them.
+export async function documentSymbolsOf(uri: vscode.Uri): Promise<vscode.DocumentSymbol[] | undefined> {
   const document = await vscode.workspace.openTextDocument(uri);
   const languageHasSymbols = await waitForSymbolProvider(uri, document.languageId);
   const symbols = await querySymbols(uri);
-  if (symbols.length > 0) {
-    return flatten(symbols, "");
-  }
-  return languageHasSymbols ? [] : undefined;
+  return symbols.length > 0 || languageHasSymbols ? symbols : undefined;
 }
 
 // A language extension registers its symbol provider only after it has started, so the first

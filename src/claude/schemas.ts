@@ -105,3 +105,39 @@ export const entryCheckSchema = {
   },
   required: ["verdict", "feedback"],
 };
+
+// "Judge with Claude" for one file of the God Files view: the owner's rule applied by reading the code.
+export const godFileJudgeSchema = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["god_file", "deep_module", "hub", "ok"] },
+    verdictWhy: { type: "string", description: "One sentence: why this verdict, by the owner's rule." },
+    responsibilities: {
+      type: "array",
+      description: "The distinct reasons to change the file has, each a part of the file.",
+      items: {
+        type: "object",
+        properties: { name: { type: "string" }, startLine: { type: "integer" }, endLine: { type: "integer" } },
+        required: ["name", "startLine", "endLine"],
+      },
+    },
+    readingPath: {
+      type: "array",
+      description: "3 to 5 functions of the file, in the order to read them.",
+      items: {
+        type: "object",
+        properties: { name: { type: "string" }, line: { type: "integer" }, why: { type: "string" } },
+        required: ["name", "line", "why"],
+      },
+    },
+    keepOrSplit: {
+      type: "object",
+      properties: {
+        decision: { type: "string", enum: ["keep whole", "split"] },
+        why: { type: "string", description: "For a split: the new modules, what moves into each, and the new interface." },
+      },
+      required: ["decision", "why"],
+    },
+  },
+  required: ["verdict", "verdictWhy", "responsibilities", "readingPath", "keepOrSplit"],
+};

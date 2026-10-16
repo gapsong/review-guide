@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { GodFileJudges } from "./analysis/godFileJudge";
 import { claudeRunner, ClaudeSettings } from "./claude/claudeCli";
 import { defaultExplanationLanguage, ExplainRequest, explainTerminal } from "./claude/explainPrompt";
 import { WorkspaceChangeMarkers } from "./codemap/workspaceChangeMarkers";
@@ -27,6 +28,7 @@ import { showEntryChanges } from "./ui/entryChanges";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
+import { GodFilesView, godFileCommands, openGodFile } from "./ui/godFilesView";
 import { GuideView } from "./ui/guideView";
 import { OwnershipTree } from "./ui/ownershipTree";
 import { PullRequestTree } from "./ui/pullRequestTree";
@@ -44,6 +46,7 @@ export interface ReviewGuideApi {
   codemapView: CodemapView;
   codemapCodeLenses: CodemapCodeLenses;
   explainPanels: ExplainPanels;
+  godFilesView: GodFilesView;
 }
 
 export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
@@ -72,10 +75,15 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
   const codemapView = new CodemapView(codemaps, changeMarkers, entryOwnership);
   const codemapCodeLenses = new CodemapCodeLenses(codemaps, changeMarkers, entryOwnership);
   const showChanges = (target: CodemapTarget) => showEntryChanges(target, entryOwnership, storagePath);
+  const godFilesView = new GodFilesView(codemaps);
+  // Judge with Claude: read-only, in the same HEAD copies as "Check my words", only on the owner's click.
+  const godFileJudges = new GodFileJudges({ storageFolder: storagePath, runClaude: claudeRunner(claudeSettings), language: explanationLanguage });
   const explainPanels = new ExplainPanels(
     codemaps,
     changeMarkers,
     entryOwnership,
+    godFilesView,
+    godFileJudges,
     (folder, request) => startExplainTerminal(context, folder, request),
     showChanges,
     showError,
@@ -103,6 +111,7 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     codemapView,
     codemapCodeLenses,
     explainPanels,
+    godFilesView,
     vscode.window.registerFileDecorationProvider(codemapDecorations),
     vscode.languages.registerCodeLensProvider({ scheme: "file" }, codemapCodeLenses),
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
@@ -174,8 +183,11 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
         await vscode.commands.executeCommand("vscode.open", codemaps.codemapFileOf(folder));
       }
     })),
+    vscode.commands.registerCommand(godFileCommands.refresh, reportErrors(() => godFilesView.refresh())),
+    vscode.commands.registerCommand(godFileCommands.open, reportErrors(openGodFile)),
+    vscode.commands.registerCommand(godFileCommands.judge, reportErrors((target: CodemapTarget) => explainPanels.judge(uriOfTarget(target)))),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels, godFilesView };
 }
 
 export function deactivate(): void {

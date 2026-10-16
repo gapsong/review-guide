@@ -89,3 +89,18 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] S1 extended and run with real haiku; control by hand: in the repo itself as working directory, haiku does return the .env
 - [x] Mutation check: giving the check the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red
 - [ ] Not fixed, found on Linux (also at 0298a33): VS Code's inotify watcher misses a file created together with its folder, so a codemap written into a new `.codemap/` folder, or an explanation page in a new folder, is only seen after the next change; C1, C2, C4 and "Explain again" fail on such a Linux host and pass on macOS
+
+## God Files (2026-10-16)
+
+- [x] G1 measurement from HEAD and history only: deterministic, read-only, no network; tests, generated and vendored code and the exclude globs left out
+- [x] G2 ranking by breadth, areas and commits, never by length; hints `god file?` and `deep`
+- [x] G3 breadth from the language server (document symbols, then references), class members included; barrels own no re-exported name; "–" with a reason, never 0; "8+" above 7 (second build: the regex name parsers are gone)
+- [x] G4 one git log pass: commits in 90 days and co-change areas, sweeps left out, renames (exact only in a blobless clone)
+- [x] G2 "knows N areas" from a module-level import scan, a ranking input; `deep` needs at most 3 known areas (assumption)
+- [x] G5 God Files view: rows at once, breadth and complexity fill in, at most 5 numbers per row, tooltip with the hardest function (cognitive complexity: @barney-media/cognitive-typescript-core, complexipy), click to it, Refresh or a HEAD move cancels the running measurement
+- [x] G6 codemap badge in the row, warning for `deep: true` on a broad file
+- [x] G7 Judge with Claude: on demand, read-only in the HEAD copy, schema-checked, the Explain panel's escaped "Judge" view, kept per file and HEAD
+- [x] S1 extended with the judge run (real claude, haiku); mutation checks (a)-(g) each turn a test red; speed in REPORT.md
+- [ ] Not built (v1 scope): writing into the codemap, Explorer badges, split PRs
+- [ ] Not tested automatically: Python breadth with a real Pylance (the test VS Code has none; one manual run on fastapi in REPORT.md)
+- [ ] Not fixed: Python docstrings count as code lines (shown only, never scored)

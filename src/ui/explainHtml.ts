@@ -23,11 +23,12 @@ export interface ExplainHeader {
   otherPage: string | undefined;
   // Whether the owner owns the entry, as one line (see ownershipText.ts); undefined when not known.
   ownership?: string;
-  // Which of the panel's two views is shown; an entry always offers both.
+  // Which of the panel's views is shown; an entry offers "Own it", a measured god file "Judge".
   mode?: ExplainMode;
+  canJudge?: boolean;
 }
 
-export type ExplainMode = "explanation" | "ownIt";
+export type ExplainMode = "explanation" | "ownIt" | "judge";
 
 export interface ExplanationPage {
   html: string;
@@ -48,9 +49,13 @@ export type ExplainMessage =
   | { type: "openStart" }
   // target: relative to the explanation folder.
   | { type: "openLink"; target: string }
-  // The panel's two views: the explanation page, and "Own it" (ownItHtml.ts).
+  // The panel's views: the explanation page, "Own it" (ownItHtml.ts) and "Judge" (godFileText.ts).
   | { type: "explanation" }
   | { type: "ownIt" }
+  | { type: "judge" }
+  // "Judge": run Judge with Claude, and open a line of the judged file the extension checked.
+  | { type: "judgeWithClaude" }
+  | { type: "openLine"; line: number }
   // "Own it": check mine, chat with the tutor, and the ways to put words into the codemap.
   | { type: "checkWords" }
   | { type: "chat"; text: string }
@@ -59,16 +64,18 @@ export type ExplainMessage =
   | { type: "useAsMine" }
   | { type: "showChanges" };
 
-export function renderExplainPanel(header: ExplainHeader, nonce: string, cspSource: string): string {
+// main and its styles: the body of a view below the header, such as "Judge".
+export function renderExplainPanel(header: ExplainHeader, nonce: string, cspSource: string, main = "", mainStyles = ""): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-<style>${headerStyles}</style>
+<style>${headerStyles}${mainStyles}</style>
 </head>
 <body>
 ${headerHtml(header)}
+${main}
 <script nonce="${nonce}">${panelScript(undefined)}</script>
 </body>
 </html>`;
@@ -121,15 +128,18 @@ function ownershipLine(header: ExplainHeader): string {
   return header.ownership === undefined ? "" : `<p class="ownership">🎯 ${escapeHtml(header.ownership)}</p>\n`;
 }
 
-// "📖 Explanation" and "🎯 Own it"; the one shown is pressed. Only an entry can be owned.
+// "📖 Explanation", "🎯 Own it" and "⚖️ Judge"; the one shown is pressed. Only an entry can be
+// owned, and only a measured god file judged.
 function modeButtons(header: ExplainHeader): string {
-  if (!header.entry) {
+  if (!header.entry && !header.canJudge) {
     return "";
   }
   const mode = header.mode ?? "explanation";
   const modeButton = (label: string, shows: ExplainMode) =>
     button(label, { type: shows }, mode === shows ? "mode pressed" : "mode secondary", ` aria-pressed="${mode === shows}"`);
-  return `<p class="modes">${modeButton("📖 Explanation", "explanation")}${modeButton("🎯 Own it", "ownIt")}</p>\n`;
+  const ownIt = header.entry ? modeButton("🎯 Own it", "ownIt") : "";
+  const judge = header.canJudge ? modeButton("⚖️ Judge", "judge") : "";
+  return `<p class="modes">${modeButton("📖 Explanation", "explanation")}${ownIt}${judge}</p>\n`;
 }
 
 // The owner's optional notes; nothing at all when the entry has none.

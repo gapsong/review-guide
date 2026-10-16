@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
+import { GodFileJudges } from "../analysis/godFileJudge";
 import { ExplainRequest } from "../claude/explainPrompt";
 import { mineBlockOf } from "../codemap/entryOwnership";
 import { explanationFolderOf, explanationPageName, explanationsFolder } from "../codemap/explanationFiles";
@@ -13,6 +14,8 @@ import { openStartOf } from "./codemapNavigation";
 import { CodemapTarget, targetOf } from "./codemapTarget";
 import { entryStatusOf } from "./entryStatus";
 import { ExplainHeader, ExplainMessage, ExplainMode, renderExplainPanel, renderExplanationPage } from "./explainHtml";
+import { GodFilesView } from "./godFilesView";
+import { judgeHtml, judgeStyles } from "./godFileText";
 import { ownershipLine } from "./ownershipText";
 import { OwnItModel, renderOwnItPanel } from "./ownItHtml";
 
@@ -28,15 +31,18 @@ interface OpenExplanation {
   draft: string | undefined;
   // Drawing "Own it" waits for git; only the newest drawing may land.
   renders: number;
+  // Judge with Claude is running for this path.
+  judging: boolean;
 }
 
 export type StartGeneration = (folder: vscode.WorkspaceFolder, request: ExplainRequest) => void;
 
 export type ShowChanges = (target: CodemapTarget) => Promise<void>;
 
-// The Explain panels, one per path: the codemap entry, then the generated explanation page, or
-// "Own it" with the owner's words, their check and the tutor chat. A panel redraws itself when its
-// page is written, its codemap entry changes or the owner's state of it changes.
+// The Explain panels, one per path: the codemap entry, then the generated explanation page,
+// "Own it" with the owner's words, their check and the tutor chat, or "Judge" for a measured god
+// file. A panel redraws itself when its page is written, its codemap entry, the owner's state of it
+// or the god files change.
 export class ExplainPanels implements vscode.Disposable {
   static readonly viewType = "reviewGuide.explain";
   private readonly open = new Map<string, OpenExplanation>();
@@ -46,6 +52,8 @@ export class ExplainPanels implements vscode.Disposable {
     private readonly codemaps: WorkspaceCodemaps,
     private readonly markers: WorkspaceChangeMarkers,
     private readonly ownership: WorkspaceEntryOwnership,
+    private readonly godFiles: GodFilesView,
+    private readonly judges: GodFileJudges,
     private readonly startGeneration: StartGeneration,
     private readonly showChanges: ShowChanges,
     private readonly showError: (error: unknown) => void,
@@ -53,6 +61,7 @@ export class ExplainPanels implements vscode.Disposable {
     codemaps.onDidChange(() => this.renderAll());
     markers.onDidChange(() => this.renderAll());
     ownership.onDidChange(() => this.renderAll());
+    godFiles.onDidChangeTreeData(() => this.renderAll());
     const pageChanged = (uri: vscode.Uri) => this.renderShowing(uri);
     this.watcher.onDidCreate(pageChanged);
     this.watcher.onDidChange(pageChanged);
@@ -82,7 +91,7 @@ export class ExplainPanels implements vscode.Disposable {
       localResourceRoots: [vscode.Uri.joinPath(folder.uri, explanationsFolder)],
     });
     const explanation: OpenExplanation = {
-      folder, repoPath, kind: isFolder ? "folder" : "file", panel, page: explanationPageName, mode: mode ?? "explanation", draft: undefined, renders: 0,
+      folder, repoPath, kind: isFolder ? "folder" : "file", panel, page: explanationPageName, mode: mode ?? "explanation", draft: undefined, renders: 0, judging: false,
     };
     this.open.set(key, explanation);
     panel.onDidDispose(() => this.open.delete(key));
@@ -101,6 +110,17 @@ export class ExplainPanels implements vscode.Disposable {
   async checkWords(uri: vscode.Uri): Promise<void> {
     await this.show(uri, "ownIt");
     await this.receive(uri, { type: "checkWords" });
+  }
+
+  // "Judge with Claude" from the God Files view: the panel's Judge view, and a run when this commit
+  // has no judgment of the file yet. Claude never runs without this click or the panel's button.
+  async judge(uri: vscode.Uri): Promise<void> {
+    await this.show(uri, "judge");
+    const explanation = this.openFor(uri);
+    const measured = explanation && this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
+    if (!explanation || !measured || !this.judges.judgmentOf(explanation.folder.uri.fsPath, measured.item.path, measured.report.commit)) {
+      await this.receive(uri, { type: "judgeWithClaude" });
+    }
   }
 
   // What the panel's buttons and links send. Public so tests can press them.
@@ -147,8 +167,19 @@ export class ExplainPanels implements vscode.Disposable {
       }
       case "explanation":
       case "ownIt":
+      case "judge":
         explanation.mode = message.type;
         this.render(explanation);
+        return;
+      case "judgeWithClaude":
+        await this.judgeWithClaude(explanation);
+        return;
+      case "openLine":
+        // The path is the panel's own; the line came from a link the extension built from a checked line.
+        if (Number.isInteger(message.line) && message.line >= 1) {
+          const line = new vscode.Position(message.line - 1, 0);
+          await vscode.window.showTextDocument(pathUri, { selection: new vscode.Range(line, line), viewColumn: vscode.ViewColumn.Beside });
+        }
         return;
       case "checkWords":
         await this.ownership.check(pathUri);
@@ -168,6 +199,24 @@ export class ExplainPanels implements vscode.Disposable {
       case "showChanges":
         await this.showChanges(targetOf(explanation.folder, explanation.repoPath));
         return;
+    }
+  }
+
+  private async judgeWithClaude(explanation: OpenExplanation): Promise<void> {
+    const measured = this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
+    if (!measured) {
+      throw new Error(`${explanation.repoPath} is not among the measured god files. Refresh God Files, then judge again.`);
+    }
+    if (explanation.judging) {
+      return;
+    }
+    explanation.judging = true;
+    this.render(explanation);
+    try {
+      await this.judges.judge(explanation.folder.uri.fsPath, measured.item, measured.report);
+    } finally {
+      explanation.judging = false;
+      this.render(explanation);
     }
   }
 
@@ -248,6 +297,8 @@ export class ExplainPanels implements vscode.Disposable {
     const pathUri = vscode.Uri.joinPath(explanation.folder.uri, explanation.repoPath);
     const status = entryStatusOf(targetOf(explanation.folder, explanation.repoPath), this.markers, this.ownership);
     const entry = this.codemaps.entryOf(pathUri);
+    const measured = this.godFiles.measured(targetOf(explanation.folder, explanation.repoPath));
+    const shows = (explanation.mode === "ownIt" && entry) || (explanation.mode === "judge" && measured) ? explanation.mode : "explanation";
     const header: ExplainHeader = {
       path: explanation.repoPath,
       entry,
@@ -256,9 +307,16 @@ export class ExplainPanels implements vscode.Disposable {
       change: status.change,
       otherPage: explanation.page === explanationPageName ? undefined : explanation.page,
       ownership: entry && status.ownership ? ownershipLine(status.ownership) : undefined,
-      mode: entry ? explanation.mode : "explanation",
+      mode: shows,
+      canJudge: measured !== undefined,
     };
-    if (entry && explanation.mode === "ownIt") {
+    if (measured && shows === "judge") {
+      const stored = this.judges.judgmentOf(explanation.folder.uri.fsPath, measured.item.path, measured.report.commit);
+      const main = judgeHtml({ item: measured.item, commit: measured.report.commit, stored, judging: explanation.judging });
+      webview.html = renderExplainPanel(header, randomBytes(16).toString("hex"), webview.cspSource, main, judgeStyles);
+      return;
+    }
+    if (shows === "ownIt") {
       const model = await this.ownItModelOf(explanation, pathUri);
       if (ticket === explanation.renders) {
         webview.html = renderOwnItPanel(header, model, randomBytes(16).toString("hex"), webview.cspSource);

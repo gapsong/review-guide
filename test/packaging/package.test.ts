@@ -36,7 +36,17 @@ describe("F9: `npm run package` builds a .vsix that installs in VS Code", functi
     const installedFolder = path.join(extensionsDir, `gapsong.review-guide-${packageJson.version}`);
     assert.ok(fs.existsSync(path.join(installedFolder, "out", "src", "extension.js")));
     assert.ok(!fs.existsSync(path.join(installedFolder, "out", "test")), "tests are not shipped");
-    assert.deepStrictEqual(fs.readdirSync(path.join(installedFolder, "node_modules")), Object.keys(packageJson.dependencies), "only the runtime dependencies are shipped");
+    const shipped = fs.readdirSync(path.join(installedFolder, "node_modules")).flatMap((name) => (name.startsWith("@") ? fs.readdirSync(path.join(installedFolder, "node_modules", name)).map((inner) => `${name}/${inner}`) : [name]));
+    const runtime = runtimeDependencies();
+    assert.deepStrictEqual(shipped.filter((name) => !runtime.has(name)), [], "only runtime dependencies are shipped");
+    for (const name of Object.keys(packageJson.dependencies)) {
+      assert.ok(shipped.includes(name), `${name} is shipped`);
+    }
+
+    // The installed copy runs the cognitive complexity package with the trimmed TypeScript it ships.
+    const { measureComplexity } = (await import(path.join(installedFolder, "out", "src", "godfiles", "complexity.js"))) as typeof import("../../src/godfiles/complexity");
+    const complexity = await measureComplexity([{ path: "a.ts", text: "export function f(a: number) {\n  if (a) {\n    return 1;\n  }\n  return 0;\n}\n" }], "complexipy");
+    assert.deepStrictEqual(complexity.get("a.ts"), { state: "known", hardest: { name: "f", line: 1, score: 1 } });
 
     // The installed copy finds its YAML library: it reads a codemap with the files of the .vsix alone.
     const { parseCodemap } = (await import(path.join(installedFolder, "out", "src", "codemap", "codemap.js"))) as typeof import("../../src/codemap/codemap");
@@ -44,6 +54,21 @@ describe("F9: `npm run package` builds a .vsix that installs in VS Code", functi
     assert.deepStrictEqual(codemap.entries.map((entry) => entry.says), ["Reads YAML."]);
   });
 });
+
+// Every package the runtime dependencies need, by npm's own account.
+function runtimeDependencies(): Set<string> {
+  interface Tree { dependencies?: Record<string, Tree> }
+  const tree = JSON.parse(execFileSync("npm", ["ls", "--omit=dev", "--all", "--json"], { cwd: root, encoding: "utf8" })) as Tree;
+  const names = new Set<string>();
+  const walk = (node: Tree) => {
+    for (const [name, child] of Object.entries(node.dependencies ?? {})) {
+      names.add(name);
+      walk(child);
+    }
+  };
+  walk(tree);
+  return names;
+}
 
 // The test's own --extensions-dir and --user-data-dir replace the defaults of the test VS Code.
 async function vscodeCli(): Promise<{ command: string; args: string[] }> {
