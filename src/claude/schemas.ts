@@ -107,12 +107,6 @@ export const entryCheckSchema = {
 };
 
 // "Judge with Claude" for one file of the God Files view: the owner's rule applied by reading the code.
-const namedReason = {
-  type: "object",
-  properties: { name: { type: "string" }, why: { type: "string", description: "One sentence." } },
-  required: ["name", "why"],
-};
-
 export const godFileJudgeSchema = {
   type: "object",
   properties: {
@@ -123,31 +117,9 @@ export const godFileJudgeSchema = {
       description: "The distinct reasons to change the file has, each a part of the file.",
       items: {
         type: "object",
-        properties: {
-          name: { type: "string" },
-          startLine: { type: "integer" },
-          endLine: { type: "integer" },
-          mainFunctions: { type: "array", items: { type: "string" } },
-        },
-        required: ["name", "startLine", "endLine", "mainFunctions"],
+        properties: { name: { type: "string" }, startLine: { type: "integer" }, endLine: { type: "integer" } },
+        required: ["name", "startLine", "endLine"],
       },
-    },
-    reasonsToChange: {
-      type: "array",
-      description: "The commit subjects of history.txt grouped into 3 to 6 themes (fewer only when there are fewer commits).",
-      items: {
-        type: "object",
-        properties: { theme: { type: "string" }, commits: { type: "integer" } },
-        required: ["theme", "commits"],
-      },
-    },
-    namesUsedOutside: {
-      type: "object",
-      properties: {
-        justified: { type: "array", items: namedReason, description: "Verbs of the domain, data types callers must build." },
-        notJustified: { type: "array", items: namedReason, description: "Helpers in the wrong module, tests reaching into internals, data of another concern." },
-      },
-      required: ["justified", "notJustified"],
     },
     readingPath: {
       type: "array",
@@ -162,19 +134,10 @@ export const godFileJudgeSchema = {
       type: "object",
       properties: {
         decision: { type: "string", enum: ["keep whole", "split"] },
-        why: { type: "string" },
-        modules: {
-          type: "array",
-          description: "Only for a split of a god file: the new modules, what moves into each, and its interface.",
-          items: {
-            type: "object",
-            properties: { name: { type: "string" }, moves: { type: "string" }, interface: { type: "string" } },
-            required: ["name", "moves", "interface"],
-          },
-        },
+        why: { type: "string", description: "For a split: the new modules, what moves into each, and the new interface." },
       },
-      required: ["decision", "why", "modules"],
+      required: ["decision", "why"],
     },
   },
-  required: ["verdict", "verdictWhy", "responsibilities", "reasonsToChange", "namesUsedOutside", "readingPath", "keepOrSplit"],
+  required: ["verdict", "verdictWhy", "responsibilities", "readingPath", "keepOrSplit"],
 };

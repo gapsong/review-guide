@@ -87,18 +87,7 @@ function judgmentHtml(stored: StoredJudgment, linkTo: (line: number | undefined,
 </section>
 <section>
 <h3>Responsibilities</h3>
-<ul>${judgment.responsibilities.map((responsibility) => `<li><strong>${escapeHtml(responsibility.name)}</strong> ${linkTo(responsibility.startLine, lineRange(responsibility.startLine, responsibility.endLine))}${responsibility.mainFunctions.length ? `: ${responsibility.mainFunctions.map((name) => `<code>${escapeHtml(name)}</code>`).join(", ")}` : ""}</li>`).join("")}</ul>
-</section>
-<section>
-<h3>Reasons to change</h3>
-<ul>${judgment.reasonsToChange.map((reason) => `<li>${escapeHtml(reason.theme)} <span class="muted">(${reason.commits} ${reason.commits === 1 ? "commit" : "commits"})</span></li>`).join("")}</ul>
-</section>
-<section>
-<h3>Names used outside</h3>
-<h4>Justified</h4>
-${namedList(judgment.namesUsedOutside.justified)}
-<h4>Not justified</h4>
-${namedList(judgment.namesUsedOutside.notJustified)}
+<ul>${judgment.responsibilities.map((responsibility) => `<li><strong>${escapeHtml(responsibility.name)}</strong> ${linkTo(responsibility.startLine, lineRange(responsibility.startLine, responsibility.endLine))}</li>`).join("")}</ul>
 </section>
 <section>
 <h3>Reading path</h3>
@@ -107,15 +96,7 @@ ${namedList(judgment.namesUsedOutside.notJustified)}
 <section>
 <h3>${judgment.keepOrSplit.decision === "split" ? "Split" : "Keep whole"}</h3>
 <p>${escapeHtml(judgment.keepOrSplit.why)}</p>
-${judgment.keepOrSplit.modules.length ? `<ul>${judgment.keepOrSplit.modules.map((module) => `<li><strong>${escapeHtml(module.name)}</strong>: ${escapeHtml(module.moves)}<br><span class="muted">Interface:</span> ${escapeHtml(module.interface)}</li>`).join("")}</ul>` : ""}
 </section>`;
-}
-
-function namedList(entries: { name: string; why: string }[]): string {
-  if (entries.length === 0) {
-    return `<p class="muted">None.</p>`;
-  }
-  return `<ul>${entries.map((entry) => `<li><code>${escapeHtml(entry.name)}</code>: ${escapeHtml(entry.why)}</li>`).join("")}</ul>`;
 }
 
 function lineRange(start: number | undefined, end: number | undefined): string {

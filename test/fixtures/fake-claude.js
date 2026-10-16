@@ -170,21 +170,13 @@ function godFileJudge(prompt) {
   return {
     verdict: "god_file",
     verdictWhy: "It does <script>alert(1)</script> three jobs behind 12 names.",
-    responsibilities: [
-      { name: "Pricing", startLine: 1, endLine: 4, mainFunctions: ["broad1"] },
-      { name: "Shipping", startLine: 5, endLine: 99999, mainFunctions: ["broad5"] },
-    ],
-    reasonsToChange: [{ theme: "Prices", commits: 2 }, { theme: "Shipping", commits: 1 }, { theme: "Admin", commits: 1 }],
-    namesUsedOutside: {
-      justified: [{ name: "broad1", why: "The checkout verb." }],
-      notJustified: [{ name: "broad9", why: "[x](javascript:alert(1)) a helper of the admin panel." }],
-    },
+    responsibilities: [{ name: "Pricing", startLine: 1, endLine: 4 }, { name: "Shipping", startLine: 5, endLine: 99999 }],
     readingPath: [
       { name: "broad1", line: 1, why: "Where a price starts." },
       { name: "broad5", line: 99999, why: "No such line." },
-      { name: "broad9", line: 3, why: "The admin helper." },
+      { name: "broad9", line: 3, why: "[x](javascript:alert(1)) the admin helper." },
     ],
-    keepOrSplit: { decision: "split", why: "Three reasons to change.", modules: [{ name: "pricing.ts", moves: "broad1-broad4", interface: "price()" }] },
+    keepOrSplit: { decision: "split", why: "Three reasons to change: pricing.ts takes broad1 to broad4." },
     unitIds: [path],
   };
 }

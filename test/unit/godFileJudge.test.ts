@@ -50,7 +50,7 @@ describe("G7: Judge with Claude", () => {
   });
 
   function judges(runClaude: RunClaude) {
-    return new GodFileJudges({ storageFolder: storage, runClaude, language: () => "German", now: () => new Date("2026-10-16T12:00:00Z") });
+    return new GodFileJudges({ storageFolder: storage, runClaude, language: () => "German" });
   }
 
   it("G7, S1: runs once, read-only, in a copy of HEAD with the commit subjects and the numbers as files, and changes no byte of the repo", async () => {
@@ -110,11 +110,8 @@ describe("G7: Judge with Claude", () => {
     assert.deepStrictEqual(judgment.readingPath.map((step) => step.line), [1, undefined, 3]);
     assert.deepStrictEqual(judgment.responsibilities.map((part) => [part.startLine, part.endLine]), [[1, 4], [5, undefined]]);
     assert.throws(() => checkedJudgment({ ...answer, verdict: "fine" }, 10), /verdict is not one of god_file, deep_module, hub, ok/);
-    assert.throws(() => checkedJudgment({ ...answer, readingPath: [{ name: "a", line: "7", why: "x" }] }, 10), /readingPath\[0\]\.line is not a whole number/);
-    assert.throws(() => checkedJudgment({ ...answer, verdict: "deep_module" }, 10), /proposed a split for a file it called deep_module/);
+    assert.throws(() => checkedJudgment({ ...answer, readingPath: [{ name: 7, line: 1, why: "x" }] }, 10), /a step's name is not a text/);
     assert.throws(() => checkedJudgment("I would rather not.", 10), /not an object/);
-    const keep = checkedJudgment({ ...answer, verdict: "ok", keepOrSplit: { decision: "keep whole", why: "Fine.", modules: [{ name: "x", moves: "y", interface: "z" }] } }, 10);
-    assert.deepStrictEqual(keep.keepOrSplit.modules, [], "keep whole has no modules");
     assert.deepStrictEqual(godFileJudgeSchema.properties.verdict.enum, ["god_file", "deep_module", "hub", "ok"]);
   });
 
@@ -142,10 +139,8 @@ function validAnswer() {
   return {
     verdict: "god_file",
     verdictWhy: "It does <script>alert(1)</script> three jobs.",
-    responsibilities: [{ name: "Pricing", startLine: 1, endLine: 4, mainFunctions: ["broad1"] }, { name: "Shipping", startLine: 5, endLine: 99999, mainFunctions: [] }],
-    reasonsToChange: [{ theme: "Prices", commits: 2 }],
-    namesUsedOutside: { justified: [{ name: "broad1", why: "A verb." }], notJustified: [{ name: "broad9", why: "[x](javascript:alert(1))" }] },
-    readingPath: [{ name: "broad1", line: 1, why: "Start." }, { name: "broad5", line: 99999, why: "Gone." }, { name: "broad9", line: 3, why: "Helper." }],
-    keepOrSplit: { decision: "split", why: "Three reasons.", modules: [{ name: "pricing.ts", moves: "broad1", interface: "price()" }] },
+    responsibilities: [{ name: "Pricing", startLine: 1, endLine: 4 }, { name: "Shipping", startLine: 5, endLine: 99999 }],
+    readingPath: [{ name: "broad1", line: 1, why: "Start." }, { name: "broad5", line: 99999, why: "Gone." }, { name: "broad9", line: 3, why: "[x](javascript:alert(1))" }],
+    keepOrSplit: { decision: "split", why: "Three reasons: pricing.ts takes broad1 to broad4." },
   };
 }
