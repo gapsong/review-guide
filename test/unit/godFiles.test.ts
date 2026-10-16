@@ -332,6 +332,9 @@ describe("G3: breadth from the language server (a fake one)", () => {
     assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", noReferences, options), { state: "unknown", reason: "No language server answers references for TypeScript/JavaScript files here." });
     const slow: LanguageServer = { ...noReferences, references: () => new Promise(() => undefined) };
     assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", slow, { ...options, timeoutMilliseconds: 50 }), { state: "unknown", reason: "The language server did not answer within 0 s." });
+    const someAnswered: LanguageServer = { ...fakeServer([fakeFile("src/lib/money.ts", ["export const cents = 1;", "export const euros = 2;"], [symbol("cents", 0), symbol("euros", 1)])], { "src/lib/money.ts:1": [{ path: "apps/web/f.ts", line: 3 }] }) };
+    const firstUnanswered: LanguageServer = { ...someAnswered, references: async (repoPath, line, character) => (line === 0 ? [] : someAnswered.references(repoPath, line, character)) };
+    assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", firstUnanswered, options), { state: "known", names: ["euros"], files: ["apps/web/f.ts"], complete: true }, "one declaration without an answer does not make the file unknown");
     const failing: LanguageServer = { ...noReferences, references: () => Promise.reject(new Error("crashed")) };
     assert.deepStrictEqual(await measureBreadth("src/lib/money.ts", failing, options), { state: "unknown", reason: "The language server failed: crashed" });
     assert.strictEqual(await measureBreadth("src/lib/money.ts", noReferences, { ...options, isCancelled: () => true }), undefined);

@@ -22,7 +22,7 @@ export interface LanguageServer {
   // TypeScript project loads, VS Code answers references from open files alone.
   ready(repoPath: string): Promise<void>;
   // Every place that refers to the symbol at the position, its declaration included; an empty list
-  // means no reference provider answered. path is undefined for a place outside the repo.
+  // means no reference provider answered for it. path is undefined for a place outside the repo.
   references(repoPath: string, line: number, character: number): Promise<{ path: string | undefined; line: number }[]>;
   // The file's current text: its import lines and member modifiers.
   text(repoPath: string): Promise<string>;
@@ -70,14 +70,14 @@ export async function measureBreadth(repoPath: string, server: LanguageServer, o
     await inTime(server.ready(repoPath));
     const lines = (await inTime(server.text(repoPath))).split(/\r?\n/);
     const names = new Map<string, Set<string>>();
-    for (const declaration of declarationsOf(symbols, lines, await importLines(repoPath))) {
+    const declarations = declarationsOf(symbols, lines, await importLines(repoPath));
+    let answered = false;
+    for (const declaration of declarations) {
       if (options.isCancelled()) {
         return undefined;
       }
       const references = await inTime(server.references(repoPath, declaration.line, declaration.character));
-      if (references.length === 0) {
-        return { state: "unknown", reason: `No language server answers references for ${languageName(repoPath)} files here.` };
-      }
+      answered ||= references.length > 0;
       for (const reference of references) {
         if (reference.path !== undefined && reference.path !== repoPath && options.measured.has(reference.path) && !(await importLines(reference.path)).has(reference.line)) {
           names.set(declaration.name, (names.get(declaration.name) ?? new Set<string>()).add(reference.path));
@@ -86,6 +86,10 @@ export async function measureBreadth(repoPath: string, server: LanguageServer, o
       if (names.size > options.stopAbove) {
         return known(names, false);
       }
+    }
+    // A server lists a declaration among its own references; no answer at all means no server.
+    if (declarations.length > 0 && !answered) {
+      return { state: "unknown", reason: `No language server answers references for ${languageName(repoPath)} files here.` };
     }
     return known(names, true);
   } catch (error) {
