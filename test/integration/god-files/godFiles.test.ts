@@ -131,7 +131,7 @@ describe("God Files in a real VS Code", () => {
   }
 
   function reportCommit(): string | undefined {
-    const state = api.godFiles.stateOf(folderUri);
+    const state = api.godFilesView.stateOf(folderUri);
     return state?.state === "ready" ? state.report.commit : undefined;
   }
 

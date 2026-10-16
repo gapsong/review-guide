@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 import { GodFileJudges } from "../analysis/godFileJudge";
 import { CodemapTarget, uriOfTarget } from "./codemapTarget";
 import { CodeLocation, JudgePanelMessage, JudgeWork, renderJudgePanel } from "./godFileJudgeHtml";
-import { WorkspaceGodFiles } from "./workspaceGodFiles";
+import { GodFilesView } from "./godFilesView";
 
 interface OpenJudgePanel {
   target: CodemapTarget;
@@ -23,11 +23,11 @@ export class GodFileJudgePanels implements vscode.Disposable {
   private readonly open = new Map<string, OpenJudgePanel>();
 
   constructor(
-    private readonly godFiles: WorkspaceGodFiles,
+    private readonly godFiles: GodFilesView,
     private readonly judges: GodFileJudges,
     private readonly showError: (error: unknown) => void,
   ) {
-    godFiles.onDidChange(() => this.renderAll());
+    godFiles.onDidChangeTreeData(() => this.renderAll());
   }
 
   // Opens the panel, or brings it forward; with run, it also starts the judgment.

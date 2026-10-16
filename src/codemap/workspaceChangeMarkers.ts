@@ -1,5 +1,6 @@
+import * as path from "path";
 import * as vscode from "vscode";
-import { gitFoldersOf } from "../git/gitFolders";
+import { runGit } from "../git/git";
 import { ChangeMarkers, ConfirmationStore, PathStatus } from "./changeMarkers";
 import { repoPathOf } from "./repoPath";
 import { WorkspaceCodemaps } from "./workspaceCodemaps";
@@ -114,28 +115,36 @@ export class WorkspaceChangeMarkers implements vscode.Disposable {
     }
   }
 
-  // HEAD moves with every commit, checkout and pull, and git appends to logs/HEAD each time.
-  // A worktree keeps HEAD in its own git folder and the branches in the common one.
   private async watchGit(): Promise<void> {
     const watchers: vscode.Disposable[] = [];
     for (const folder of this.codemaps.foldersWithCodemap()) {
-      const gitFolders = await gitFoldersOf(folder.uri.fsPath);
-      if (!gitFolders) {
-        continue;
-      }
-      const ownFiles = new vscode.RelativePattern(vscode.Uri.file(gitFolders.gitFolder), "{HEAD,logs/HEAD}");
-      const sharedFiles = new vscode.RelativePattern(vscode.Uri.file(gitFolders.commonFolder), "{packed-refs,refs/heads/**}");
-      for (const pattern of [ownFiles, sharedFiles]) {
-        const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-        watcher.onDidCreate(() => this.requestCheck());
-        watcher.onDidChange(() => this.requestCheck());
-        watcher.onDidDelete(() => this.requestCheck());
-        watchers.push(watcher);
-      }
+      watchers.push(...(await watchHead(folder.uri.fsPath, () => this.requestCheck())) ?? []);
     }
     disposeAll(this.gitWatchers);
     this.gitWatchers = watchers;
   }
+}
+
+// HEAD moves with every commit, checkout and pull, and git appends to logs/HEAD each time.
+// A worktree keeps HEAD in its own git folder and the branches in the common one. Undefined when
+// the folder is not in a git repo.
+export async function watchHead(folder: string, headMoved: () => void): Promise<vscode.Disposable[] | undefined> {
+  let gitFolders: string[];
+  try {
+    const output = await runGit(["rev-parse", "--absolute-git-dir", "--git-common-dir"], { cwd: folder });
+    gitFolders = output.trim().split("\n").map((gitFolder) => path.resolve(folder, gitFolder));
+  } catch {
+    return undefined;
+  }
+  const ownFiles = new vscode.RelativePattern(vscode.Uri.file(gitFolders[0]), "{HEAD,logs/HEAD}");
+  const sharedFiles = new vscode.RelativePattern(vscode.Uri.file(gitFolders[1]), "{packed-refs,refs/heads/**}");
+  return [ownFiles, sharedFiles].map((pattern) => {
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+    watcher.onDidCreate(headMoved);
+    watcher.onDidChange(headMoved);
+    watcher.onDidDelete(headMoved);
+    return watcher;
+  });
 }
 
 function disposeAll(disposables: vscode.Disposable[]): void {
