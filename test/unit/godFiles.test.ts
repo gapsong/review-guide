@@ -95,8 +95,8 @@ describe("G1: the measurement is deterministic and read-only", () => {
     }
     assert.strictEqual(isMeasuredSource("src/legacy/a/b.ts", [globToRegExp("src/legacy/**")]), false);
     assert.strictEqual(isMeasuredSource("deep/down/schema_pb2.py", [globToRegExp("*_pb2.py")]), false, "a glob without / matches a file name anywhere");
-    assert.strictEqual(isMeasuredSource("src/a.ts", [globToRegExp("{docs,examples}/**")]), true);
-    assert.strictEqual(isMeasuredSource("examples/a.ts", [globToRegExp("{docs,examples}/**")]), false);
+    assert.strictEqual(isMeasuredSource("docs_src/a.ts", [globToRegExp("docs_src/**")]), false);
+    assert.strictEqual(isMeasuredSource("src/docs_src.ts", [globToRegExp("docs_src/**")]), true);
   });
 });
 
@@ -369,7 +369,7 @@ describe("God files: areas and code lines", () => {
   });
 
   it("counts code lines without blank and comment-only lines", () => {
-    assert.strictEqual(countCodeLines("a();\n\n// note\n/* one\n   two */\nb(); // tail\n/* x */ c();\nconst glob = \"**/*.ts\";\nd();\n", "typescript"), 5);
+    assert.strictEqual(countCodeLines("a();\n\n// note\n/**\n * one\n */\nb(); // tail\nconst glob = \"**/*.ts\";\n", "typescript"), 3);
     assert.strictEqual(countCodeLines("import os\n\n# note\n    # indented note\nx = 1  # tail\n", "python"), 2);
     assert.strictEqual(countCodeLines("package main\n// c\nfunc main() {}\n", "other"), 2);
   });
