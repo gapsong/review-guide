@@ -26,13 +26,15 @@ Date: 2026-09-26, updated 2026-10-07 for 0.3.0 (the codemap rows C1-C9), 2026-10
 
 | Repo | Source files measured | Commits in 90 days | Candidates | Seconds |
 |---|---|---|---|---|
-| generated fixture (TypeScript + Python monorepo, `git fast-import`) | 2,000 | 3,000 | 990 | 0.66 |
-| fastapi/fastapi at bb7f3142 (blobless clone) | 538 | 307 | 28 | 0.14 |
-| microsoft/vscode-pull-request-github at 8cbae844 (blobless clone) | 220 | 111 | 80 | 0.12 |
+| generated fixture (TypeScript + Python monorepo, `git fast-import`) | 2,000 | 3,000 | 990 | 0.79 |
+| fastapi/fastapi at bb7f3142 (full clone) | 538 | 307 | 28 | 0.20 |
+| microsoft/vscode-pull-request-github at 8cbae844 (full clone) | 220 | 111 | 80 | 0.19 |
+
+Measured again after the review's change (class members count, `deep` needs few areas); the earlier build took 0.66 / 0.14 / 0.12 s. Cancel: an AbortSignal rejects with `MeasurementCancelled` within 0.2 s on vscode-pull-request-github, and no git process stays behind; the breadth pass itself is synchronous and runs to its end.
 
 **Realism** (top of the list, read by hand):
-- vscode-pull-request-github: `src/github/githubRepository.ts` (10 names used by 24 files, 13 commits, 11 areas) and `folderRepositoryManager.ts` lead as `god file?`; `pullRequestModel.ts` (5 names used by 54 files) and `pullRequestOverview.ts` (2 names used by 14 files) are long files with a narrow interface and get `deep`. A real haiku judgment of `githubRepository.ts` took 46-48 s and called it a god file with a dozen responsibilities (screenshot in `docs/assets/god-files-judge.png`).
-- fastapi: `fastapi/applications.py` (4,136 lines, 1 name used by 340 files) is `deep`, as the rule says; that needed following the package's re-exports (DECISIONS.md). Python docstrings count as code lines (cheap rules); this changes no rank, because length is not in the score.
+- vscode-pull-request-github: `src/github/githubRepository.ts` (79 names used by 24 files, 13 commits, 11 areas), `folderRepositoryManager.ts` (98 names used by 60 files) and `pullRequestModel.ts` (97 names used by 54 files, 7 areas) lead as `god file?`. Before the review the last one measured "5 names used by 54 files" and got `deep`, because its exported class counted as one name; its public methods are names other files use (DECISIONS.md). `pullRequestOverview.ts` (14 names, 22 commits, 10 areas) is `god file?` too; `commands.ts` (3 names, 8 areas) and `extension.ts` (0 names) get no hint any more. Hints before → after the review: `deep` 38 → 8, `god file?` 16 → 43, none 26 → 29 of 80 candidates. A real haiku judgment of `githubRepository.ts` took 46-48 s and called it a god file with a dozen responsibilities (screenshot in `docs/assets/god-files-judge.png`, taken before the review; the row now reads 79 names).
+- fastapi: `fastapi/applications.py` (4,136 lines) measures 14 names used by 340 files: `FastAPI` and 13 of its methods (`get`, `post`, `include_router`, …), so it is `god file?` now, not `deep`; `routing.py` (26 names, `APIRouter`'s decorators) the same. That is the rule as written: a class whose callers use 13 of its methods has a broad interface, even when it is broad on purpose (the judge's `hub` verdict is for that). Hints before → after: `deep` 12 → 7, `god file?` 7 → 10, none 9 → 11 of 28. Following the package's re-exports stays necessary (DECISIONS.md). Python docstrings count as code lines (cheap rules); this changes no rank, because length is not in the score.
 
 ## WP1 "Own it" (2026-10-09)
 
