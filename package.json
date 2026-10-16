@@ -45,6 +45,10 @@
         {
           "id": "reviewGuide.ownership",
           "name": "Ownership"
+        },
+        {
+          "id": "reviewGuide.godFiles",
+          "name": "God Files"
         }
       ],
       "explorer": [
@@ -188,6 +192,27 @@
         "title": "Open Codemap File",
         "category": "Review Guide",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "reviewGuide.godFiles.refresh",
+        "title": "Refresh God Files",
+        "category": "Review Guide",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "reviewGuide.godFiles.open",
+        "title": "Open at the Longest Function",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.godFiles.judge",
+        "title": "Judge with Claude",
+        "category": "Review Guide"
+      },
+      {
+        "command": "reviewGuide.godFiles.showDetails",
+        "title": "Show Details",
+        "category": "Review Guide"
       }
     ],
     "menus": {
@@ -231,6 +256,11 @@
           "command": "reviewGuide.codemap.ownNext",
           "when": "view == reviewGuide.codemap && reviewGuide.hasCodemap",
           "group": "2_codemap"
+        },
+        {
+          "command": "reviewGuide.godFiles.refresh",
+          "when": "view == reviewGuide.godFiles",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -296,6 +326,16 @@
           "command": "reviewGuide.codemap.showChanges",
           "when": "view == reviewGuide.codemap && viewItem =~ /^codemapEntry/",
           "group": "0_own@3"
+        },
+        {
+          "command": "reviewGuide.godFiles.judge",
+          "when": "view == reviewGuide.godFiles && viewItem == godFile",
+          "group": "0_judge@1"
+        },
+        {
+          "command": "reviewGuide.godFiles.showDetails",
+          "when": "view == reviewGuide.godFiles && viewItem == godFile",
+          "group": "0_judge@2"
         }
       ],
       "commandPalette": [
@@ -390,6 +430,18 @@
         {
           "command": "reviewGuide.codemap.showUnowned",
           "when": "false"
+        },
+        {
+          "command": "reviewGuide.godFiles.open",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.godFiles.judge",
+          "when": "false"
+        },
+        {
+          "command": "reviewGuide.godFiles.showDetails",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -434,6 +486,32 @@
           "type": "string",
           "default": ".codemap/codemap.yaml",
           "markdownDescription": "Your codemap, relative to each workspace folder: a YAML list of paths, each with a one-sentence `says`, a `label` (`money`, `security`, `core`, `feature`, `util`), an optional `deep: true` and optional notes (`why`, `watch`, `start`, `mine`). Keep it personal (gitignored)."
+        },
+        "reviewGuide.godFiles.days": {
+          "type": "integer",
+          "default": 90,
+          "minimum": 1,
+          "description": "God Files: how many days of git history before HEAD count as reasons to change."
+        },
+        "reviewGuide.godFiles.minLines": {
+          "type": "integer",
+          "default": 150,
+          "minimum": 1,
+          "description": "God Files: a source file is ranked from this many code lines on. Code lines are shown, but never part of the score."
+        },
+        "reviewGuide.godFiles.maxItems": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "description": "God Files: how many files the view shows."
+        },
+        "reviewGuide.godFiles.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "God Files: globs of repo paths to leave out, for example `docs_src/**` or `*_pb2.py`. Tests, generated and vendored code are always left out."
         }
       }
     },
@@ -452,6 +530,10 @@
         "view": "reviewGuide.codemap",
         "when": "reviewGuide.hasCodemap && reviewGuide.codemapFilter == all",
         "contents": "The codemap has no entry to show. An entry with a problem is left out; the Problems view lists each one on its line.\n[Open Codemap File](command:reviewGuide.codemap.openFile)"
+      },
+      {
+        "view": "reviewGuide.godFiles",
+        "contents": "God Files ranks the files of each workspace folder that is a git repo by how many of their names other files use and how often they change, never by length.\nOpen a folder that is a git repo with at least one commit.\n[Read how it works](https://github.com/gapsong/review-guide#god-files)"
       }
     ]
   },

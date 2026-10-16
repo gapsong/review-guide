@@ -1,6 +1,5 @@
-import * as path from "path";
 import * as vscode from "vscode";
-import { runGit } from "../git/git";
+import { gitFoldersOf } from "../git/gitFolders";
 import { ChangeMarkers, ConfirmationStore, PathStatus } from "./changeMarkers";
 import { repoPathOf } from "./repoPath";
 import { WorkspaceCodemaps } from "./workspaceCodemaps";
@@ -136,16 +135,6 @@ export class WorkspaceChangeMarkers implements vscode.Disposable {
     }
     disposeAll(this.gitWatchers);
     this.gitWatchers = watchers;
-  }
-}
-
-async function gitFoldersOf(folder: string): Promise<{ gitFolder: string; commonFolder: string } | undefined> {
-  try {
-    const output = await runGit(["rev-parse", "--absolute-git-dir", "--git-common-dir"], { cwd: folder });
-    const [gitFolder, commonFolder] = output.trim().split("\n");
-    return { gitFolder, commonFolder: path.resolve(folder, commonFolder) };
-  } catch {
-    return undefined;
   }
 }
 

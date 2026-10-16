@@ -27,10 +27,12 @@ import { showEntryChanges } from "./ui/entryChanges";
 import { readFileSymbols } from "./ui/documentSymbols";
 import { ExplainPanels } from "./ui/explainPanel";
 import { GuideMessage } from "./ui/guideHtml";
+import { GodFilesView, godFileCommands, openAtLongestFunction } from "./ui/godFilesView";
 import { GuideView } from "./ui/guideView";
 import { OwnershipTree } from "./ui/ownershipTree";
 import { PullRequestTree } from "./ui/pullRequestTree";
 import { revealLines, showUnitDiff } from "./ui/unitDiff";
+import { WorkspaceGodFiles } from "./ui/workspaceGodFiles";
 
 export interface ReviewGuideApi {
   reviewGuide: ReviewGuide;
@@ -44,6 +46,8 @@ export interface ReviewGuideApi {
   codemapView: CodemapView;
   codemapCodeLenses: CodemapCodeLenses;
   explainPanels: ExplainPanels;
+  godFiles: WorkspaceGodFiles;
+  godFilesView: GodFilesView;
 }
 
 export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
@@ -81,6 +85,10 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     showError,
   );
 
+  // Reports are cached per repo and HEAD in the extension's storage, never in the repo.
+  const godFiles = new WorkspaceGodFiles(path.join(storagePath, "god-files"));
+  const godFilesView = new GodFilesView(godFiles, codemaps);
+
   const openPullRequest = async (pullRequest: PullRequest) => {
     await vscode.window.withProgress(
       { location: { viewId: "reviewGuide.pullRequests" }, title: `Opening PR #${pullRequest.number}` },
@@ -103,6 +111,8 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
     codemapView,
     codemapCodeLenses,
     explainPanels,
+    godFiles,
+    godFilesView,
     vscode.window.registerFileDecorationProvider(codemapDecorations),
     vscode.languages.registerCodeLensProvider({ scheme: "file" }, codemapCodeLenses),
     vscode.window.registerTreeDataProvider("reviewGuide.pullRequests", pullRequestTree),
@@ -174,8 +184,10 @@ export function activate(context: vscode.ExtensionContext): ReviewGuideApi {
         await vscode.commands.executeCommand("vscode.open", codemaps.codemapFileOf(folder));
       }
     })),
+    vscode.commands.registerCommand(godFileCommands.refresh, reportErrors(() => godFiles.refresh())),
+    vscode.commands.registerCommand(godFileCommands.open, reportErrors(openAtLongestFunction)),
   );
-  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels };
+  return { reviewGuide, pullRequestTree, guideView, ownershipTree, codemaps, changeMarkers, entryOwnership, codemapDecorations, codemapView, codemapCodeLenses, explainPanels, godFiles, godFilesView };
 }
 
 export function deactivate(): void {

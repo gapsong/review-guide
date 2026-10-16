@@ -17,7 +17,7 @@ export async function readFileSymbols(checkout: Checkout, file: FileDiff): Promi
   };
 }
 
-async function readSymbols(filePath: string): Promise<CodeSymbol[] | undefined> {
+export async function readSymbols(filePath: string): Promise<CodeSymbol[] | undefined> {
   const uri = vscode.Uri.file(filePath);
   const document = await vscode.workspace.openTextDocument(uri);
   const languageHasSymbols = await waitForSymbolProvider(uri, document.languageId);
