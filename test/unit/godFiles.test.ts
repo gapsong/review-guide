@@ -190,15 +190,12 @@ describe("G3: breadth through imports", () => {
       ts("apps/web/e.ts", "import { visible } from '~/lib/money';\nimport React from 'react';\nimport { x } from 'money';\n"),
       ts("apps/web/f.ts", "import { add, vat } from '../../src/lib';\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("src/lib/money.ts"), {
-      namesUsedOutside: ["Price", "Purse", "Coin", "add", "cents", "default", "visible"].sort(),
-      filesUsingIt: ["apps/web/a.ts", "apps/web/b.tsx", "apps/web/e.ts", "apps/web/f.ts", "src/lib/index.ts"],
-    });
-    assert.deepStrictEqual(breadth.get("src/lib/tax.ts"), { namesUsedOutside: ["rate", "vat"], filesUsingIt: ["apps/web/d.mjs", "apps/web/f.ts", "src/lib/index.ts"] }, "export * uses every name, and a name taken from the barrel is a use of its module");
-    assert.deepStrictEqual(breadth.get("src/lib/index.ts"), { namesUsedOutside: ["add"], filesUsingIt: ["apps/web/f.ts"] });
-    assert.deepStrictEqual(breadth.get("src/lib/old.js")?.namesUsedOutside, ["legacy", "older"]);
-    assert.deepStrictEqual(breadth.get("src/lib/cjs.js")?.namesUsedOutside, ["alpha"]);
-    assert.deepStrictEqual(breadth.get("apps/web/a.ts"), { namesUsedOutside: [], filesUsingIt: [] });
+    assert.deepStrictEqual(breadth.get("src/lib/money.ts"), ["Price", "Purse", "Coin", "add", "cents", "default", "visible"].sort());
+    assert.deepStrictEqual(breadth.get("src/lib/tax.ts"), ["rate", "vat"], "export * uses every name, and a name taken from the barrel is a use of its module");
+    assert.deepStrictEqual(breadth.get("src/lib/index.ts"), ["add"]);
+    assert.deepStrictEqual(breadth.get("src/lib/old.js"), ["legacy", "older"]);
+    assert.deepStrictEqual(breadth.get("src/lib/cjs.js"), ["alpha"]);
+    assert.deepStrictEqual(breadth.get("apps/web/a.ts"), []);
   });
 
   it("G3: a class with 12 public methods that other files call is broad, not deep: members count as names, members nobody calls and private ones do not", async () => {
@@ -213,10 +210,7 @@ describe("G3: breadth through imports", () => {
       ts("src/other.ts", "const x = { method1() {}, unused() {} };\nx.method1(); x.unused();\n"),
     ];
     const breadth = measureBreadth(sources);
-    assert.deepStrictEqual(breadth.get("src/github/model.ts"), {
-      namesUsedOutside: ["Model", ...Array.from({ length: 12 }, (_, index) => `Model.method${index + 1}`), "Model.create", "Model.id", "Model.title"].sort(),
-      filesUsingIt: ["src/commands.ts", "src/github/index.ts", "src/view/tree.ts", "src/webview.ts"],
-    }, "a member counts when a file that imports the class accesses it (a public constructor parameter too); private, protected, #, _ and the constructor never; unused ones not; a file that does not import the class not");
+    assert.deepStrictEqual(breadth.get("src/github/model.ts"), ["Model", ...Array.from({ length: 12 }, (_, index) => `Model.method${index + 1}`), "Model.create", "Model.id", "Model.title"].sort(), "a member counts when a file that imports the class accesses it (a public constructor parameter too); private, protected, #, _ and the constructor never; unused ones not; a file that does not import the class not");
     const scratch = makeTempDir("godfiles-g3-members");
     try {
       const repo = path.join(scratch, "repo");
@@ -236,10 +230,7 @@ describe("G3: breadth through imports", () => {
       py("app/jobs.py", "import app.models as models\nmodels.Line().price()\n"),
       py("app/unrelated.py", "x.cancel()\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("app/models.py"), {
-      namesUsedOutside: ["Line", "Line.price", "Order", "Order.STATES", "Order.ship", "Order.total"],
-      filesUsingIt: ["app/jobs.py", "app/views.py"],
-    });
+    assert.deepStrictEqual(breadth.get("app/models.py"), ["Line", "Line.price", "Order", "Order.STATES", "Order.ship", "Order.total"]);
   });
 
   it("G3: class members are found behind type arguments with braces, decorators, generics, getters and typed fields; private, protected and # never", () => {
@@ -250,7 +241,7 @@ describe("G3: breadth through imports", () => {
       ts("src/user.ts", `import Svc, { Later } from './svc';\n${everyName.map((name) => `x.${name};`).join(" ")}\n`),
     ]);
     const publicMembers = ["VERSION", "b", "d", "def", "gen", "handler", "items", "opt", "run", "size", "tpl"].map((member) => `default.${member}`);
-    assert.deepStrictEqual(breadth.get("src/svc.ts")?.namesUsedOutside, ["Later", "Later.later", "default", ...publicMembers].sort());
+    assert.deepStrictEqual(breadth.get("src/svc.ts"), ["Later", "Later.later", "default", ...publicMembers].sort());
   });
 
   it("G3: an import that two files of the same suffix could mean is not counted for either, unless one shares more folders", () => {
@@ -260,8 +251,8 @@ describe("G3: breadth through imports", () => {
       ts("packages/a/src/main.ts", "import { log } from 'src/util/log';\n"),
       ts("apps/x.ts", "import { log } from 'src/util/log';\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("packages/a/src/util/log.ts")?.filesUsingIt, ["packages/a/src/main.ts"]);
-    assert.deepStrictEqual(breadth.get("packages/b/src/util/log.ts")?.filesUsingIt, []);
+    assert.deepStrictEqual(breadth.get("packages/a/src/util/log.ts"), ["log"], "packages/a/src/main.ts shares more folders with it");
+    assert.deepStrictEqual(breadth.get("packages/b/src/util/log.ts"), [], "apps/x.ts could mean either, so it counts for neither");
   });
 
   it("G3: Python: from-imports, import as with attributes, relative imports, __all__, private names and package re-exports", () => {
@@ -274,12 +265,9 @@ describe("G3: breadth through imports", () => {
       py("src/api/home.py", "from shop import Receipt\nimport shop.payment\nshop.payment.LIMIT\n"),
       py("src/api/everything.py", "from src.shop.models import *\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("src/shop/payment.py"), {
-      namesUsedOutside: ["LIMIT", "Receipt", "charge", "refund"],
-      filesUsingIt: ["src/api/admin.py", "src/api/home.py", "src/api/views.py", "src/shop/__init__.py"],
-    });
-    assert.deepStrictEqual(breadth.get("src/shop/models.py"), { namesUsedOutside: ["Line", "Order"], filesUsingIt: ["src/api/admin.py", "src/api/everything.py", "src/api/views.py"] }, "__all__ decides; Hidden is not public");
-    assert.deepStrictEqual(breadth.get("src/shop/__init__.py"), { namesUsedOutside: ["Receipt"], filesUsingIt: ["src/api/home.py"] }, "a package offers what its __init__ imports");
+    assert.deepStrictEqual(breadth.get("src/shop/payment.py"), ["LIMIT", "Receipt", "charge", "refund"]);
+    assert.deepStrictEqual(breadth.get("src/shop/models.py"), ["Line", "Order"], "__all__ decides; Hidden is not public");
+    assert.deepStrictEqual(breadth.get("src/shop/__init__.py"), ["Receipt"], "a package offers what its __init__ imports");
   });
 
   it("G3: Python: a name a package's __init__.py passes on is also a use of the module that defines it", () => {
@@ -290,8 +278,8 @@ describe("G3: breadth through imports", () => {
       py("docs/a.py", "from fastlib import App, Query\n"),
       py("docs/b.py", "import fastlib\nfastlib.App()\n"),
     ]);
-    assert.deepStrictEqual(breadth.get("fastlib/applications.py"), { namesUsedOutside: ["App"], filesUsingIt: ["docs/a.py", "docs/b.py", "fastlib/__init__.py"] });
-    assert.deepStrictEqual(breadth.get("fastlib/params.py"), { namesUsedOutside: ["Query"], filesUsingIt: ["docs/a.py", "fastlib/__init__.py"] });
+    assert.deepStrictEqual(breadth.get("fastlib/applications.py"), ["App"]);
+    assert.deepStrictEqual(breadth.get("fastlib/params.py"), ["Query"]);
   });
 
   it("G3: other languages show no breadth ('–', never 0) and still rank on history", async () => {
@@ -304,7 +292,6 @@ describe("G3: breadth through imports", () => {
       const report = await measureGodFiles(repo, defaultGodFileOptions);
       const go = itemOf(report, "cmd/server/main.go");
       assert.strictEqual(go.namesUsedOutside, undefined);
-      assert.strictEqual(go.filesUsingIt, undefined);
       assert.strictEqual(go.hint, undefined);
       assert.strictEqual(go.commits, 2);
       assert.strictEqual(report.items[0].path, "cmd/server/main.go", "it ranks on its history");

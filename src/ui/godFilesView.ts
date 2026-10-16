@@ -10,7 +10,7 @@ import { contradictsCodemap, godFileTooltip, numbersLine } from "./godFileText";
 // The God Files view in the Review Guide side bar: per workspace folder that is a git repo, the
 // files where owning the repo hurts most, ranked by breadth and history (src/godfiles).
 //
-//   ⚠ src/shop/checkout.py   god file? · 23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines
+//   ⚠ src/shop/checkout.py   god file? · 23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines
 //
 // The view measures the first time it is shown, again when HEAD moves (a commit, a checkout, a
 // pull) or a setting changes, and on Refresh. Measuring takes well under a second, so nothing is

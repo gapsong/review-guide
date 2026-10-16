@@ -73,10 +73,10 @@ describe("God Files in a real VS Code", () => {
     assert.deepStrictEqual(nodes.map((node) => node.path), ["src/shop/broad.ts", "src/ledger/ledger.ts"]);
     const broad = api.godFilesView.getTreeItem(nodes[0]);
     assert.strictEqual(plain(String(broad.label)), "⚠ 💰🧠 src/shop/broad.ts", "the mark, the codemap badge and the path");
-    assert.strictEqual(broad.description, "⚠️ codemap says deep · god file? · 12 names used by 3 files · 4 commits/90 d · changes with 3 areas · 196 lines");
+    assert.strictEqual(broad.description, "⚠️ codemap says deep · god file? · 12 names used outside · 4 commits/90 d · changes with 3 areas · 196 lines");
     const ledger = api.godFilesView.getTreeItem(nodes[1]);
     assert.strictEqual(ledger.label, "✓ src/ledger/ledger.ts");
-    assert.strictEqual(ledger.description, "deep · 2 names used by 2 files · 1 commit/90 d · changes with 0 areas · 605 lines");
+    assert.strictEqual(ledger.description, "deep · 2 names used outside · 1 commit/90 d · changes with 0 areas · 605 lines");
     assert.ok(api.godFilesView.message?.includes("ranked by breadth and history, never by length"));
     assert.strictEqual(fingerprint(workspace), before, "no byte in the repo (its .git and .codemap included) changed");
     assert.strictEqual(git(workspace, "status", "--porcelain"), "", "no new file in the repo");
@@ -86,7 +86,7 @@ describe("God Files in a real VS Code", () => {
     const node = fileNodes()[0];
     const item = api.godFilesView.resolveTreeItem(api.godFilesView.getTreeItem(node), node);
     const tooltip = (item.tooltip as vscode.MarkdownString).value.replace(/\\(.)/g, "$1");
-    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used by 3 files:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.judge"]) {
+    for (const part of ["Your codemap calls this file a deep module, but 12 of its names are used by other files", "Codemap: 💰", "12 names used outside:", "4 commits in 90 days", "A big file is fine only as a well-designed deep module", "command:reviewGuide.godFiles.judge"]) {
       assert.ok(tooltip.includes(part), `${part}\n---\n${tooltip}`);
     }
   });

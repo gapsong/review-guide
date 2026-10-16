@@ -15,7 +15,7 @@ export const ownersRule = "A big file is fine only as a well-designed deep modul
 // Breadth that is not measured shows as "–": a 0 would claim nobody uses the file.
 export const unknownNumber = "–";
 
-// "23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines"
+// "23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines"
 export function numbersLine(item: GodFileItem): string {
   return [
     breadthText(item),
@@ -26,11 +26,11 @@ export function numbersLine(item: GodFileItem): string {
 }
 
 export function breadthText(item: GodFileItem): string {
-  if (item.namesUsedOutside === undefined || item.filesUsingIt === undefined) {
+  if (item.namesUsedOutside === undefined) {
     return `${unknownNumber} names used outside`;
   }
   const names = item.namesUsedOutside.length;
-  return `${formatted(names)} ${plural(names, "name", "names")} used by ${formatted(item.filesUsingIt.length)} ${plural(item.filesUsingIt.length, "file", "files")}`;
+  return `${formatted(names)} ${plural(names, "name", "names")} used outside`;
 }
 
 // The codemap calls the file deep, but other files use more of it than a deep module shows.

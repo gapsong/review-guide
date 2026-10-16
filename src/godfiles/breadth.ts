@@ -4,8 +4,7 @@ import { Language } from "./sourceFiles";
 import * as typescript from "./typescriptModules";
 import { Reexport } from "./typescriptModules";
 
-// Breadth: how many of a file's top-level names other source files use, and how many files use
-// them. Users are found through their imports, resolved to files of the repo:
+// Breadth: how many of a file's names other source files use. Users are found through their imports, resolved to files of the repo:
 //
 //   checkout.ts ──import { charge } from "@/shop/payment"──►  src/shop/payment.ts   (by path suffix)
 //   views.py    ──from ..shop.payment import charge──────►   shop/payment.py       (relative)
@@ -23,26 +22,16 @@ export interface SourceText {
   text: string;
 }
 
-export interface Breadth {
-  // Names of the file that at least one other source file uses, sorted: top-level names, and public
-  // class members as "Class.member" (isClassMember).
-  namesUsedOutside: string[];
-  // The other source files that use at least one of them, sorted.
-  filesUsingIt: string[];
-}
-
-// Breadth of every TypeScript/JavaScript and Python file; other languages are not in the map.
-export function measureBreadth(sources: SourceText[]): Map<string, Breadth> {
+// Breadth of every TypeScript/JavaScript and Python file: the names of the file that at least one
+// other source file uses, sorted, top-level names and public class members as "Class.member"
+// (isClassMember). Other languages are not in the map.
+export function measureBreadth(sources: SourceText[]): Map<string, string[]> {
   const typescript = sources.filter((source) => source.language === "typescript");
   const python = sources.filter((source) => source.language === "python");
   const uses = new UseCounter();
   countTypescriptUses(typescript, uses);
   countPythonUses(python, uses);
-  const breadth = new Map<string, Breadth>();
-  for (const source of [...typescript, ...python]) {
-    breadth.set(source.path, uses.breadthOf(source.path));
-  }
-  return breadth;
+  return new Map([...typescript, ...python].map((source) => [source.path, uses.namesUsedOutside(source.path)]));
 }
 
 // "Model.create" is a class member; "create" is a top-level name.
@@ -54,7 +43,6 @@ class UseCounter {
   private readonly exported = new Map<string, Set<string>>();
   private readonly classMembers = new Map<string, Map<string, string[]>>();
   private readonly usedNames = new Map<string, Set<string>>();
-  private readonly users = new Map<string, Set<string>>();
   private readonly namedReexports = new Map<string, Map<string, { target: string; importedName: string }>>();
   private readonly starReexports = new Map<string, string[]>();
 
@@ -90,8 +78,9 @@ class UseCounter {
     const real = names.filter((name) => exported.has(name));
     if (real.length > 0) {
       const members = real.flatMap((name) => (this.classMembers.get(target)?.get(name) ?? []).filter((member) => membersAccessed.has(member)).map((member) => `${name}.${member}`));
-      addAll(this.usedNames, target, [...real, ...members]);
-      addAll(this.users, target, [user]);
+      const used = this.usedNames.get(target) ?? new Set<string>();
+      [...real, ...members].forEach((name) => used.add(name));
+      this.usedNames.set(target, used);
     }
     for (const name of names) {
       const reexport = this.namedReexports.get(target)?.get(name);
@@ -106,20 +95,9 @@ class UseCounter {
     }
   }
 
-  breadthOf(file: string): Breadth {
-    return {
-      namesUsedOutside: [...(this.usedNames.get(file) ?? [])].sort(),
-      filesUsingIt: [...(this.users.get(file) ?? [])].sort(),
-    };
+  namesUsedOutside(file: string): string[] {
+    return [...(this.usedNames.get(file) ?? [])].sort();
   }
-}
-
-function addAll(map: Map<string, Set<string>>, key: string, values: string[]): void {
-  const set = map.get(key) ?? new Set<string>();
-  for (const value of values) {
-    set.add(value);
-  }
-  map.set(key, set);
 }
 
 // TypeScript and JavaScript ------------------------------------------------------------------------

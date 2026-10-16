@@ -19,7 +19,7 @@ export function godFileJudgePrompt(item: GodFileItem, context: GodFileJudgeConte
 The owner of this repo wants to know where owning it hurts most. Their rule: "A big file is fine only as a well-designed deep module." A long file with a small interface (1 to ${godFileRules.broadAboveNamesUsedOutside} names used by other files) and one reason to change is a deep module, and that is good. A file is a problem when it does several unrelated jobs behind a broad interface, so it changes for many reasons.
 
 Your working directory is a copy of the repo at commit ${context.commit}. Judge the file below by reading it and what it calls (you have read-only tools; there is no shell and no git). The extension measured it for you:
-- ${context.contextFolder}/numbers.txt: the names other files use, the files that use them, its commits and the areas it changed with.
+- ${context.contextFolder}/numbers.txt: the names other files use, its commits and the areas it changed with.
 - ${context.contextFolder}/history.txt: the subjects of its commits of the last ${godFileRules.days} days, newest first.
 
 Answer with:
@@ -37,9 +37,9 @@ code lines: ${item.codeLines}`;
 
 // numbers.txt: the measurement, in plain words.
 export function numbersText(item: GodFileItem): string {
-  const breadth = item.namesUsedOutside === undefined || item.filesUsingIt === undefined
+  const breadth = item.namesUsedOutside === undefined
     ? "names used by other files: not measured for this language"
-    : `names used by other files (${item.namesUsedOutside.length}): ${item.namesUsedOutside.join(", ") || "none"}\nfiles that use them (${item.filesUsingIt.length}): ${item.filesUsingIt.join(", ") || "none"}`;
+    : `names used by other files (${item.namesUsedOutside.length}): ${item.namesUsedOutside.join(", ") || "none"}`;
   return `# Measured by Review Guide at HEAD (no Claude involved)
 path: ${item.path}
 code lines: ${item.codeLines}

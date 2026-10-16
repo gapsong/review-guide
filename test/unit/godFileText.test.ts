@@ -9,19 +9,18 @@ const broad: GodFileItem = {
   path: "src/shop/checkout.py",
   codeLines: 1176,
   namesUsedOutside: Array.from({ length: 23 }, (_, index) => `name${index}`),
-  filesUsingIt: Array.from({ length: 41 }, (_, index) => `src/user${index}.py`),
   commits: 66,
   coChangeAreas: Array.from({ length: 9 }, (_, index) => `area${index}`),
   score: 0.9,
   hint: "god file?",
 };
 
-const unknownBreadth: GodFileItem = { ...broad, path: "cmd/main.go", namesUsedOutside: undefined, filesUsingIt: undefined, hint: undefined };
+const unknownBreadth: GodFileItem = { ...broad, path: "cmd/main.go", namesUsedOutside: undefined, hint: undefined };
 
 describe("G5: what the God Files view says about a file", () => {
   it("G5: shows the numbers line", () => {
-    assert.strictEqual(numbersLine(broad), "23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines");
-    assert.strictEqual(numbersLine({ ...broad, namesUsedOutside: ["a"], filesUsingIt: ["b"], coChangeAreas: ["c"], commits: 1 }), "1 name used by 1 file · 1 commit/90 d · changes with 1 area · 1,176 lines");
+    assert.strictEqual(numbersLine(broad), "23 names used outside · 66 commits/90 d · changes with 9 areas · 1,176 lines");
+    assert.strictEqual(numbersLine({ ...broad, namesUsedOutside: ["a"], coChangeAreas: ["c"], commits: 1 }), "1 name used outside · 1 commit/90 d · changes with 1 area · 1,176 lines");
   });
 
   it("G3, G5: shows unknown breadth as \"–\", never as 0", () => {
@@ -34,7 +33,7 @@ describe("G5: what the God Files view says about a file", () => {
   it("G5: the tooltip says what each number means and the owner's rule", () => {
     const tooltip = godFileTooltip({ item: broad, entry: undefined, actions: [{ title: "Open", link: "command:x" }] });
     const shown = unescaped(tooltip);
-    for (const part of ["**23 names used by 41 files:**", "**66 commits in 90 days:**", "**Changes with 9 areas**", "never part of the score", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
+    for (const part of ["**23 names used outside:**", "**66 commits in 90 days:**", "**Changes with 9 areas**", "never part of the score", "A big file is fine only as a well-designed deep module", "[Open](command:x)"]) {
       assert.ok(shown.includes(part), `${part}\n---\n${tooltip}`);
     }
   });

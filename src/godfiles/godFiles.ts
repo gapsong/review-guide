@@ -1,5 +1,5 @@
 import { execFile, spawn } from "child_process";
-import { Breadth, measureBreadth, SourceText } from "./breadth";
+import { measureBreadth, SourceText } from "./breadth";
 import { countCodeLines, globToRegExp, isMeasuredSource, languageOf } from "./sourceFiles";
 
 // Where owning a repo hurts most: its files ranked by breadth (names other files use) and by
@@ -47,7 +47,6 @@ export interface GodFileItem {
   // undefined: breadth is not measured for this language (shown as "–", never as 0). Top-level names
   // and public class members as "Class.member" (breadth.ts, isClassMember).
   namesUsedOutside: string[] | undefined;
-  filesUsingIt: string[] | undefined;
   commits: number;
   // The areas (areaOf) of the other measured source files changed in the same commits, sorted.
   coChangeAreas: string[];
@@ -125,16 +124,15 @@ export function areaOf(repoPath: string): string {
 
 type Candidate = Omit<GodFileItem, "score">;
 
-function candidateOf(path: string, codeLines: number, breadth: Breadth | undefined, history: FileHistory | undefined): Candidate {
+function candidateOf(path: string, codeLines: number, namesUsedOutside: string[] | undefined, history: FileHistory | undefined): Candidate {
   const { commits, coChangeAreas } = history ?? { commits: 0, coChangeAreas: [] };
   return {
     path,
     codeLines,
-    namesUsedOutside: breadth?.namesUsedOutside,
-    filesUsingIt: breadth?.filesUsingIt,
+    namesUsedOutside,
     commits,
     coChangeAreas,
-    hint: hintOf(breadth?.namesUsedOutside.length, codeLines, coChangeAreas.length),
+    hint: hintOf(namesUsedOutside?.length, codeLines, coChangeAreas.length),
   };
 }
 
