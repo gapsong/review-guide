@@ -89,3 +89,18 @@ Checklist for the night run. One line per build step and per "Done when" criteri
 - [x] S1 extended and run with real haiku; control by hand: in the repo itself as working directory, haiku does return the .env
 - [x] Mutation check: giving the check the chat turns the D1 test red; switching off the commit rule turns the three C12 tests red
 - [ ] Not fixed, found on Linux (also at 0298a33): VS Code's inotify watcher misses a file created together with its folder, so a codemap written into a new `.codemap/` folder, or an explanation page in a new folder, is only seen after the next change; C1, C2, C4 and "Explain again" fail on such a Linux host and pass on macOS
+
+## God Files (2026-10-16)
+
+- [x] G1 measurement from HEAD and history only: deterministic, read-only, no network; tests, generated and vendored code left out; exclude setting
+- [x] G2 ranking by breadth and history, never by length; hints `god file?` and `deep`
+- [x] G3 breadth through imports for TypeScript/JavaScript and Python (namespace imports, aliases by suffix, re-exports followed); "–" for other languages
+- [x] G4 one git log pass: commits in 30/90 days, co-change partners and areas, sweeps of more than 25 files left out, renames
+- [x] G5 God Files view: numbers line, tooltip, click to the longest function, Refresh, measures again when HEAD moves, cache per HEAD in the extension's storage
+- [x] G6 codemap badge in the row, warning for `deep: true` on a broad file
+- [x] G7 Judge with Claude: on demand, read-only in the HEAD copy, schema-checked, escaped panel with checked links, cached per file and HEAD
+- [x] S1 extended with the judge run (real claude, haiku)
+- [x] Mutation checks (a) length as the score, (b) `--restricted` dropped, (c) sweeps as co-change: each turns its test red
+- [x] Speed measured: 0.66 s on 2,000 files and 3,000 commits (REPORT.md)
+- [ ] Not built (v1 scope): writing into the codemap, Explorer badges, breadth for other languages, split PRs
+- [ ] Not fixed: Python docstrings count as code lines; block comments opened after code on the same line are not followed (both only shown, never scored)

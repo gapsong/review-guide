@@ -20,6 +20,7 @@
   <a href="#quickstart">Quickstart</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#codemap">Codemap</a> ·
+  <a href="#god-files">God files</a> ·
   <a href="#safety">Safety</a> ·
   <a href="SPEC.md">Spec</a>
 </p>
@@ -103,7 +104,11 @@ If VS Code cannot find `claude` (common when VS Code is started from the Dock), 
 | `reviewGuide.model` | `claude-opus-5-5` | Model for both passes and the ownership check. |
 | `reviewGuide.githubApiUrl` | `https://api.github.com` | GitHub REST API address. |
 | `reviewGuide.codemapFile` | `.codemap/codemap.yaml` | Your codemap, relative to each workspace folder. |
-| `reviewGuide.explanationLanguage` | `English` | The language generated codemap explanations are written in. |
+| `reviewGuide.explanationLanguage` | `English` | The language generated codemap explanations (and the God Files judgments) are written in. |
+| `reviewGuide.godFiles.days` | `90` | God Files: how many days of history before HEAD count as reasons to change. |
+| `reviewGuide.godFiles.minLines` | `150` | God Files: files are ranked from this many code lines on. |
+| `reviewGuide.godFiles.maxItems` | `20` | God Files: how many files the view shows. |
+| `reviewGuide.godFiles.exclude` | `[]` | God Files: globs of paths to leave out, e.g. `docs_src/**`. Tests, generated and vendored code are always left out. |
 
 ## Repo profile: `.review-guide.md`
 
@@ -151,6 +156,32 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
 - **Explain** (right-click a file or folder, or "Review Guide: Explain" for the open file): a panel with the entry and the visual explanation from `.codemap/explanations/<path>/index.html`.
 - **Generate explanation**: starts Claude Code in a terminal, where you see every step and answer its permission prompts. It writes the page (with screenshots, steppers and GIFs, using the `explain-visually` skill when you have it) into that folder, shaped by the label: for money, where cost is decided and who loses money; for security, where a secret lives and which attack the code stops. The panel shows the page as soon as it is written.
 
+## God files
+
+Where does owning this repo hurt most? The rule: **a big file is fine only as a well-designed deep module.**
+So the God Files view (Review Guide side bar) ranks files by how much of them other files use and how often they had to change, never by length:
+
+```
+GOD FILES                                                              [refresh]
+├─ ⚠ src/shop/checkout.py   god file? · 23 names used by 41 files · 66 commits/90 d · changes with 9 areas · 1,176 lines
+├─ ✓ src/billing/ledger.py  deep · 3 names used by 30 files · 4 commits/90 d · changes with 1 area · 780 lines
+└─ …                       click: open at the longest function · right-click: Judge with Claude
+```
+
+<img alt="The God Files view on a clone of microsoft/vscode-pull-request-github" src="docs/assets/god-files-view.png" width="900">
+
+How to read the numbers:
+- **names used by files**: the file's top-level names that other source files import (TypeScript, JavaScript and Python; other languages show "–"). Many names means a broad interface: callers depend on its insides.
+- **commits/90 d**: commits in the last 90 days before HEAD. Each one is a reason it had to change.
+- **changes with N areas**: the areas (`apps/api`, `packages/ui`, `shop`) of the files that changed in the same commits. Many areas means many unrelated reasons. Sweeps (commits of more than 25 files) do not count.
+- **lines**: code lines, shown but never part of the score. A long file with few names used outside is a deep module, and that is good.
+- The hint is only a hint: `god file?` above 7 names used outside, `deep` at most 7 with at least 300 code lines. The tooltip explains each number and why the file ranks where it does, shows the codemap badge, and warns when your codemap calls a broad file `deep: true`.
+- Tests, generated and vendored code are left out. The numbers come from your last commit and its history only: uncommitted edits do not count, nothing is sent anywhere and nothing is written into the repo.
+
+**Judge with Claude** (right-click a file, or the button in its details): one read-only Claude Code run on a clean copy of your last commit. Claude reads the file and gets the commit subjects and the numbers as files. It answers with a verdict (god file, deep module, hub, ok) and why, the file's responsibilities with their lines, the commits grouped into themes, which names used outside are justified, a reading path of 3 to 5 functions, and "keep whole" or, for a god file, a split that changes no behaviour. It runs only when you ask, and the judgment is kept for that file and commit.
+
+<img alt="Judge with Claude on src/github/githubRepository.ts (haiku)" src="docs/assets/god-files-judge.png" width="900">
+
 ## Safety
 
 - The review runs (both passes and the ownership chat) are read-only: Claude's only tools are Read, Grep and Glob.
@@ -167,6 +198,7 @@ Keep it out of git (add `/.codemap/` to `.gitignore`).
   The GitHub token stays in VS Code's secret storage.
 - Everything Claude writes is escaped before it is shown; the panel renders Markdown without passing any HTML through.
 - Your read marks and explanations are stored locally and are only sent to your local Claude.
+- "Judge with Claude" in the God Files view is read-only too, starts only when you press it, and runs in the same copy of your last commit; it gets no shell and no git, only the commit subjects and the numbers as files (S1 tests it on a file whose comments tell Claude to attack). The measurement itself uses no Claude and no network.
 - "Check my words" and the codemap chat are read-only too, and run in a copy of your last commit in the extension's storage, not in your folder: an ignored `.env`, untracked files and the `.codemap` folder never reach Claude (S1 tests this with a real `.env`). Your `mine` and the chat are only sent to your local Claude.
 
 ## Development
